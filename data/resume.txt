@@ -1,0 +1,129 @@
+KUSHALL JAIN
+Backend Developer — GenAI Engineer — FastAPI • RAG Systems • Python Specialist
+Shakar Pur Baramad, Delhi, India
++91-9990079764 — kushall.jain@gmail.com
+linkedin.com/in/kushall-jain-263009261 — github.com/kushallj
+
+PROFESSIONAL SUMMARY
+Backend Developer and GenAI-focused Software Engineer with 2+ years of hands-on experience
+building production AI/LLM applications using Python (FastAPI, Flask, Django), OpenAI GPT-4,
+and RAG architectures. Expert in async programming, microservices architecture, and REST API development. Proven expertise in designing and deploying scalable GenAI systems with vector databases,
+embedding models, prompt engineering, and Model Context Protocol (MCP) patterns. Demonstrated
+success integrating LLMs into enterprise applications serving 25+ institutions, reducing manual processing by 85% while maintaining 99.5% accuracy. Strong proficiency in async Python programming,
+RESTful API design, microservices architecture, Docker containerization, and deploying AI agents in
+production environments. Bachelor of Technology (B.Tech) in Engineering with strong foundation in
+mathematics, algorithms, and analytical problem-solving.
+
+EXPERIENCE
+Backend Developer - GenAI/AI Engineer
+Progfin Pvt Ltd
+
+Dec 2023 – Present
+Remote, India
+
+• Architected and deployed GPT-4 powered credit assessment system with RAG architecture, reducing
+manual processing by 85%. Implemented prompt engineering strategies, context injection, and retrieval
+mechanisms achieving 99.5% accuracy across 50+ Cr monthly transactions serving 25+ financial institutions.
+• Built Retrieval-Augmented Generation pipeline integrating vector databases (FAISS), embedding models
+(OpenAI text-embedding-ada-002), and semantic search for context-aware AI responses. Implemented
+chunking strategies, metadata filtering, and hybrid search improving response relevance by 70%.
+• Designed high-performance async REST APIs using FastAPI handling 10,000+ requests/day with sub200ms latency. Implemented Pydantic models for data validation, async request handling, dependency
+injection, WebSocket support for streaming responses, and comprehensive API documentation with
+OpenAPI/Swagger.
+• Created systematic prompt engineering framework with templates, few-shot examples, chain-of-thought
+reasoning, and output structuring. Optimized prompts reducing token usage by 40% while improving
+response quality and consistency through prompt versioning and A/B testing infrastructure.
+• Implemented semantic search using embedding models, vector similarity search, and efficient indexing
+strategies. Built document ingestion pipelines with text chunking, embedding generation, metadata
+extraction, and incremental updates supporting 100K+ documents.
+• Built agentic workflows with tool calling, function execution, and multi-step reasoning. Implemented
+Model Context Protocol patterns for maintaining conversation context, session management, and stateful
+AI interactions with fallback strategies and error recovery.
+• Engineered AI microservices with FastAPI separating LLM orchestration, embedding generation, vector search, and business logic. Implemented service-to-service communication, event-driven patterns,
+message queues, and distributed tracing for scalable AI infrastructure.
+• Deployed AI models and LLM applications with Docker, CI/CD pipelines, monitoring, structured logging,
+and alerting. Implemented model versioning, A/B testing infrastructure, and gradual rollouts with
+feature flags achieving 99.5% uptime.
+• Leveraged Python async/await patterns, asyncio, concurrent futures, and multithreading for highperformance API services. Implemented connection pooling, request batching, and parallel processing
+achieving 75% performance improvement in LLM response times.
+
+• Constructed ETL pipelines using Python (Pandas, NumPy) for data preprocessing, cleaning, transformation, and feature engineering. Processed millions of financial records for ML model training and LLM
+context enrichment with automated quality checks.
+
+Subject Matter Expert (Mathematics) - Bytedance Pvt LtdApril 2020 – November 2021
+Ed-Tech Platform
+India
+• Produced 500+ educational videos and interactive content for grades 9-12 across CBSE, ICSE, and state
+boards, achieving 2M+ views and improving student retention by 40% through engaging instructional
+design and clear mathematical explanations.
+• Designed and implemented gamified learning frameworks incorporating behavioral psychology principles,
+mathematical problem-solving strategies, and adaptive learning paths. Boosted enrollments by 30% and
+enhanced learning outcomes by 25%.
+• Collaborated with cross-functional teams including product managers, engineers, and designers to integrate educational content into platform architecture. Contributed to technical discussions on content
+delivery optimization and user engagement features.
+• Analyzed user behavior data and performance metrics using data analysis techniques to refine content
+delivery strategies. Leveraged insights to optimize curriculum design and platform features, contributing
+to 25% increase in user engagement and learning effectiveness.
+
+TECHNICAL SKILLS
+GenAI & LLMOpenAI API, GPT-4, GPT-3.5-turbo, LangChain, RAG Architecture, RetrievalAugmented Generation, Prompt Engineering, Few-Shot Learning, Chain-of-Thought Reasoning, Finetuning, Model Context Protocol, LLM Integration
+Python & FastAPIPython, FastAPI, Flask, Django, Async Programming, Asyncio, Async/Await,
+Multithreading, Concurrent Programming, Pydantic, Type Hints, Dependency Injection, Python Backend Development
+Vector Databases & EmbeddingsFAISS, ChromaDB, Pinecone, Vector Databases, Embedding
+Models, OpenAI Embeddings, HuggingFace, Semantic Search, Similarity Metrics, Vector Search, Indexing Strategies
+RAG & Retrieval SystemsRetrieval-Augmented Generation, Document Chunking, Text Splitting,
+Metadata Extraction, Hybrid Search, Context Injection, Query Optimization, Relevance Ranking, Semantic Retrieval
+AI Agents & OrchestrationAI Agents, Agentic AI, Tool Calling, Function Execution, Multi-Agent
+Systems, Agentic Workflows, ReAct Patterns, Agent Memory, Task Decomposition, Agent Orchestration
+Backend & API DevelopmentREST API Development, RESTful API Design, API Development,
+GraphQL, WebSockets, Streaming Responses, Rate Limiting, Authentication, JWT, OAuth, API Documentation, OpenAPI, Swagger
+Microservices ArchitectureMicroservices, Microservices Architecture, Service-Oriented Architecture, Distributed Systems, Event-Driven Architecture, Message Queues, Service Mesh, API Gateway
+Data EngineeringPython Data Libraries, Pandas, NumPy, ETL Pipelines, Data Preprocessing, Feature Engineering, Data Validation, Batch Processing, Data Pipelines
+DatabasesPostgreSQL, MongoDB, Redis, Caching, Vector Stores, SQL, SQL Optimization, NoSQL,
+Database Design, Connection Pooling, Database Management
+DevOps & CloudDocker, Docker Containerization, CI/CD, Git, GitHub, Cloud Platforms, GCP,
+Google Cloud Platform, AWS, Amazon Web Services, Monitoring, Logging, Error Tracking, Model
+Versioning
+
+Additional TechnologiesNode.js, React.js, JavaScript, TypeScript, Message Queues, Event-Driven
+Design, Agile, Scrum, Software Development
+
+GENAI PROJECTS
+Production RAG System (GPT-4 + Vector DB)
+Built end-to-end RAG application with FastAPI backend integrating GPT-4, vector embeddings, and
+semantic search. Implemented document ingestion pipeline, chunking strategies, and context-aware
+retrieval serving 10,000+ queries/day with sub-2s response time.
+AI-Powered Credit Assessment Agent
+Engineered agentic system with GPT-4 performing multi-step analysis of financial documents. Implemented tool calling for data retrieval, risk calculation, and report generation automating 85% of manual
+credit assessments with 99.5% accuracy.
+Conversational AI with Context Memory
+Constructed stateful chatbot using FastAPI, OpenAI API, and conversation memory management.
+Implemented session persistence, context compression, and semantic memory enabling coherent multiturn conversations across thousands of concurrent users.
+Embeddings-Based Search Engine
+Created semantic search system with embedding generation (OpenAI), FAISS indexing, and similarity
+search. Built document ingestion pipeline supporting 100K+ documents with sub-second query response times.
+Prompt Engineering Framework
+Designed systematic prompt template library with versioning, A/B testing infrastructure, and analytics.
+Reduced token costs by 40% while improving output quality through iterative optimization and few-shot
+examples.
+
+KEY ACHIEVEMENTS
+• Deployed production GenAI system processing 50+ Cr monthly across 25+ institutions with 99.5%
+accuracy and sub-2s response latency achieving 85% automation of manual workflows
+• Architected scalable RAG pipeline handling 10,000+ daily queries with semantic search, context injection,
+and intelligent retrieval improving response relevance by 70%
+• Built high-performance FastAPI backends with async programming achieving 75% faster response times
+and handling 10,000+ concurrent requests with sub-200ms latency
+• Implemented systematic prompt engineering reducing token costs by 40% while maintaining quality
+through template optimization, few-shot learning, and chain-of-thought reasoning
+• Created production-ready vector search system supporting 100K+ documents with sub-second query
+times using efficient embeddings and FAISS indexing strategies
+
+EDUCATION
+Bachelor of Technology (B.Tech) in Civil Engineering
+August 2014 – June 2018
+G L Bajaj Institute of Technology & Management
+India
+Strong foundation in mathematics, algorithms, and analytical problem-solving
+
+
