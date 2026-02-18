@@ -5,15 +5,37 @@ import json
 import re
 
 class ClaudeService:
-    """Handle all AI operations using Anthropic Claude"""
+    """Handle all AI operations using Anthropic Claude with fallback"""
     
     def __init__(self):
         # Use async client to integrate with the app's async pipeline
-        self.client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        self.client = None
         self.model = settings.anthropic_model or "claude-3-5-sonnet-latest"
+        self.fallback_service = None
+        
+        # Try to initialize Anthropic client
+        try:
+            if settings.anthropic_api_key:
+                self.client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+            else:
+                print("⚠️  No Anthropic API key found, using fallback AI service")
+                self._init_fallback()
+        except Exception as e:
+            print(f"⚠️  Failed to initialize Anthropic client: {e}")
+            self._init_fallback()
+    
+    def _init_fallback(self):
+        """Initialize fallback AI service"""
+        from src.ai.fallback_service import FallbackAIService
+        self.fallback_service = FallbackAIService()
+        print("✅ Fallback AI service initialized")
 
     async def _call_claude(self, prompt: str, max_tokens: int) -> str:
-        """Call Anthropic with graceful fallback on model-not-found errors."""
+        """Call Anthropic with graceful fallback on errors."""
+        
+        if not self.client:
+            raise Exception("Anthropic client not available")
+            
         model_candidates = [
             self.model,
             "claude-3-5-sonnet-latest",
@@ -31,10 +53,14 @@ class ClaudeService:
                 self.model = m
                 return message.content[0].text
             except Exception as e:
-                # If the error indicates model not found, try next candidate
+                # If the error indicates authentication failure, switch to fallback
                 last_err = e
                 err_str = str(e)
-                if "not_found_error" in err_str or "model:" in err_str:
+                if "authentication_error" in err_str or "invalid x-api-key" in err_str:
+                    print("⚠️  Anthropic API key invalid, switching to fallback AI service")
+                    self._init_fallback()
+                    raise Exception("API key invalid - using fallback")
+                elif "not_found_error" in err_str or "model:" in err_str:
                     continue
                 # For other errors, break fast
                 break
@@ -55,7 +81,12 @@ class ClaudeService:
     async def extract_skills(self, job_description: str) -> Dict:
         """Extract required skills from job description"""
         
-        prompt = f"""Analyze this job description and extract information in JSON format.
+        # Try Anthropic first, fallback if it fails
+        if self.fallback_service:
+            return await self.fallback_service.extract_skills(job_description)
+        
+        try:
+            prompt = f"""Analyze this job description and extract information in JSON format.
 
 Job Description:
 {job_description[:3000]}
@@ -69,8 +100,7 @@ Provide your response as a JSON object with exactly this structure:
 }}
 
 Return ONLY the JSON object, no additional text."""
-        
-        try:
+            
             response_text = await self._call_claude(prompt, max_tokens=1024)
             result = self._extract_json_from_response(response_text)
             
@@ -81,18 +111,21 @@ Return ONLY the JSON object, no additional text."""
                 "key_responsibilities": result.get("key_responsibilities", [])
             }
         except Exception as e:
-            print(f"❌ Error extracting skills: {e}")
-            return {
-                "technical_skills": [],
-                "soft_skills": [],
-                "experience_level": "Unknown",
-                "key_responsibilities": []
-            }
+            print(f"❌ Error with Anthropic, using fallback: {e}")
+            # Initialize and use fallback
+            if not self.fallback_service:
+                self._init_fallback()
+            return await self.fallback_service.extract_skills(job_description)
     
     async def match_resume_to_job(self, resume: str, job_skills: Dict) -> Dict:
         """Calculate match score between resume and job"""
         
-        prompt = f"""Compare this resume with the job requirements and provide a match analysis.
+        # Try Anthropic first, fallback if it fails
+        if self.fallback_service:
+            return await self.fallback_service.match_resume_to_job(resume, job_skills)
+        
+        try:
+            prompt = f"""Compare this resume with the job requirements and provide a match analysis.
 
 Resume:
 {resume[:2000]}
@@ -112,8 +145,7 @@ Provide your response as a JSON object with exactly this structure:
 
 The match_score should be a number from 0 to 100.
 Return ONLY the JSON object, no additional text."""
-        
-        try:
+            
             response_text = await self._call_claude(prompt, max_tokens=1024)
             result = self._extract_json_from_response(response_text)
             
@@ -124,18 +156,21 @@ Return ONLY the JSON object, no additional text."""
                 "recommendations": result.get("recommendations", "")
             }
         except Exception as e:
-            print(f"❌ Error matching resume: {e}")
-            return {
-                "match_score": 0,
-                "matched_skills": [],
-                "missing_skills": [],
-                "recommendations": ""
-            }
+            print(f"❌ Error with Anthropic, using fallback: {e}")
+            # Initialize and use fallback
+            if not self.fallback_service:
+                self._init_fallback()
+            return await self.fallback_service.match_resume_to_job(resume, job_skills)
     
     async def rewrite_resume(self, original_resume: str, job_description: str) -> str:
         """Rewrite resume tailored to specific job"""
         
-        prompt = f"""You are an expert resume writer. Rewrite this resume to better match the job description below.
+        # Try Anthropic first, fallback if it fails
+        if self.fallback_service:
+            return await self.fallback_service.rewrite_resume(original_resume, job_description)
+        
+        try:
+            prompt = f"""You are an expert resume writer. Rewrite this resume to better match the job description below.
 
 IMPORTANT INSTRUCTIONS:
 - Keep all information truthful and factual
@@ -151,18 +186,25 @@ Job Description:
 {job_description[:2000]}
 
 Provide the rewritten resume in a professional format. Start directly with the resume content."""
-        
-        try:
+            
             text = await self._call_claude(prompt, max_tokens=2048)
             return text.strip()
         except Exception as e:
-            print(f"❌ Error rewriting resume: {e}")
-            return original_resume
+            print(f"❌ Error with Anthropic, using fallback: {e}")
+            # Initialize and use fallback
+            if not self.fallback_service:
+                self._init_fallback()
+            return await self.fallback_service.rewrite_resume(original_resume, job_description)
     
     async def generate_cover_letter(self, resume: str, job_description: str, company: str) -> str:
         """Generate personalized cover letter"""
         
-        prompt = f"""Write a compelling, professional cover letter for this job application.
+        # Try Anthropic first, fallback if it fails
+        if self.fallback_service:
+            return await self.fallback_service.generate_cover_letter(resume, job_description, company)
+        
+        try:
+            prompt = f"""Write a compelling, professional cover letter for this job application.
 
 INSTRUCTIONS:
 - Address why I'm interested in this specific role
@@ -181,10 +223,12 @@ Job Description:
 Company: {company}
 
 Write the cover letter now:"""
-        
-        try:
+            
             text = await self._call_claude(prompt, max_tokens=1536)
             return text.strip()
         except Exception as e:
-            print(f"❌ Error generating cover letter: {e}")
-            return f"Dear Hiring Manager,\n\nI am writing to express my interest in the position at {company}..."
+            print(f"❌ Error with Anthropic, using fallback: {e}")
+            # Initialize and use fallback
+            if not self.fallback_service:
+                self._init_fallback()
+            return await self.fallback_service.generate_cover_letter(resume, job_description, company)

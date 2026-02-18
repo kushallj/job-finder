@@ -13,10 +13,12 @@ aiohttp==3.9.1
 playwright==1.40.0
 beautifulsoup4==4.12.2
 lxml==4.9.3
+aiohttp==3.9.1
 
 # PDF Processing
 PyPDF2==3.0.1
 pdfplumber==0.10.3
+reportlab==4.0.7
 
 # AI
 # Use Anthropic Messages API with async client
@@ -37,6 +39,9 @@ psycopg2-binary==2.9.9
 # Task Queue
 celery==5.3.4
 redis==5.0.1
+
+# Email
+secure-smtplib==0.1.1
 
 # Utilities
 python-multipart==0.0.6

@@ -1,0 +1,486 @@
+{
+  "name": "Job Outreach Automation (Full)",
+  "nodes": [
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {
+          "reset": false
+        }
+      },
+      "name": "Split Jobs",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -3840,
+        288
+      ],
+      "id": "45de89c1-9d1c-4da2-a0bb-5410f1a63c15"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://contestable-blithe-journey.ngrok-free.dev/api/contacts/search",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"company_name\": \"{{ $json.company }}\",\n  \"job_title\": \"{{ $json.title }}\"\n}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "retryInterval": 1000
+          }
+        }
+      },
+      "name": "Find Contacts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3632,
+        288
+      ],
+      "id": "564a11d9-51f2-4e2c-939e-65710af3f12c",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "contact_check",
+              "leftValue": "={{ $json.total_contacts }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Has Contacts?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -3408,
+        288
+      ],
+      "id": "6cae12fa-3047-4f97-a1cd-8ee602a710a4"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {
+          "reset": false
+        }
+      },
+      "name": "Split Contacts",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -3232,
+        176
+      ],
+      "id": "c495a2cf-6eb6-4284-8c65-75679327c2c1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "confidence_check",
+              "leftValue": "={{ $json.confidence_score }}",
+              "rightValue": 30,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Valid Contact?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -3040,
+        176
+      ],
+      "id": "adcf5f3a-c7a2-4204-a430-037c1ac6faea"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://contestable-blithe-journey.ngrok-free.dev/api/outreach/send",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"job_id\": {{ $node[\"Split Jobs\"].json.id }},\n  \"contact_email\": \"{{ $json.email }}\",\n  \"contact_name\": \"{{ $json.name }}\",\n  \"send_immediately\": true\n}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "retryInterval": 1000
+          }
+        }
+      },
+      "name": "Send Outreach Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2832,
+        176
+      ],
+      "id": "bf28bfc0-1c31-4ed4-88db-2ac545996320",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "name": "Wait (Rate Limit)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -2640,
+        176
+      ],
+      "id": "4cb7c1f6-8743-4200-ac8e-210118230bc4",
+      "webhookId": "4bbcf79d-90e9-4f96-8165-53b16947f42a"
+    },
+    {
+      "parameters": {
+        "url": "https://contestable-blithe-journey.ngrok-free.dev/api/stats",
+        "authentication": "none",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Get Campaign Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2432,
+        288
+      ],
+      "id": "e8a506c2-35bc-4194-83cd-96e4f693dde3",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://contestable-blithe-journey.ngrok-free.dev/run-query",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"react developer\"\n}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "retryInterval": 2000
+          }
+        }
+      },
+      "name": "Run React Job Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3200,
+        -64
+      ],
+      "id": "b79eb640-477f-41c9-99ee-d765da40ec02",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "amount": 60,
+        "unit": "seconds"
+      },
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -3392,
+        -64
+      ],
+      "id": "abf30ac2-4c10-41f3-90f0-b904a6dd7957",
+      "webhookId": "466c9a30-2113-4a40-ae6c-199b9ec61ca6"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://contestable-blithe-journey.ngrok-free.dev/run-query",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"python developer\"\n}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "retryInterval": 2000
+          }
+        }
+      },
+      "name": "Run Python Job Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3600,
+        -64
+      ],
+      "id": "38e5271c-48df-4f16-b111-48cbb5fbdf29",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "name": "Schedule Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -3792,
+        -64
+      ],
+      "id": "87a715de-8824-4a31-9a85-7d5e9c0ec0b4"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if Split Contacts loop should continue\nconst splitContactsNode = $input.item.json;\n\n// Return the item to continue the loop\nreturn $input.all();"
+      },
+      "name": "Loop Back Contacts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2432,
+        176
+      ],
+      "id": "loop-back-contacts-node"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if Split Jobs loop should continue\nconst splitJobsNode = $input.item.json;\n\n// Return the item to continue the loop\nreturn $input.all();"
+      },
+      "name": "Loop Back Jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2240,
+        288
+      ],
+      "id": "loop-back-jobs-node"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Split Jobs": {
+      "main": [
+        [
+          {
+            "node": "Find Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Contacts": {
+      "main": [
+        [
+          {
+            "node": "Has Contacts?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Contacts?": {
+      "main": [
+        [
+          {
+            "node": "Split Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Back Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Contacts": {
+      "main": [
+        [
+          {
+            "node": "Valid Contact?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Contact?": {
+      "main": [
+        [
+          {
+            "node": "Send Outreach Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Back Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Outreach Email": {
+      "main": [
+        [
+          {
+            "node": "Wait (Rate Limit)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait (Rate Limit)": {
+      "main": [
+        [
+          {
+            "node": "Loop Back Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Back Contacts": {
+      "main": [
+        [
+          {
+            "node": "Split Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Back Jobs": {
+      "main": [
+        [
+          {
+            "node": "Split Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Campaign Stats": {
+      "main": [
+        []
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Run React Job Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Python Job Search": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Daily": {
+      "main": [
+        [
+          {
+            "node": "Run Python Job Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run React Job Search": {
+      "main": [
+        [
+          {
+            "node": "Split Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "errorWorkflow": "",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true
+  },
+  "versionId": "4b8983a0-f58d-4a3b-8f0d-cf9afb9d3ad9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "02152073c710d0436fa3f9ba722d8de229a01fa1304b723dc0be93020a05ccf9"
+  },
+  "id": "_xFCLofwuRIG_J6T2v5XR",
+  "tags": []
+}

@@ -57,3 +57,47 @@ class Resume(Base):
     
     created_at = Column(DateTime, default=datetime.utcnow)
     is_active = Column(Boolean, default=True)
+
+class Contact(Base):
+    __tablename__ = "contacts"
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False)
+    title = Column(String(255))
+    email = Column(String(255))
+    linkedin_url = Column(Text)
+    company = Column(String(255), nullable=False)
+    department = Column(String(255))
+    confidence_score = Column(Integer, default=0)
+    
+    # Source tracking
+    source = Column(String(100))  # 'linkedin', 'website', 'generated'
+    found_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    outreach_records = relationship("OutreachRecord", back_populates="contact")
+
+class OutreachRecord(Base):
+    __tablename__ = "outreach_records"
+    
+    id = Column(Integer, primary_key=True)
+    contact_id = Column(Integer, ForeignKey("contacts.id"))
+    job_id = Column(Integer, ForeignKey("jobs.id"))
+    
+    # Email details
+    subject = Column(String(500))
+    body = Column(Text)
+    template_type = Column(String(100))  # 'hr_outreach', 'engineering_manager', 'follow_up'
+    
+    # Status tracking
+    status = Column(String(50), default="sent")  # sent, bounced, replied, no_response
+    sent_at = Column(DateTime, default=datetime.utcnow)
+    replied_at = Column(DateTime)
+    
+    # Follow-up tracking
+    follow_up_scheduled = Column(DateTime)
+    follow_up_sent = Column(Boolean, default=False)
+    
+    # Relationships
+    contact = relationship("Contact", back_populates="outreach_records")
+    job = relationship("Job")

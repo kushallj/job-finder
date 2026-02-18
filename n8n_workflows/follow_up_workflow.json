@@ -1,0 +1,150 @@
+{
+  "name": "Automated Follow-Up Emails",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1
+            }
+          ]
+        },
+        "triggerTimes": {
+          "item": [
+            {
+              "hour": 9,
+              "minute": 0
+            }
+          ]
+        }
+      },
+      "name": "Schedule Daily at 9 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/stats",
+        "options": {}
+      },
+      "name": "Check Pending Follow-ups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.pending_follow_ups }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "name": "Has Pending Follow-ups?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/outreach/follow-up",
+        "method": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"days_since_sent\": 7\n}"
+      },
+      "name": "Send Follow-up Emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "channel": "#job-outreach",
+        "text": "=🔄 Follow-up Campaign Complete\n\n📧 Follow-ups sent: {{ $json.follow_ups_sent }}\n\nDetails:\n{{ $json.details.map(d => `• ${d.contact} at ${d.company} for ${d.job_title}`).join('\\n') }}",
+        "otherOptions": {}
+      },
+      "name": "Notify Follow-ups Sent",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "credentials": {
+        "slackApi": {
+          "id": "2",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#job-outreach",
+        "text": "=ℹ️ No pending follow-ups today.\n\nAll contacts have been followed up with or are within the 7-day waiting period.",
+        "otherOptions": {}
+      },
+      "name": "Notify No Follow-ups",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [850, 400]
+    }
+  ],
+  "connections": {
+    "Schedule Daily at 9 AM": {
+      "main": [
+        [
+          {
+            "node": "Check Pending Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Pending Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Has Pending Follow-ups?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Pending Follow-ups?": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up Emails",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify No Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-up Emails": {
+      "main": [
+        [
+          {
+            "node": "Notify Follow-ups Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

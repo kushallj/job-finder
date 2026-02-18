@@ -1,0 +1,121 @@
+# ===============================
+# Python Bytecode
+# ===============================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ===============================
+# C Extensions
+# ===============================
+*.so
+
+# ===============================
+# Distribution / Packaging
+# ===============================
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===============================
+# Virtual Environments
+# ===============================
+venv/
+env/
+ENV/
+.venv/
+.python-version
+
+# ===============================
+# Environment Variables
+# ===============================
+.env
+.env.*
+*.env
+
+# ===============================
+# Logs
+# ===============================
+*.log
+logs/
+log/
+
+# ===============================
+# Testing / Coverage
+# ===============================
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# ===============================
+# Type Checkers
+# ===============================
+.mypy_cache/
+.pyre/
+.pytype/
+
+# ===============================
+# Jupyter Notebook
+# ===============================
+.ipynb_checkpoints
+
+# ===============================
+# IDE / Editor Files
+# ===============================
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ===============================
+# macOS
+# ===============================
+.DS_Store
+
+# ===============================
+# Docker
+# ===============================
+*.pid
+*.seed
+docker-compose.override.yml
+
+# ===============================
+# Database Files
+# ===============================
+*.sqlite3
+*.db
+
+# ===============================
+# FastAPI / Uvicorn
+# ===============================
+*.reload
+
+# ===============================
+# Misc
+# ===============================
+tmp/
+temp/
+*.swp
+*.bak
