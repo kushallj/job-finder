@@ -5,8 +5,10 @@ Test Foorilla scraper integration
 
 import asyncio
 import aiohttp
+import pytest
 from src.scrapers.foorilla_scraper import FoorillaScraper
 
+@pytest.mark.asyncio
 async def test_foorilla():
     """Test Foorilla scraper"""
     print("🧪 Testing Foorilla scraper...")

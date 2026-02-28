@@ -93,10 +93,15 @@ class OutreachRecord(Base):
     status = Column(String(50), default="sent")  # sent, bounced, replied, no_response
     sent_at = Column(DateTime, default=datetime.utcnow)
     replied_at = Column(DateTime)
+    email_sent = Column(Boolean, default=False)
+    contact_email = Column(String(255))
+    contact_name = Column(String(255))
     
     # Follow-up tracking
     follow_up_scheduled = Column(DateTime)
     follow_up_sent = Column(Boolean, default=False)
+    follow_up_count = Column(Integer, default=0)
+    last_follow_up_at = Column(DateTime)
     
     # Relationships
     contact = relationship("Contact", back_populates="outreach_records")

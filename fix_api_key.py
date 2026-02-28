@@ -5,14 +5,14 @@ API Key Diagnostic and Fix Tool
 
 import asyncio
 import os
-from src.ai.claude_service import ClaudeService
+from src.ai.gemini_service import GeminiService
 
-async def test_anthropic_api():
-    """Test Anthropic API key"""
-    print("🔍 Testing Anthropic API Key...")
+async def test_gemini_api():
+    """Test Gemini API key"""
+    print("🔍 Testing Gemini API Key...")
     
     try:
-        claude = ClaudeService()
+        gemini = GeminiService()
         
         # Test with a simple job description
         test_job = """
@@ -21,10 +21,10 @@ async def test_anthropic_api():
         """
         
         print("📝 Testing skill extraction...")
-        skills = await claude.extract_skills(test_job)
+        skills = await gemini.extract_skills(test_job)
         
         if skills and skills.get('technical_skills'):
-            print("✅ Anthropic API is working!")
+            print("✅ Gemini API is working!")
             print(f"   Found skills: {skills['technical_skills'][:3]}")
             return True
         else:
@@ -33,11 +33,11 @@ async def test_anthropic_api():
             
     except Exception as e:
         error_msg = str(e)
-        if "authentication_error" in error_msg or "invalid x-api-key" in error_msg:
-            print("❌ Anthropic API key is invalid or expired")
-            print("   Please get a new API key from: https://console.anthropic.com/")
+        if "api key" in error_msg.lower() or "authentication" in error_msg.lower():
+            print("❌ Gemini API key is invalid or expired")
+            print("   Please get a new API key from: https://aistudio.google.com/app/apikey")
         else:
-            print(f"❌ Anthropic API error: {e}")
+            print(f"❌ Gemini API error: {e}")
         return False
 
 def check_env_file():
@@ -54,7 +54,7 @@ def check_env_file():
     
     # Check for required keys
     required_keys = [
-        'ANTHROPIC_API_KEY',
+        'GEMINI_API_KEY',
         'ADZUNA_APP_ID', 
         'ADZUNA_APP_KEY',
         'GMAIL_ADDRESS',
@@ -105,11 +105,11 @@ def show_solutions():
     print("\n💡 Solutions:")
     print("=" * 50)
     
-    print("\n1. 🔑 Fix Anthropic API Key:")
-    print("   • Go to: https://console.anthropic.com/")
+    print("\n1. 🔑 Fix Gemini API Key:")
+    print("   • Go to: https://aistudio.google.com/app/apikey")
     print("   • Sign in or create account")
     print("   • Generate new API key")
-    print("   • Replace ANTHROPIC_API_KEY in .env file")
+    print("   • Replace GEMINI_API_KEY in .env file")
     
     print("\n2. 📧 Fix Gmail Settings:")
     print("   • Go to: https://myaccount.google.com/apppasswords")
@@ -134,8 +134,8 @@ async def main():
     # Check .env file
     env_ok = check_env_file()
     
-    # Test Anthropic API
-    anthropic_ok = await test_anthropic_api()
+    # Test Gemini API
+    gemini_ok = await test_gemini_api()
     
     # Test fallback system
     fallback_ok = await test_fallback_system()
@@ -144,10 +144,10 @@ async def main():
     print("\n📊 Diagnostic Summary:")
     print("=" * 30)
     print(f"   .env file: {'✅' if env_ok else '❌'}")
-    print(f"   Anthropic API: {'✅' if anthropic_ok else '❌'}")
+    print(f"   Gemini API: {'✅' if gemini_ok else '❌'}")
     print(f"   Fallback AI: {'✅' if fallback_ok else '❌'}")
     
-    if anthropic_ok:
+    if gemini_ok:
         print("\n🎉 All systems working! You can run:")
         print("   python comprehensive_job_search.py")
     elif fallback_ok:

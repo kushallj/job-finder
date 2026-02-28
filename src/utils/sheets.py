@@ -20,6 +20,21 @@ DEFAULT_HEADERS = [
     "source",
 ]
 
+CONTACTS_WORKSHEET = "Contacts"
+CONTACTS_HEADERS = [
+    "timestamp",
+    "company",
+    "job_title",
+    "contact_name",
+    "contact_email",
+    "contact_title",
+    "confidence",
+    "source",
+    "verified",
+    "linkedin_url",
+    "phone",
+]
+
 SPREADSHEET_ID = "1TPW6yn1gaQaB6bD6VRfmUT7-pEpNSy6nRXxpDAf4n2A"  # unused default sample
 
 
@@ -109,4 +124,48 @@ class GoogleSheetsClient:
             url,
             source,
         ]
-        self.worksheet.append_row(row)
+        self.worksheet.append_row(
+            row,
+            value_input_option="USER_ENTERED",
+            insert_data_option="INSERT_ROWS",
+        )
+
+    def ensure_contacts_worksheet(self) -> None:
+        """Create or open the Contacts worksheet."""
+        self.ensure_worksheet(name=CONTACTS_WORKSHEET, headers=CONTACTS_HEADERS)
+
+    def append_contact_row(
+        self,
+        company: str,
+        job_title: str,
+        contact_name: str,
+        contact_email: str,
+        contact_title: str = "",
+        confidence: int = 0,
+        source: str = "",
+        verified: bool = False,
+        linkedin_url: str = "",
+        phone: str = "",
+    ) -> None:
+        """Append a discovered contact to the Contacts worksheet."""
+        if not self.worksheet:
+            raise RuntimeError("Worksheet not initialized — call ensure_contacts_worksheet() first")
+
+        row = [
+            datetime.utcnow().isoformat(timespec="seconds"),
+            company,
+            job_title,
+            contact_name,
+            contact_email,
+            contact_title,
+            confidence,
+            source,
+            str(verified),
+            linkedin_url,
+            phone,
+        ]
+        self.worksheet.append_row(
+            row,
+            value_input_option="USER_ENTERED",
+            insert_data_option="INSERT_ROWS",
+        )

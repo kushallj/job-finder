@@ -43,7 +43,7 @@ python outreach_cli.py outreach
 ## 📊 Key Features
 
 - **Multi-source job fetching** (Adzuna, Remotive, more)
-- **AI-powered resume matching** using Claude
+- **AI-powered resume matching** using Google Gemini
 - **Contact discovery** from company websites and patterns
 - **Personalized email generation** for different contact types
 - **Outreach tracking** and duplicate prevention

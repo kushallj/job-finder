@@ -159,8 +159,8 @@ python outreach_cli.py contacts --limit 20
 - `GMAIL_PASSWORD`: Gmail app password (not regular password!)
 
 ### AI Settings
-- `ANTHROPIC_API_KEY`: Your Claude API key for personalized emails
-- `ANTHROPIC_MODEL`: AI model to use (default: claude-3-5-sonnet-latest)
+- `GEMINI_API_KEY`: Your Google Gemini API key for personalized emails
+- `GEMINI_MODEL`: AI model to use (default: gemini-1.5-flash)
 
 ### Job Search Settings
 - `ADZUNA_APP_ID` & `ADZUNA_APP_KEY`: For job fetching

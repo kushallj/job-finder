@@ -6,13 +6,30 @@ from src.scrapers.multi_platform_scraper import MultiPlatformJobScraper, JobPost
 from src.config import settings
 from datetime import datetime
 
+# Try to import Selenium scraper
+try:
+    from src.scrapers.selenium_scraper import HybridJobScraper, is_selenium_available
+    SELENIUM_ENABLED = is_selenium_available()
+except ImportError:
+    SELENIUM_ENABLED = False
+    HybridJobScraper = None
+
 class APIJobScraper(BaseScraper):
     """Enhanced scraper that combines API sources with multi-platform scraping"""
     
-    def __init__(self):
+    def __init__(self, use_selenium: bool = True):
         super().__init__("enhanced_aggregator")
         self.client = httpx.AsyncClient(timeout=30.0)
         self.multi_platform_scraper = MultiPlatformJobScraper()
+        
+        # Initialize Selenium scraper if available
+        self.selenium_scraper = None
+        if use_selenium and SELENIUM_ENABLED and HybridJobScraper:
+            try:
+                self.selenium_scraper = HybridJobScraper(use_selenium=True, headless=True)
+                print("✅ Selenium hybrid scraper enabled")
+            except Exception as e:
+                print(f"⚠️ Selenium scraper init failed: {e}")
     
     async def fetch_jobs(self, query: str = "software engineer", location: str = "india") -> List[Dict]:
         """Implement abstract method: fetch jobs from all sources"""
@@ -138,16 +155,41 @@ class APIJobScraper(BaseScraper):
         except Exception as e:
             print(f"❌ Multi-platform scraper error: {e}")
             return []
+
+    async def fetch_selenium_jobs(self, keywords: List[str] = None, locations: List[str] = None) -> List[Dict]:
+        """Fetch jobs using Selenium for JS-heavy sites (Naukri, LinkedIn, Indeed)"""
+        if not self.selenium_scraper:
+            return []
+        
+        try:
+            keywords = keywords or ["Python Developer", "Backend Developer", "Full Stack Developer"]
+            locations = locations or ["Delhi", "Bangalore", "Remote"]
+            
+            print(f"🌐 Selenium: Searching Naukri, LinkedIn, Indeed...")
+            jobs = await self.selenium_scraper.search_all(keywords, locations, max_jobs_per_source=15)
+            
+            # Normalize jobs
+            normalized = []
+            for job in jobs:
+                normalized.append(self.normalize_job(job))
+            
+            print(f"✅ Selenium scraper found {len(normalized)} jobs")
+            return normalized
+            
+        except Exception as e:
+            print(f"❌ Selenium scraper error: {e}")
+            return []
     
     async def fetch_all(self, query: str = "software engineer", location: str = "india") -> List[Dict]:
-        """Fetch from all sources including multi-platform scrapers"""
+        """Fetch from all sources including multi-platform scrapers and Selenium"""
         print(f"🚀 Starting comprehensive job search for: {query}")
         
         tasks = [
             self.fetch_remotive(),
             self.fetch_adzuna(query, location),
             self.fetch_foorilla(query, location),
-            self.fetch_multi_platform_jobs(query)
+            self.fetch_multi_platform_jobs(query),
+            self.fetch_selenium_jobs([query], [location]),
         ]
         
         results = await asyncio.gather(*tasks, return_exceptions=True)

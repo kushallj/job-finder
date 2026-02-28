@@ -572,8 +572,9 @@ class MultiPlatformJobScraper:
         unique_jobs = []
         
         for job in jobs:
-            # Create a unique identifier
-            identifier = f"{job.company.lower()}_{job.title.lower()}_{job.location.lower()}"
+            identifier = job.job_id or job.url
+            if not identifier:
+                identifier = f"{job.company.lower()}_{job.title.lower()}_{job.location.lower()}_{job.source}"
             if identifier not in seen:
                 seen.add(identifier)
                 unique_jobs.append(job)
@@ -584,14 +585,24 @@ class MultiPlatformJobScraper:
     def _filter_jobs(self, jobs: List[JobPosting]) -> List[JobPosting]:
         """Filter jobs based on criteria"""
         filtered = []
+        skills = [s.lower() for s in self.config.PROFILE['skills']]
         
         for job in jobs:
-            # Check if matches skills
-            job_text = f"{job.title} {job.description}".lower()
-            skill_match = any(skill.lower() in job_text for skill in self.config.PROFILE['skills'])
+            text_blob = " ".join([
+                job.title or "",
+                job.description or "",
+                " ".join(job.skills or []),
+            ]).lower()
+            skill_match = any(skill in text_blob for skill in skills)
             
-            if skill_match:
-                filtered.append(job)
+            if not skill_match and job.skills:
+                skill_match = any(skill in (s or "").lower() for s in job.skills for skill in skills)
+            
+            if not skill_match:
+                logger.debug(f"Filtered out {job.title} at {job.company} — no keyword match")
+                continue
+            
+            filtered.append(job)
         
         logger.info(f"Filtered: {len(jobs)} -> {len(filtered)} jobs")
         return filtered

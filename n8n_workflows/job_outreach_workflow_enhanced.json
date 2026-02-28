@@ -1,0 +1,563 @@
+{
+  "name": "Job Outreach Automation (Enhanced with Follow-ups)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "name": "Schedule Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [-4000, 0],
+      "id": "schedule-daily"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/run-query",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"query\": \"python developer\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "name": "Search Python Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-3800, 0],
+      "id": "search-python-jobs",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "name": "Wait Between Searches",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-3600, 0],
+      "id": "wait-between-searches"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/run-query",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"query\": \"react developer\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "name": "Search React Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-3400, 0],
+      "id": "search-react-jobs",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.API_BASE_URL }}/api/jobs/pending-outreach",
+        "authentication": "none",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Get Pending Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-3200, 0],
+      "id": "get-pending-jobs"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has_jobs",
+              "leftValue": "={{ $json.total_jobs }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Has Pending Jobs?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-3000, 0],
+      "id": "has-pending-jobs"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "jobs",
+        "options": {}
+      },
+      "name": "Extract Jobs Array",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [-2800, -100],
+      "id": "extract-jobs-array"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {
+          "reset": false
+        }
+      },
+      "name": "Process Each Job",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [-2600, -100],
+      "id": "process-each-job"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/api/contacts/search",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"company_name\": \"{{ $json.company }}\",\n  \"job_title\": \"{{ $json.title }}\"\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Find Contacts (Hunter/Apollo/SignalHire)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-2400, -100],
+      "id": "find-contacts",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has_contacts",
+              "leftValue": "={{ $json.total_contacts }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Has Contacts?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-2200, -100],
+      "id": "has-contacts"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "contacts",
+        "options": {}
+      },
+      "name": "Extract Contacts Array",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [-2000, -200],
+      "id": "extract-contacts-array"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {
+          "reset": false
+        }
+      },
+      "name": "Process Each Contact",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [-1800, -200],
+      "id": "process-each-contact"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "confidence_check",
+              "leftValue": "={{ $json.confidence }}",
+              "rightValue": 30,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "High Confidence?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-1600, -200],
+      "id": "high-confidence"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/api/outreach/send",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"job_id\": {{ $node[\"Process Each Job\"].json.id }},\n  \"contact_email\": \"{{ $json.email }}\",\n  \"contact_name\": \"{{ $json.name }}\",\n  \"send_immediately\": true\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Send Outreach Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1400, -300],
+      "id": "send-outreach-email",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "amount": 45,
+        "unit": "seconds"
+      },
+      "name": "Rate Limit Delay",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-1200, -300],
+      "id": "rate-limit-delay"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Continue to next contact\nreturn $input.all();"
+      },
+      "name": "Next Contact",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1000, -200],
+      "id": "next-contact"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Continue to next job\nreturn $input.all();"
+      },
+      "name": "Next Job",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-800, -100],
+      "id": "next-job"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.API_BASE_URL }}/api/stats",
+        "authentication": "none",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Get Final Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-600, 0],
+      "id": "get-final-stats"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 3
+            }
+          ]
+        }
+      },
+      "name": "Schedule Follow-ups (Every 3 Days)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [-4000, 300],
+      "id": "schedule-followups"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.API_BASE_URL }}/api/stats",
+        "authentication": "none",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Get Outreach Records",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-3800, 300],
+      "id": "get-outreach-records"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has_outreach",
+              "leftValue": "={{ $json.stats.emails_sent }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Has Sent Emails?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-3600, 300],
+      "id": "has-sent-emails"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "recent_outreach",
+        "options": {}
+      },
+      "name": "Extract Outreach Records",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [-3400, 200],
+      "id": "extract-outreach-records"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {
+          "reset": false
+        }
+      },
+      "name": "Process Each Outreach",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [-3200, 200],
+      "id": "process-each-outreach"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "needs_followup",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "sent",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Needs Follow-up?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-3000, 200],
+      "id": "needs-followup"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/api/outreach/followup",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"outreach_id\": {{ $json.id }},\n  \"follow_up_number\": 1\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Send Follow-up Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-2800, 100],
+      "id": "send-followup-email",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "amount": 60,
+        "unit": "seconds"
+      },
+      "name": "Follow-up Rate Limit",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-2600, 100],
+      "id": "followup-rate-limit"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Continue to next outreach record\nreturn $input.all();"
+      },
+      "name": "Next Outreach",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2400, 200],
+      "id": "next-outreach"
+    }
+  ],
+  "connections": {
+    "Schedule Daily": {
+      "main": [[{"node": "Search Python Jobs", "type": "main", "index": 0}]]
+    },
+    "Search Python Jobs": {
+      "main": [[{"node": "Wait Between Searches", "type": "main", "index": 0}]]
+    },
+    "Wait Between Searches": {
+      "main": [[{"node": "Search React Jobs", "type": "main", "index": 0}]]
+    },
+    "Search React Jobs": {
+      "main": [[{"node": "Get Pending Jobs", "type": "main", "index": 0}]]
+    },
+    "Get Pending Jobs": {
+      "main": [[{"node": "Has Pending Jobs?", "type": "main", "index": 0}]]
+    },
+    "Has Pending Jobs?": {
+      "main": [
+        [{"node": "Extract Jobs Array", "type": "main", "index": 0}],
+        [{"node": "Get Final Stats", "type": "main", "index": 0}]
+      ]
+    },
+    "Extract Jobs Array": {
+      "main": [[{"node": "Process Each Job", "type": "main", "index": 0}]]
+    },
+    "Process Each Job": {
+      "main": [[{"node": "Find Contacts (Hunter/Apollo/SignalHire)", "type": "main", "index": 0}]]
+    },
+    "Find Contacts (Hunter/Apollo/SignalHire)": {
+      "main": [[{"node": "Has Contacts?", "type": "main", "index": 0}]]
+    },
+    "Has Contacts?": {
+      "main": [
+        [{"node": "Extract Contacts Array", "type": "main", "index": 0}],
+        [{"node": "Next Job", "type": "main", "index": 0}]
+      ]
+    },
+    "Extract Contacts Array": {
+      "main": [[{"node": "Process Each Contact", "type": "main", "index": 0}]]
+    },
+    "Process Each Contact": {
+      "main": [[{"node": "High Confidence?", "type": "main", "index": 0}]]
+    },
+    "High Confidence?": {
+      "main": [
+        [{"node": "Send Outreach Email", "type": "main", "index": 0}],
+        [{"node": "Next Contact", "type": "main", "index": 0}]
+      ]
+    },
+    "Send Outreach Email": {
+      "main": [[{"node": "Rate Limit Delay", "type": "main", "index": 0}]]
+    },
+    "Rate Limit Delay": {
+      "main": [[{"node": "Next Contact", "type": "main", "index": 0}]]
+    },
+    "Next Contact": {
+      "main": [[{"node": "Process Each Contact", "type": "main", "index": 0}]]
+    },
+    "Next Job": {
+      "main": [[{"node": "Process Each Job", "type": "main", "index": 0}]]
+    },
+    "Schedule Follow-ups (Every 3 Days)": {
+      "main": [[{"node": "Get Outreach Records", "type": "main", "index": 0}]]
+    },
+    "Get Outreach Records": {
+      "main": [[{"node": "Has Sent Emails?", "type": "main", "index": 0}]]
+    },
+    "Has Sent Emails?": {
+      "main": [
+        [{"node": "Extract Outreach Records", "type": "main", "index": 0}],
+        []
+      ]
+    },
+    "Extract Outreach Records": {
+      "main": [[{"node": "Process Each Outreach", "type": "main", "index": 0}]]
+    },
+    "Process Each Outreach": {
+      "main": [[{"node": "Needs Follow-up?", "type": "main", "index": 0}]]
+    },
+    "Needs Follow-up?": {
+      "main": [
+        [{"node": "Send Follow-up Email", "type": "main", "index": 0}],
+        [{"node": "Next Outreach", "type": "main", "index": 0}]
+      ]
+    },
+    "Send Follow-up Email": {
+      "main": [[{"node": "Follow-up Rate Limit", "type": "main", "index": 0}]]
+    },
+    "Follow-up Rate Limit": {
+      "main": [[{"node": "Next Outreach", "type": "main", "index": 0}]]
+    },
+    "Next Outreach": {
+      "main": [[{"node": "Process Each Outreach", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": ["job-outreach", "automation", "email"]
+}
