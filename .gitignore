@@ -119,3 +119,8 @@ tmp/
 temp/
 *.swp
 *.bak
+# ===============================
+# Configuration Files
+# ===============================
+config/
+.blackboxcli/

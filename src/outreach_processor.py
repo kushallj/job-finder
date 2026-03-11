@@ -55,7 +55,8 @@ from typing import (
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.contact_finder import ContactFinder, Contact as ContactData
+from src.contact_finder import Contact as ContactData
+from src.email_discovery import EmailDiscoveryService
 from src.database import SessionLocal
 from src.models import Job, Contact, OutreachRecord
 from src.email_outreach import EmailOutreach, OutreachConfig
@@ -482,17 +483,38 @@ async def db_session():
 # =============================================================================
 
 async def worker_find_contacts_primary(
-    company: str, job_title: str, finder: ContactFinder, limit: int
+    company: str, job_title: str, discovery: EmailDiscoveryService, limit: int
 ) -> Optional[List[ContactData]]:
-    """Strategy 1: Primary contact finder (Hunter.io / Proxycurl / etc.)"""
-    results = await finder.find_company_contacts(company, job_title)
-    return results[:limit] if results else None
+    """Strategy 1: Email discovery service (Hunter.io, Apollo, etc. + free fallback)"""
+    try:
+        results = await discovery.find_contacts(
+            company_name=company,
+            job_title=job_title,
+            limit=limit,
+            smtp_verify=False
+        )
+        # Convert dict results to ContactData objects
+        contacts = []
+        for r in results:
+            contacts.append(ContactData(
+                name=r.get('name', 'Unknown'),
+                title=r.get('title', ''),
+                email=r.get('email', ''),
+                linkedin_url=r.get('linkedin_url', ''),
+                company=company,
+                department='',
+                confidence_score=float(r.get('confidence', 50))
+            ))
+        return contacts if contacts else None
+    except Exception as e:
+        print(f"Email discovery error for {company}: {e}")
+        return None
 
 
 async def worker_find_contacts_domain_guess(
-    company: str, job_title: str, finder: ContactFinder, limit: int
+    company: str, job_title: str, discovery: EmailDiscoveryService, limit: int
 ) -> Optional[List[ContactData]]:
-    """Strategy 2: Domain-based email pattern guessing."""
+    """Strategy 2: Domain-based email pattern guessing (fallback)."""
     domain = company.lower().replace(" ", "").replace(",", "").replace(".", "") + ".com"
     patterns = [
         f"recruiting@{domain}", f"hr@{domain}",
@@ -515,14 +537,33 @@ async def worker_find_contacts_domain_guess(
 
 
 async def worker_find_contacts_linkedin(
-    company: str, job_title: str, finder: ContactFinder, limit: int
+    company: str, job_title: str, discovery: EmailDiscoveryService, limit: int
 ) -> Optional[List[ContactData]]:
-    """Strategy 3: LinkedIn scrape fallback (if ContactFinder supports it)."""
+    """Strategy 3: LinkedIn scrape fallback (uses free finder in email_discovery)."""
     try:
-        results = await finder.find_linkedin_contacts(company, job_title)
-        return results[:limit] if results else None
-    except AttributeError:
-        return None  # ContactFinder doesn't support LinkedIn — chain will skip
+        # Email discovery service has free fallback methods
+        results = await discovery.find_contacts(
+            company_name=company,
+            job_title=job_title,
+            limit=limit,
+            smtp_verify=False
+        )
+        if results:
+            contacts = []
+            for r in results:
+                contacts.append(ContactData(
+                    name=r.get('name', 'Unknown'),
+                    title=r.get('title', ''),
+                    email=r.get('email', ''),
+                    linkedin_url=r.get('linkedin_url', ''),
+                    company=company,
+                    department='',
+                    confidence_score=float(r.get('confidence', 50))
+                ))
+            return contacts if contacts else None
+        return None
+    except Exception:
+        return None
 
 
 async def worker_store_contact(
@@ -699,10 +740,22 @@ class OutreachProcessor:
         self,
         cfg: Optional[ProcessorConfig] = None,
         email_outreach: Optional[EmailOutreach] = None,
-        contact_finder: Optional[ContactFinder] = None,
+        email_discovery: Optional[EmailDiscoveryService] = None,
     ):
         self.cfg = cfg or ProcessorConfig()
-        self.contact_finder = contact_finder or ContactFinder()
+        # Initialize email discovery service
+        if email_discovery:
+            self.email_discovery = email_discovery
+        else:
+            # Import settings and create service
+            try:
+                from src.config import settings
+                self.email_discovery = EmailDiscoveryService(settings=settings)
+            except Exception as e:
+                print(f"⚠️  Failed to initialize EmailDiscoveryService with settings: {e}")
+                print("   Using EmailDiscoveryService without settings (free mode only)")
+                self.email_discovery = EmailDiscoveryService()
+        
         self.email_outreach = email_outreach  # injected or lazily created
         self.stats = StatsIndex()
 
@@ -807,9 +860,9 @@ class OutreachProcessor:
         # ── Stage 1: Find contacts (strategy chain with backtracking) ─────────
         contacts_result = await run_strategy_chain(
             [
-                lambda c=company, t=title: worker_find_contacts_primary(c, t, self.contact_finder, self.cfg.max_contacts),
-                lambda c=company, t=title: worker_find_contacts_domain_guess(c, t, self.contact_finder, self.cfg.max_contacts),
-                lambda c=company, t=title: worker_find_contacts_linkedin(c, t, self.contact_finder, self.cfg.max_contacts),
+                lambda c=company, t=title: worker_find_contacts_primary(c, t, self.email_discovery, self.cfg.max_contacts),
+                lambda c=company, t=title: worker_find_contacts_domain_guess(c, t, self.email_discovery, self.cfg.max_contacts),
+                lambda c=company, t=title: worker_find_contacts_linkedin(c, t, self.email_discovery, self.cfg.max_contacts),
             ],
             log=log,
             label=f"find_contacts({company})",
@@ -1082,7 +1135,7 @@ class OutreachProcessor:
     # ── Cleanup ───────────────────────────────────────────────────────────────
 
     async def close(self):
-        await self.contact_finder.close()
+        await self.email_discovery.close()
         if self.email_outreach:
             await self.email_outreach.close()
         self._log.info("OutreachProcessor shut down cleanly")

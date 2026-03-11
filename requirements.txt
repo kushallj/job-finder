@@ -8,14 +8,18 @@ python-dotenv==1.0.0
 # HTTP & Async
 httpx==0.25.2
 aiohttp==3.9.1
+curl-cffi==0.6.2
 
 # Web Scraping
 playwright==1.40.0
+playwright-stealth==2.0.2
 beautifulsoup4==4.12.2
 lxml==4.9.3
-aiohttp==3.9.1
 selenium==4.16.0
 webdriver-manager==4.0.1
+nodriver==0.34
+camoufox==0.4.3
+googlesearch-python==1.2.3
 
 # PDF Processing
 PyPDF2==3.0.1

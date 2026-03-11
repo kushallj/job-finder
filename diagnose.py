@@ -106,9 +106,95 @@ def inspect_genai_errors():
 # 4. Live Gemini test — shows EXACT exception type
 # =============================================================================
 
-async def test_gemini():
+async def test_ollama_mistral():
+    """Test Ollama + Mistral — the primary AI path for this project."""
     print("\n" + "═"*62)
-    print("  4. LIVE GEMINI API TEST")
+    print("  4. LOCAL LLM TEST (Ollama + Mistral)")
+    print("═"*62)
+
+    base_url = "http://localhost:11434"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as c:
+            resp = await c.get(f"{base_url}/api/tags")
+    except Exception as exc:
+        print(f"  ❌ Ollama not running: {exc}")
+        print("  → Install: curl -fsSL https://ollama.com/install.sh | sh")
+        print("  → Then:    ollama pull mistral")
+        return
+
+    if resp.status_code != 200:
+        print(f"  ❌ Ollama returned HTTP {resp.status_code}")
+        return
+
+    models_raw = resp.json().get("models", [])
+    full_names = {m["name"] for m in models_raw}
+    by_base    = {}
+    for m in models_raw:
+        base = m["name"].split(":")[0]
+        if base not in by_base or "latest" in m["name"]:
+            by_base[base] = m["name"]
+
+    print(f"  ✅ Ollama running at {base_url}")
+    print(f"  Installed models: {sorted(full_names) or '(none)'}")
+
+    # Resolve which model will be used (mirrors local_llm_service.py logic exactly)
+    _PRIORITY = ["mistral:latest", "mistral:7b", "mistral", "llama3.2:3b", "llama3.2:1b"]
+    env_pref  = os.getenv("OLLAMA_MODEL", "")
+    candidates = ([env_pref] if env_pref else []) + _PRIORITY
+
+    resolved = None
+    for candidate in candidates:
+        if candidate in full_names:
+            resolved = candidate; break
+        base = candidate.split(":")[0]
+        if base in by_base:
+            resolved = by_base[base]; break
+
+    if not resolved:
+        print(f"  ❌ No supported model installed")
+        print(f"  → Run: ollama pull mistral")
+        return
+
+    print(f"  ✅ Will use model: {resolved}")
+    if "mistral" in resolved:
+        print("  ✅ Mistral — best quality for job extraction and cover letters")
+
+    # Live generation test — asks Mistral to extract a job as JSON
+    print(f"  Testing structured extraction (JSON output)...")
+    prompt = ('Extract job info as JSON only: '
+              '"Python Developer at TechCorp in Bangalore. Apply at https://techcorp.com/jobs/123" '
+              'Return: {"title":"...","company":"...","location":"...","url":"..."}')
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as c:
+            r = await c.post(f"{base_url}/api/generate", json={
+                "model":  resolved,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"num_predict": 150, "temperature": 0.2},
+            })
+        if r.status_code == 200:
+            response_text = r.json().get("response", "")
+            print(f"  ✅ Generation OK | response: {response_text[:200]}")
+            import re as _re, json as _json
+            m = _re.search(r"\{.*?\}", response_text, _re.DOTALL)
+            if m:
+                try:
+                    parsed = _json.loads(m.group())
+                    print(f"  ✅ JSON valid — keys: {list(parsed.keys())}")
+                except Exception:
+                    print("  ⚠️  JSON parse failed — model warming up, run again")
+            else:
+                print("  ⚠️  No JSON in response — try: ollama run mistral \'hello\'")
+        else:
+            print(f"  ❌ HTTP {r.status_code}: {r.text[:200]}")
+    except Exception as exc:
+        print(f"  ❌ Request failed: {exc}")
+
+
+async def test_gemini():
+
+    print("\n" + "═"*62)
+    print("  5. GEMINI API TEST (optional — Mistral is your primary AI)")
     print("═"*62)
 
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
@@ -181,7 +267,7 @@ async def test_gemini():
 
 def check_sheets():
     print("\n" + "═"*62)
-    print("  5. GOOGLE SHEETS")
+    print("  6. GOOGLE SHEETS")
     print("═"*62)
 
     sheet_id = os.getenv("GOOGLE_SHEET_ID", "")
@@ -215,6 +301,7 @@ async def main():
     check_env()
     check_packages()
     inspect_genai_errors()
+    await test_ollama_mistral()
     await test_gemini()
     check_sheets()
 
@@ -222,7 +309,8 @@ async def main():
     print("  NEXT STEP")
     print("═"*62)
     print("  Copy the exception class name from section 4 above.")
-    print("  Share it here and we will add the exact fix to the error atlas.")
+    print("  • If Mistral passed: your AI stack is working — no Gemini key needed.")
+    print("  • Share any error class names here for exact fixes.")
     print()
 
 

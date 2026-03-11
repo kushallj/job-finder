@@ -5,14 +5,15 @@ API Key Diagnostic and Fix Tool
 
 import asyncio
 import os
-from src.ai.gemini_service import GeminiService
+from src.ai.unified_ai_service import UnifiedAIService
 
 async def test_gemini_api():
-    """Test Gemini API key"""
-    print("🔍 Testing Gemini API Key...")
+    """Test Gemini/Unified AI"""
+    print("🔍 Testing AI Service...")
     
     try:
-        gemini = GeminiService()
+        from src.ai.unified_ai_service import UnifiedAIService
+        ai_service = UnifiedAIService()
         
         # Test with a simple job description
         test_job = """
@@ -21,7 +22,7 @@ async def test_gemini_api():
         """
         
         print("📝 Testing skill extraction...")
-        skills = await gemini.extract_skills(test_job)
+        skills = await ai_service.extract_skills(test_job)
         
         if skills and skills.get('technical_skills'):
             print("✅ Gemini API is working!")

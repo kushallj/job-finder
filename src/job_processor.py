@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.ai.gemini_service import GeminiService
+from src.ai.unified_ai_service import UnifiedAIService
 from src.config import settings
 from src.contact_finder import Contact
 from src.database import SessionLocal
@@ -176,7 +176,7 @@ class JobProcessor:
     def __init__(self, config: Optional[ProcessorConfig] = None):
         self.cfg = config or ProcessorConfig()
         self.scraper = APIJobScraper()
-        self.ai = GeminiService()
+        self.ai = UnifiedAIService()
         self.metrics = RunMetrics()
 
         # Semaphore caps concurrent job processing

@@ -47,7 +47,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from src.ai.gemini_service import GeminiService
+from src.ai.unified_ai_service import UnifiedAIService
 from src.config import settings
 from src.contact_finder import Contact
 
@@ -672,7 +672,7 @@ class EmailOutreach:
 
     def __init__(self, cfg: Optional[OutreachConfig] = None, sheets_client=None):
         self.cfg = cfg or OutreachConfig()
-        self.ai = GeminiService()
+        self.ai = UnifiedAIService()
         self.builder = EmailBuilder(self.ai, self.cfg)
         self.pool = SMTPPool(self.cfg, size=self.cfg.smtp_pool_size)
         self.validator = PreflightValidator(self.cfg, TraceLogger("validator"))

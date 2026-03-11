@@ -31,6 +31,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -41,6 +42,14 @@ from src.job_processor import JobProcessor
 from src.database import init_db, SessionLocal
 from src.models import Application, Job, OutreachRecord
 from src.config import settings
+
+# ── Async Pipeline imports ────────────────────────────────────────────────
+try:
+    from src.async_pipeline import AsyncJobPipeline, ProcessorConfig
+    _ASYNC_PIPELINE_OK = True
+except Exception as _e:
+    _ASYNC_PIPELINE_OK = False
+    logging.warning("async_pipeline not available: %s", _e)
 
 # ── Optional imports — degrade gracefully if files not yet updated on disk ────
 try:
@@ -91,29 +100,14 @@ log = logging.getLogger("main")
 
 # =============================================================================
 # _call_with_accepted — the core fix for "unexpected keyword argument"
-#
-# Problem: our code calls process_all_jobs(resume_text, min_score=50)
-#          but the on-disk file may only accept (resume_text).
-# Solution: inspect the actual live signature and silently drop any kwargs
-#           the function doesn't accept. Works with any version on disk.
 # =============================================================================
 
 def _call_with_accepted(fn: Any, *args, **kwargs) -> Any:
-    """
-    Call fn(*args, **kwargs) but drop any kwargs the function won't accept.
-
-    How it works (like explaining to a kid):
-      Imagine asking someone "can you do X, Y, and Z?"
-      Before asking, we look at their job description.
-      If they can't do Z, we just ask for X and Y — no argument, no crash.
-
-    This makes our code work with both old and new versions of any module.
-    """
+    """Call fn(*args, **kwargs) but drop any kwargs the function won't accept."""
     try:
         sig = inspect.signature(fn)
         params = sig.parameters
 
-        # If the function accepts **kwargs, pass everything through
         has_var_kw = any(
             p.kind == inspect.Parameter.VAR_KEYWORD
             for p in params.values()
@@ -121,34 +115,25 @@ def _call_with_accepted(fn: Any, *args, **kwargs) -> Any:
         if has_var_kw:
             return fn(*args, **kwargs)
 
-        # Otherwise, only pass kwargs that are in the signature
         accepted = set(params.keys())
         safe_kw  = {k: v for k, v in kwargs.items() if k in accepted}
 
         dropped = set(kwargs) - accepted
         if dropped:
-            log.debug(
-                "Dropped unsupported kwargs for %s.%s: %s",
-                getattr(fn, "__module__", "?"),
-                getattr(fn, "__name__", "?"),
-                dropped,
-            )
+            log.debug("Dropped unsupported kwargs for %s.%s: %s",
+                      getattr(fn, "__module__", "?"),
+                      getattr(fn, "__name__", "?"),
+                      dropped)
 
         return fn(*args, **safe_kw)
 
     except (ValueError, TypeError) as exc:
-        # Can't introspect — call without extra kwargs as safest fallback
         log.warning("Could not introspect %s, calling without kwargs: %s", fn, exc)
         return fn(*args)
 
 
 async def _safe_close(obj: Any, name: str = "resource") -> None:
-    """
-    Close an object whether its .close() is sync or async.
-    No crash if the object has no close() method.
-
-    Fixes: 'coroutine was never awaited' RuntimeWarning.
-    """
+    """Close an object whether its .close() is sync or async."""
     close_fn = getattr(obj, "close", None)
     if close_fn is None:
         return
@@ -179,16 +164,12 @@ async def db_session():
 # Resume router — Trie-based, replaces brittle if/elif keyword chain
 # =============================================================================
 
-class _TN:  # TrieNode, minimal
+class _TN:
     __slots__ = ("ch", "path")
     def __init__(self): self.ch: Dict[str, "_TN"] = {}; self.path: Optional[str] = None
 
 
 class ResumeTrie:
-    """
-    Maps query keywords → resume file paths.
-    O(keyword_length) lookup. Add new variants by editing ROUTES below.
-    """
     ROUTES: Dict[str, str] = {
         "react": "data/resume_react.txt", "frontend": "data/resume_react.txt",
         "vue": "data/resume_react.txt",   "angular": "data/resume_react.txt",
@@ -232,6 +213,7 @@ class AppState:
     job_processor:  Optional[JobProcessor]  = None
     outreach_proc:  Optional[Any]           = None
     email_outreach: Optional[Any]           = None
+    async_pipeline: Optional[Any]           = None
     resume_router:  ResumeTrie              = field(default_factory=ResumeTrie)
     _cb_path:       Path = field(default_factory=lambda: Path("logs/sh_callbacks.json"))
     _callbacks:     Dict[str, Any] = field(default_factory=dict)
@@ -297,13 +279,43 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             log.warning("⚠️  OutreachProcessor unavailable: %s", exc)
 
+    # AsyncJobPipeline — optional
+    if _ASYNC_PIPELINE_OK:
+        try:
+            try:
+                import aiosqlite
+                _ASYNC_DB_OK = True
+            except ImportError:
+                _ASYNC_DB_OK = False
+                log.warning("⚠️  aiosqlite not installed - async_pipeline will use fallback mode")
+            
+            if _ASYNC_DB_OK:
+                config = ProcessorConfig(
+                    worker_count=5,
+                    queue_size=100,
+                    max_concurrent_api_calls=3,
+                    llm_rate_limit=10,
+                    email_rate_limit=2,
+                    scraper_rate_limit=30,
+                    log_level="INFO",
+                )
+                state.async_pipeline = AsyncJobPipeline(config=config)
+                log.info("✅ AsyncJobPipeline ready (with async DB)")
+            else:
+                state.async_pipeline = None
+                log.warning("⚠️  AsyncJobPipeline skipped - requires aiosqlite")
+        except Exception as exc:
+            log.warning("⚠️  AsyncJobPipeline unavailable: %s", exc)
+            state.async_pipeline = None
+
     _state = state
     log.info("🟢 Server ready")
 
-    yield  # ← server runs here
+    yield
 
     log.info("🔴 Shutting down…")
     for obj, name in [
+        (state.async_pipeline, "async_pipeline"),
         (state.outreach_proc,  "outreach_proc"),
         (state.email_outreach, "email_outreach"),
         (state.job_processor,  "job_processor"),
@@ -382,10 +394,6 @@ class FollowUpRequest(BaseModel):
 # =============================================================================
 
 def _read_resume(path: str) -> str:
-    """
-    Read resume. Cascade: routed path → default path → clear error.
-    A "helper within a helper" — each level has exactly one job.
-    """
     def _try(p: str) -> Optional[str]:
         try: return Path(p).read_text(encoding="utf-8")
         except FileNotFoundError: return None
@@ -429,6 +437,7 @@ async def health(state: AppState = Depends(get_state)):
             "outreach_proc":   state.outreach_proc is not None,
             "email_outreach":  state.email_outreach is not None,
             "contact_finder":  _CONTACT_OK,
+            "async_pipeline":  _ASYNC_PIPELINE_OK and state.async_pipeline is not None,
         },
     }
 
@@ -441,38 +450,25 @@ async def run_query(
     req: Request,
     state: AppState = Depends(get_state),
 ):
-    """
-    Full pipeline: fetch → store → pick resume → AI process.
-
-    THE KEY FIX IS HERE:
-      _call_with_accepted() checks what kwargs process_all_jobs actually
-      accepts on disk right now, and only passes those.
-      If the on-disk file has min_score → it's passed.
-      If it doesn't → it's silently dropped. No crash either way.
-    """
     trace = req.state.trace_id
 
     if not state.job_processor:
         raise HTTPException(503, "JobProcessor not available — check startup logs")
 
-    # Node 1: fetch + store
     log.info("[%s] Fetching jobs: %s", trace, request.query)
     jobs_count = await state.job_processor.fetch_and_store_jobs(query=request.query)
     log.info("[%s] Stored %d new jobs", trace, jobs_count)
 
-    # Node 2: resume routing via Trie O(k)
     resume_path = state.resume_router.route(request.query)
     log.info("[%s] Resume → %s", trace, resume_path)
     resume_text = _read_resume(resume_path)
 
-    # Node 3: AI processing — signature-safe call
     log.info("[%s] Processing jobs (min_score=%d)", trace, request.min_score)
     result = await _call_with_accepted(
         state.job_processor.process_all_jobs,
         resume_text,
-        min_score=request.min_score,  # silently dropped if not in signature
+        min_score=request.min_score,
     )
-    # Await if process_all_jobs returned a coroutine (it should, but be safe)
     if inspect.isawaitable(result):
         await result
 
@@ -490,38 +486,214 @@ async def run_query(
     }
 
 
-# ── Contacts ──────────────────────────────────────────────────────────────────
+# ── Async Pipeline endpoint ─────────────────────────────────────────────────
 
-@app.post("/api/contacts/search", tags=["contacts"])
-async def search_contacts(
-    request: ContactSearchRequest,
+@app.post("/run-query-async", tags=["jobs"])
+async def run_query_async(
+    request: QueryRequest,
     req: Request,
     state: AppState = Depends(get_state),
 ):
     trace = req.state.trace_id
-    if not _CONTACT_OK:
-        raise HTTPException(503, "ContactFinder not available — replace contact_finder.py")
-    try:
-        finder = ContactFinder()
-        contacts = await finder.find_company_contacts(
-            request.company_name, request.job_title or ""
-        )
-        await finder.close()
-    except Exception as exc:
-        log.error("[%s] Contact search failed: %s", trace, exc)
-        raise HTTPException(500, str(exc))
 
+    if not _ASYNC_PIPELINE_OK or not state.async_pipeline:
+        raise HTTPException(
+            503, 
+            "AsyncJobPipeline not available. Use /run-query endpoint instead."
+        )
+
+    if not state.job_processor:
+        raise HTTPException(503, "JobProcessor not available — check startup logs")
+    
+    jobs_count = await state.job_processor.fetch_and_store_jobs(query=request.query)
+    resume_path = state.resume_router.route(request.query)
+    resume_text = _read_resume(resume_path)
+
+    log.info("[%s] Async pipeline not fully implemented - use /run-query", trace)
     return {
         "status": "success",
         "trace_id": trace,
-        "company": request.company_name,
-        "total_contacts": len(contacts),
-        "contacts": [
-            {"name": c.name, "email": c.email, "title": c.title,
-             "company": c.company, "confidence": c.confidence_score}
-            for c in contacts
-        ],
+        "message": "Use /run-query for job processing",
+        "jobs_fetched": jobs_count,
     }
+
+
+# ── Contacts ──────────────────────────────────────────────────────────────────
+
+@app.post("/api/contacts/search", tags=["contacts"])
+async def search_all_contacts(jobs):
+    async with httpx.AsyncClient() as client:
+        tasks = [
+            client.post(
+                "http://your-api/api/contacts/search",
+                json={"company_name": job["company"], "job_title": job["title"]}
+            )
+            for job in jobs
+        ]
+        responses = await asyncio.gather(*tasks)
+    return [r.json() for r in responses]
+
+
+# ── Outreach ──────────────────────────────────────────────────────────────────
+
+@app.post("/api/outreach/send", tags=["outreach"])
+async def send_outreach(
+    request: OutreachRequest,
+    req: Request,
+    state: AppState = Depends(get_state),
+):
+    trace = req.state.trace_id
+    if not state.email_outreach:
+        raise HTTPException(503, "Email outreach not available — check SMTP config in startup logs")
+
+    async with db_session() as db:
+        job = db.query(Job).filter(Job.id == request.job_id).first()
+        if not job:
+            raise HTTPException(404, f"Job {request.job_id} not found")
+        job_snap = {
+            "id": job.id, "title": job.title, "company": job.company,
+            "description": getattr(job, "description", ""),
+            "url": getattr(job, "url", ""),
+        }
+
+    if not request.send_immediately:
+        return {"status": "queued", "trace_id": trace,
+                "job_id": request.job_id, "contact_email": request.contact_email}
+
+    contact_kwargs = dict(
+        name=request.contact_name, email=request.contact_email,
+        title="Hiring Contact", company=job_snap["company"],
+    )
+    if _CONTACT_OK:
+        contact = Contact(**{
+            k: v for k, v in contact_kwargs.items()
+            if k in inspect.signature(Contact.__init__).parameters
+        })
+        for attr, default in [("department", ""), ("linkedin_url", None), ("confidence_score", 80.0)]:
+            if not hasattr(contact, attr):
+                try: setattr(contact, attr, default)
+                except Exception: pass
+    else:
+        contact = type("Contact", (), contact_kwargs)()
+
+    class _Stub:
+        def __init__(self, **kw): [setattr(self, k, v) for k, v in kw.items()]
+
+    success = await state.email_outreach.send_outreach_email(contact, _Stub(**job_snap))
+
+    async with db_session() as db:
+        rec = OutreachRecord(
+            job_id=job_snap["id"],
+            contact_email=request.contact_email,
+            contact_name=request.contact_name,
+            email_sent=success,
+            sent_at=datetime.utcnow() if success else None,
+            status="sent" if success else "failed",
+        )
+        db.add(rec)
+        db.commit()
+        db.refresh(rec)
+        record_id = rec.id
+
+    log.info("[%s] Outreach %s → %s", trace, "sent" if success else "FAILED",
+             request.contact_email)
+    return {
+        "status": "success" if success else "failed",
+        "trace_id": trace,
+        "job_id": request.job_id,
+        "contact_email": request.contact_email,
+        "email_sent": success,
+        "outreach_id": record_id,
+    }
+
+
+@app.post("/api/outreach/followup", tags=["outreach"])
+async def send_followup(
+    request: FollowUpRequest,
+    req: Request,
+    state: AppState = Depends(get_state),
+):
+    trace = req.state.trace_id
+    if not state.email_outreach:
+        raise HTTPException(503, "Email outreach not available")
+
+    async with db_session() as db:
+        rec = db.query(OutreachRecord).filter(OutreachRecord.id == request.outreach_id).first()
+        if not rec: raise HTTPException(404, f"Outreach {request.outreach_id} not found")
+        job = db.query(Job).filter(Job.id == rec.job_id).first()
+        if not job: raise HTTPException(404, "Associated job not found")
+        snap = {
+            "contact_email": rec.contact_email, "contact_name": rec.contact_name,
+            "job_id": job.id, "job_title": job.title, "company": job.company,
+            "url": getattr(job, "url", ""),
+        }
+
+    contact = type("Contact", (), {
+        "name": snap["contact_name"], "email": snap["contact_email"],
+        "title": "Hiring Contact", "company": snap["company"],
+        "department": "", "linkedin_url": None, "confidence_score": 80.0,
+    })()
+
+    class _Stub:
+        id = snap["job_id"]; title = snap["job_title"]
+        company = snap["company"]; url = snap["url"]
+
+    success = await state.email_outreach.send_followup_email(
+        contact, _Stub(), follow_up_number=request.follow_up_number
+    )
+
+    if success:
+        async with db_session() as db:
+            r = db.query(OutreachRecord).filter(OutreachRecord.id == request.outreach_id).first()
+            if r:
+                r.follow_up_count = (getattr(r, "follow_up_count", None) or 0) + 1
+                r.last_follow_up_at = datetime.utcnow()
+                r.status = "followed_up"
+                db.commit()
+
+    return {
+        "status": "success" if success else "failed",
+        "trace_id": trace,
+        "outreach_id": request.outreach_id,
+        "follow_up_number": request.follow_up_number,
+        "email_sent": success,
+    }
+
+
+# ── Stats ─────────────────────────────────────────────────────────────────────
+
+@app.get("/api/jobs/pending-outreach", tags=["jobs"])
+async def pending_outreach(min_score: int = 50, limit: int = 50):
+    from sqlalchemy import and_
+    async with db_session() as db:
+        jobs = (
+            db.query(Job)
+            .join(Application)
+            .outerjoin(OutreachRecord, Job.id == OutreachRecord.job_id)
+            .filter(and_(Application.match_score >= min_score, OutreachRecord.id == None))
+            .order_by(Application.match_score.desc())
+            .limit(limit)
+            .all()
+        )
+        return {
+            "status": "success", "total_jobs": len(jobs),
+            "jobs": [{"id": j.id, "title": j.title, "company": j.company,
+                      "location": j.location, "url": j.url, "source": j.source,
+                      "posted_date": j.posted_date.isoformat() if j.posted_date else None,
+                      "fetched_at": j.fetched_at.isoformat() if j.fetched_at else None}
+                     for j in jobs],
+        }
+
+
+@app.get("/api/stats", tags=["stats"])
+async def stats(state: AppState = Depends(get_state)):
+    # Fast path: live O(1) counters
+    if state.outreach_proc and hasattr(state.outreach_proc, "get_stats"):
+        try:
+            return {"status": "success", "source": "live",
+                    "stats": state.outreach_proc.get_stats()}
+        except Exception as e:
+            log.warning("get_stats() failed: %s", e)
 
 
 # ── Outreach ──────────────────────────────────────────────────────────────────
@@ -682,34 +854,55 @@ async def pending_outreach(min_score: int = 50, limit: int = 50):
 async def stats(state: AppState = Depends(get_state)):
     # Fast path: live O(1) counters
     if state.outreach_proc and hasattr(state.outreach_proc, "get_stats"):
-        return {"status": "success", "source": "live",
-                "stats": state.outreach_proc.get_stats()}
+        try:
+            return {"status": "success", "source": "live",
+                    "stats": state.outreach_proc.get_stats()}
+        except Exception as e:
+            log.warning("get_stats() failed: %s", e)
 
     # Fallback: bounded DB queries
-    async with db_session() as db:
-        tj = db.query(Job).count()
-        ta = db.query(Application).count()
-        to = db.query(OutreachRecord).count()
-        se = db.query(OutreachRecord).filter(OutreachRecord.email_sent == True).count()
-        fu = db.query(OutreachRecord).filter(
-            OutreachRecord.follow_up_count > 0).count() if hasattr(
-            OutreachRecord, "follow_up_count") else 0
-        recent = [
-            {"id": r.id, "contact_email": r.contact_email, "status": r.status,
-             "sent_at": r.sent_at.isoformat() if r.sent_at else None}
-            for r in db.query(OutreachRecord)
-                       .order_by(OutreachRecord.sent_at.desc()).limit(5).all()
-        ]
-    return {
-        "status": "success", "source": "db_fallback",
-        "stats": {
-            "total_jobs": tj, "total_applications": ta,
-            "total_outreach_attempts": to, "emails_sent": se,
-            "follow_ups_sent": fu,
-            "success_rate": round(se / to * 100, 1) if to else 0,
-        },
-        "recent_outreach": recent,
-    }
+    try:
+        async with db_session() as db:
+            tj = db.query(Job).count()
+            ta = db.query(Application).count()
+            to = db.query(OutreachRecord).count()
+            se = db.query(OutreachRecord).filter(OutreachRecord.email_sent == True).count()
+            
+            # Safely handle follow_up_count
+            try:
+                fu = db.query(OutreachRecord).filter(
+                    OutreachRecord.follow_up_count > 0).count()
+            except Exception:
+                fu = 0
+                
+            recent = [
+                {"id": r.id, "contact_email": r.contact_email, "status": r.status,
+                 "sent_at": r.sent_at.isoformat() if r.sent_at else None}
+                for r in db.query(OutreachRecord)
+                           .order_by(OutreachRecord.sent_at.desc()).limit(5).all()
+            ]
+        return {
+            "status": "success", "source": "db_fallback",
+            "stats": {
+                "total_jobs": tj, "total_applications": ta,
+                "total_outreach_attempts": to, "emails_sent": se,
+                "follow_ups_sent": fu,
+                "success_rate": round(se / to * 100, 1) if to else 0,
+            },
+            "recent_outreach": recent,
+        }
+    except Exception as e:
+        log.error("Stats endpoint failed: %s", e)
+        return {
+            "status": "success", "source": "empty",
+            "stats": {
+                "total_jobs": 0, "total_applications": 0,
+                "total_outreach_attempts": 0, "emails_sent": 0,
+                "follow_ups_sent": 0,
+                "success_rate": 0,
+            },
+            "recent_outreach": [],
+        }
 
 
 # ── SignalHire webhook ────────────────────────────────────────────────────────
