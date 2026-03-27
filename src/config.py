@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     signalhire_api_key: Optional[str] = None
     signalhire_callback_url: Optional[str] = None  # Your ngrok URL + /api/signalhire/callback
     
+    # Cloudflare Browser Rendering
+    cloudflare_account_id: Optional[str] = None
+    cloudflare_api_token: Optional[str] = None
+
+    # GitHub
+    github_token: Optional[str] = None
+
     # App
     env: str = "development"
     log_level: str = "INFO"

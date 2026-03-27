@@ -358,8 +358,11 @@ class ApolloProvider(BaseEmailProvider):
                       "per_page": min(limit * 2, 25)}
             )
             data = resp.json()
+            if resp.status_code == 403:
+                logger.info("[Apollo] mixed_people/search requires a paid plan — skipping")
+                return []
             if resp.status_code != 200:
-                logger.warning(f"[Apollo] search error: {data}")
+                logger.warning(f"[Apollo] search error {resp.status_code}: {data}")
                 return []
 
             people = data.get("people", [])
@@ -911,47 +914,136 @@ class GitHubEmailProvider(BaseEmailProvider):
 
     async def find_contacts(self, company_name: str, domain: str, limit: int) -> List[DiscoveredEmail]:
         try:
-            # Search users at company
-            resp = await self._client.get(
-                f"{self.BASE_URL}/search/users",
-                params={"q": f"company:{company_name}", "per_page": min(limit * 2, 30)}
-            )
-            if resp.status_code != 200:
-                return []
+            results: List[DiscoveredEmail] = []
+            seen: set = set()
+            slug = clean_company_slug(company_name)
 
-            users = resp.json().get("items", [])
-            results = []
-            sem = asyncio.Semaphore(3)
+            # ── Strategy 1: Mine commit emails from company GitHub org ─────────
+            org_emails = await self._mine_org_commits(slug, company_name, domain, limit)
+            for e in org_emails:
+                if e.email not in seen:
+                    seen.add(e.email)
+                    results.append(e)
 
-            async def get_user_email(user) -> Optional[DiscoveredEmail]:
-                async with sem:
-                    try:
-                        r = await self._client.get(f"{self.BASE_URL}/users/{user['login']}")
-                        u = r.json()
-                        email = u.get("email")
-                        if email and domain in email:
-                            return DiscoveredEmail(
-                                email=email.lower(),
-                                name=u.get("name", user["login"]),
-                                title="Software Engineer",
-                                company=company_name,
-                                confidence=75,
-                                source=self.name,
-                                sources=[self.name],
-                                verified=False,
-                            )
-                    except Exception:
-                        pass
-                    await asyncio.sleep(0.5)
-                    return None
+            # ── Strategy 2: Search GitHub user profiles ───────────────────────
+            if len(results) < limit:
+                # Try both the slug and original name (e.g. "Stripe" vs "stripe")
+                for q in [f"company:{company_name}", f"company:@{slug}"]:
+                    resp = await self._client.get(
+                        f"{self.BASE_URL}/search/users",
+                        params={"q": q, "per_page": min((limit - len(results)) * 2, 30)}
+                    )
+                    if resp.status_code == 422:  # rate limit on search
+                        break
+                    if resp.status_code != 200:
+                        continue
+                    users = resp.json().get("items", [])
+                    sem = asyncio.Semaphore(3)
 
-            found = await asyncio.gather(*[get_user_email(u) for u in users[:limit]])
-            results = [r for r in found if r]
+                    async def get_user_email(user) -> Optional[DiscoveredEmail]:
+                        async with sem:
+                            try:
+                                r = await self._client.get(f"{self.BASE_URL}/users/{user['login']}")
+                                u = r.json()
+                                email = u.get("email")
+                                if email and (domain in email or domain.split(".")[0] in email):
+                                    return DiscoveredEmail(
+                                        email=email.lower(),
+                                        name=u.get("name", user["login"]),
+                                        title=u.get("bio", "Software Engineer")[:80] if u.get("bio") else "Software Engineer",
+                                        company=company_name,
+                                        confidence=75,
+                                        source=self.name,
+                                        sources=[self.name],
+                                        verified=False,
+                                    )
+                            except Exception:
+                                pass
+                            await asyncio.sleep(0.3)
+                            return None
+
+                    found = await asyncio.gather(*[get_user_email(u) for u in users])
+                    for c in found:
+                        if c and c.email not in seen:
+                            seen.add(c.email)
+                            results.append(c)
+                    if len(results) >= limit:
+                        break
+
             logger.info(f"[GitHub] {len(results)} results for {company_name}")
-            return results
+            return results[:limit]
         except Exception as e:
             logger.error(f"[GitHub] {e}")
             return []
+
+    async def _mine_org_commits(
+        self, slug: str, company_name: str, domain: str, limit: int
+    ) -> List[DiscoveredEmail]:
+        """Mine commit author emails from the company's public GitHub org repos."""
+        results: List[DiscoveredEmail] = []
+        seen: set = set()
+        try:
+            # Check if GitHub org exists
+            org_resp = await self._client.get(f"{self.BASE_URL}/orgs/{slug}")
+            if org_resp.status_code != 200:
+                # Try with company slug variations
+                alt = slug.replace(" ", "").replace("-", "")
+                org_resp = await self._client.get(f"{self.BASE_URL}/orgs/{alt}")
+                if org_resp.status_code != 200:
+                    return []
+                slug = alt
+
+            # Get recently-updated public repos
+            repos_resp = await self._client.get(
+                f"{self.BASE_URL}/orgs/{slug}/repos",
+                params={"per_page": 8, "sort": "updated", "type": "public"}
+            )
+            if repos_resp.status_code != 200:
+                return []
+            repos = repos_resp.json()
+
+            domain_key = domain.split(".")[0]  # e.g. "stripe" from "stripe.com"
+            for repo in repos[:5]:
+                if len(results) >= limit:
+                    break
+                repo_name = repo.get("name", "")
+                commits_resp = await self._client.get(
+                    f"{self.BASE_URL}/repos/{slug}/{repo_name}/commits",
+                    params={"per_page": 15}
+                )
+                if commits_resp.status_code != 200:
+                    continue
+                for commit in commits_resp.json():
+                    author_email = (
+                        commit.get("commit", {}).get("author", {}).get("email", "") or ""
+                    )
+                    if (
+                        author_email
+                        and "@" in author_email
+                        and domain_key in author_email
+                        and "noreply" not in author_email
+                        and author_email not in seen
+                    ):
+                        seen.add(author_email)
+                        name = commit.get("commit", {}).get("author", {}).get("name", "")
+                        # Try to get title from GitHub user profile
+                        gh_user = commit.get("author") or {}
+                        results.append(DiscoveredEmail(
+                            email=author_email.lower(),
+                            name=name,
+                            title="Software Engineer",
+                            company=company_name,
+                            confidence=80,
+                            source=self.name,
+                            sources=[self.name],
+                            verified=False,
+                        ))
+                await asyncio.sleep(0.2)
+
+            logger.info(f"[GitHub] org commit mining: {len(results)} emails from {slug}")
+        except Exception as e:
+            logger.debug(f"[GitHub org mining] {e}")
+        return results
 
     async def close(self):
         await self._client.aclose()
@@ -1096,14 +1188,28 @@ class FreeEmailFinder(BaseEmailProvider):
 
     async def _scrape_site(self, domain: str, company_name: str) -> List[DiscoveredEmail]:
         pages = [
-            f"https://{domain}", f"https://{domain}/contact",
-            f"https://{domain}/about", f"https://{domain}/careers",
-            f"https://{domain}/team", f"https://www.{domain}",
+            f"https://{domain}",
+            f"https://{domain}/contact",
+            f"https://{domain}/contact-us",
+            f"https://{domain}/about",
+            f"https://{domain}/about-us",
+            f"https://{domain}/careers",
+            f"https://{domain}/jobs",
+            f"https://{domain}/team",
+            f"https://{domain}/leadership",
+            f"https://{domain}/people",
+            f"https://www.{domain}",
+            f"https://www.{domain}/contact",
         ]
         seen: set = set()
         results: List[DiscoveredEmail] = []
+        # Also match obfuscated emails like "john [at] company.com" or "john(at)company"
         email_re = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+        obfusc_re = re.compile(
+            r"([A-Za-z0-9._%+\-]+)\s*[\[\(]at[\]\)]\s*([A-Za-z0-9.\-]+\.[A-Za-z]{2,})"
+        )
         bad_ext = {".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp", ".css", ".js"}
+        domain_key = domain.split(".")[0]
 
         for url in pages:
             try:
@@ -1111,13 +1217,18 @@ class FreeEmailFinder(BaseEmailProvider):
                 if resp.status_code != 200:
                     continue
                 text = resp.text
-                for em in email_re.findall(text):
-                    em_low = em.lower()
+                all_emails = list(email_re.findall(text))
+                # Also resolve obfuscated emails
+                for local, host in obfusc_re.findall(text):
+                    all_emails.append(f"{local}@{host}")
+
+                for em in all_emails:
+                    em_low = em.lower().strip()
                     if em_low in seen:
                         continue
                     if any(em_low.endswith(x) for x in bad_ext):
                         continue
-                    if domain.split(".")[0] not in em_low:
+                    if domain_key not in em_low:
                         continue  # only keep emails matching this domain
                     seen.add(em_low)
                     soup = BeautifulSoup(text, "html.parser")
@@ -1125,14 +1236,14 @@ class FreeEmailFinder(BaseEmailProvider):
                     idx = raw.find(em)
                     name = "Hiring Team"
                     if idx > -1:
-                        window = raw[max(0, idx - 150): idx + 150]
+                        window = raw[max(0, idx - 200): idx + 200]
                         names = re.findall(r"\b[A-Z][a-z]+ [A-Z][a-z]+\b", window)
                         if names:
                             name = names[0]
                     results.append(DiscoveredEmail(
                         email=em_low, name=name,
                         title=self._title_from_prefix(em_low),
-                        company=company_name, confidence=58,
+                        company=company_name, confidence=62,
                         source=self.name, sources=[self.name], verified=False,
                     ))
             except Exception:

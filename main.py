@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from urllib.parse import urlparse
 import json
 import logging
 import logging.handlers
@@ -40,7 +41,7 @@ from sqlalchemy.orm import Session
 
 from src.job_processor import JobProcessor
 from src.database import init_db, SessionLocal
-from src.models import Application, Job, OutreachRecord
+from src.models import Application, Job, OutreachRecord, Contact
 from src.config import settings
 
 # ── Async Pipeline imports ────────────────────────────────────────────────
@@ -67,11 +68,25 @@ except Exception as _e:
     logging.warning("outreach_processor not available: %s", _e)
 
 try:
-    from src.contact_finder import ContactFinder, Contact
+    from src.contact_finder import ContactFinder, Contact as ContactDataClass
     _CONTACT_OK = True
 except Exception as _e:
     _CONTACT_OK = False
     logging.warning("contact_finder not available: %s", _e)
+
+try:
+    from src.email_discovery import EmailDiscoveryService
+    _EMAIL_DISCOVERY_OK = True
+except Exception as _e:
+    _EMAIL_DISCOVERY_OK = False
+    logging.warning("email_discovery not available: %s", _e)
+
+try:
+    from src.scrapers.crawl import CrawlRequest, cloudflare_crawl
+    _CRAWL_OK = True
+except Exception as _e:
+    _CRAWL_OK = False
+    logging.warning("cloudflare crawl not available: %s", _e)
 
 
 # =============================================================================
@@ -349,7 +364,7 @@ async def trace_middleware(request: Request, call_next):
         resp.headers["X-Trace-ID"] = tid
         return resp
     except Exception as exc:
-        log.error("[%s] Unhandled: %s %s — %s", tid, request.method, request.url.path, exc)
+        log.error("[%s] Unhandled: %s %s — %s", tid, request.method, request.url.path, exc, exc_info=True)
         return JSONResponse({"detail": "Internal server error", "trace_id": tid}, status_code=500)
 
 
@@ -521,17 +536,67 @@ async def run_query_async(
 # ── Contacts ──────────────────────────────────────────────────────────────────
 
 @app.post("/api/contacts/search", tags=["contacts"])
-async def search_all_contacts(jobs):
-    async with httpx.AsyncClient() as client:
-        tasks = [
-            client.post(
-                "http://your-api/api/contacts/search",
-                json={"company_name": job["company"], "job_title": job["title"]}
-            )
-            for job in jobs
-        ]
-        responses = await asyncio.gather(*tasks)
-    return [r.json() for r in responses]
+async def search_contacts(
+    request: ContactSearchRequest,
+    req: Request,
+):
+    """
+    Find email contacts at a company using all configured providers in priority order:
+      Hunter.io → Apollo.io → SignalHire → GitHub → free scrape + SMTP verify
+
+    Pass smtp_verify=true as query param to run SMTP verification on results.
+    """
+    trace = req.state.trace_id
+
+    if not _EMAIL_DISCOVERY_OK:
+        raise HTTPException(503, "EmailDiscoveryService not available — check startup logs")
+
+    smtp_verify = False   # can expose as query param later
+
+    log.info("[%s] Contact search: company=%s job_title=%s",
+             trace, request.company_name, request.job_title)
+
+    svc = EmailDiscoveryService(settings)
+    try:
+        contacts = await svc.find_contacts(
+            company_name=request.company_name,
+            job_title=request.job_title or "",
+            limit=10,
+            smtp_verify=smtp_verify,
+        )
+    finally:
+        await svc.close()
+
+    # Persist new contacts to DB
+    saved = []
+    async with db_session() as db:
+        for c in contacts:
+            existing = db.query(Contact).filter(Contact.email == c["email"]).first()
+            if not existing:
+                row = Contact(
+                    name=c.get("name", ""),
+                    title=c.get("title", ""),
+                    email=c.get("email", ""),
+                    linkedin_url=c.get("linkedin_url", ""),
+                    company=request.company_name,
+                    department=c.get("department", ""),
+                    confidence_score=c.get("confidence", 0),
+                    source=c.get("source", "email_discovery"),
+                )
+                db.add(row)
+                db.flush()
+                saved.append(row.id)
+        db.commit()
+
+    log.info("[%s] Found %d contacts (%d new saved)", trace, len(contacts), len(saved))
+
+    return {
+        "status": "success",
+        "company": request.company_name,
+        "contacts_found": len(contacts),
+        "contacts_saved": len(saved),
+        "contacts": contacts,
+    }
 
 
 # ── Outreach ──────────────────────────────────────────────────────────────────
@@ -565,9 +630,9 @@ async def send_outreach(
         title="Hiring Contact", company=job_snap["company"],
     )
     if _CONTACT_OK:
-        contact = Contact(**{
+        contact = ContactDataClass(**{
             k: v for k, v in contact_kwargs.items()
-            if k in inspect.signature(Contact.__init__).parameters
+            if k in inspect.signature(ContactDataClass.__init__).parameters
         })
         for attr, default in [("department", ""), ("linkedin_url", None), ("confidence_score", 80.0)]:
             if not hasattr(contact, attr):
@@ -660,6 +725,40 @@ async def send_followup(
     }
 
 
+# ── Jobs ──────────────────────────────────────────────────────────────────────
+
+@app.get("/api/jobs", tags=["jobs"])
+async def get_jobs(page: int = 1, limit: int = 50):
+    """Get all jobs with pagination, sorted by recently fetched."""
+    async with db_session() as db:
+        total = db.query(Job).count()
+        jobs = (
+            db.query(Job)
+            .order_by(Job.fetched_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+            .all()
+        )
+        return {
+            "status": "success",
+            "jobs": [
+                {
+                    "id": j.id, "job_id": j.job_id, "title": j.title,
+                    "company": j.company, "location": j.location,
+                    "description": j.description, "url": j.url,
+                    "source": j.source,
+                    "posted_date": j.posted_date.isoformat() if j.posted_date else None,
+                    "fetched_at": j.fetched_at.isoformat() if j.fetched_at else None,
+                }
+                for j in jobs
+            ],
+            "pagination": {
+                "page": page, "limit": limit, "total": total,
+                "pages": (total + limit - 1) // limit if limit > 0 else 0,
+            },
+        }
+
+
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
 @app.get("/api/jobs/pending-outreach", tags=["jobs"])
@@ -683,17 +782,6 @@ async def pending_outreach(min_score: int = 50, limit: int = 50):
                       "fetched_at": j.fetched_at.isoformat() if j.fetched_at else None}
                      for j in jobs],
         }
-
-
-@app.get("/api/stats", tags=["stats"])
-async def stats(state: AppState = Depends(get_state)):
-    # Fast path: live O(1) counters
-    if state.outreach_proc and hasattr(state.outreach_proc, "get_stats"):
-        try:
-            return {"status": "success", "source": "live",
-                    "stats": state.outreach_proc.get_stats()}
-        except Exception as e:
-            log.warning("get_stats() failed: %s", e)
 
 
 # ── Outreach ──────────────────────────────────────────────────────────────────
@@ -729,9 +817,9 @@ async def send_outreach(
         title="Hiring Contact", company=job_snap["company"],
     )
     if _CONTACT_OK:
-        contact = Contact(**{
+        contact = ContactDataClass(**{
             k: v for k, v in contact_kwargs.items()
-            if k in inspect.signature(Contact.__init__).parameters
+            if k in inspect.signature(ContactDataClass.__init__).parameters
         })
         # Fill any required fields that Contact expects
         for attr, default in [("department", ""), ("linkedin_url", None), ("confidence_score", 80.0)]:
@@ -852,56 +940,129 @@ async def pending_outreach(min_score: int = 50, limit: int = 50):
 
 @app.get("/api/stats", tags=["stats"])
 async def stats(state: AppState = Depends(get_state)):
+    """Return comprehensive statistics with proper logging and fallback handling."""
     # Fast path: live O(1) counters
     if state.outreach_proc and hasattr(state.outreach_proc, "get_stats"):
         try:
+            live_stats = state.outreach_proc.get_stats()
+            log.info("Stats from live processor: %s", live_stats)
             return {"status": "success", "source": "live",
-                    "stats": state.outreach_proc.get_stats()}
+                    "timestamp": datetime.now().isoformat(),
+                    "stats": live_stats}
         except Exception as e:
-            log.warning("get_stats() failed: %s", e)
+            log.warning("Live get_stats() failed, falling back to DB: %s", e)
 
-    # Fallback: bounded DB queries
+    # Fallback: bounded DB queries with proper error handling
     try:
         async with db_session() as db:
+            # Execute all count queries
             tj = db.query(Job).count()
             ta = db.query(Application).count()
             to = db.query(OutreachRecord).count()
+            tc = db.query(Contact).count()
             se = db.query(OutreachRecord).filter(OutreachRecord.email_sent == True).count()
             
             # Safely handle follow_up_count
             try:
                 fu = db.query(OutreachRecord).filter(
                     OutreachRecord.follow_up_count > 0).count()
-            except Exception:
+            except Exception as e:
+                log.warning("Failed to count follow-ups: %s", e)
                 fu = 0
-                
+            
+            # Get recent outreach records
             recent = [
                 {"id": r.id, "contact_email": r.contact_email, "status": r.status,
                  "sent_at": r.sent_at.isoformat() if r.sent_at else None}
                 for r in db.query(OutreachRecord)
                            .order_by(OutreachRecord.sent_at.desc()).limit(5).all()
             ]
-        return {
-            "status": "success", "source": "db_fallback",
-            "stats": {
-                "total_jobs": tj, "total_applications": ta,
-                "total_outreach_attempts": to, "emails_sent": se,
+            
+            # Calculate success rate safely
+            success_rate = round(se / to * 100, 1) if to > 0 else 0.0
+            
+            stats_data = {
+                "total_jobs": tj, 
+                "total_contacts": tc, 
+                "total_applications": ta,
+                "total_outreach_attempts": to, 
+                "emails_sent": se,
                 "follow_ups_sent": fu,
-                "success_rate": round(se / to * 100, 1) if to else 0,
-            },
-            "recent_outreach": recent,
-        }
+                "success_rate": success_rate,
+            }
+            
+            log.info("Stats from DB: jobs=%d, contacts=%d, apps=%d, outreach=%d, emails=%d, success_rate=%s%%",
+                     tj, tc, ta, to, se, success_rate)
+            
+            return {
+                "status": "success", 
+                "source": "db_fallback",
+                "timestamp": datetime.now().isoformat(),
+                "stats": stats_data,
+                "recent_outreach": recent,
+            }
     except Exception as e:
-        log.error("Stats endpoint failed: %s", e)
+        log.error("Stats endpoint error: %s", e, exc_info=True)
         return {
-            "status": "success", "source": "empty",
+            "status": "error", 
+            "source": "empty",
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e),
             "stats": {
-                "total_jobs": 0, "total_applications": 0,
-                "total_outreach_attempts": 0, "emails_sent": 0,
+                "total_jobs": 0, 
+                "total_contacts": 0, 
+                "total_applications": 0,
+                "total_outreach_attempts": 0, 
+                "emails_sent": 0,
                 "follow_ups_sent": 0,
-                "success_rate": 0,
+                "success_rate": 0.0,
             },
             "recent_outreach": [],
+        }
+
+
+# ── Contacts ──────────────────────────────────────────────────────────────────
+
+from sqlalchemy import func
+from typing import Optional
+
+@app.get("/api/contacts", tags=["contacts"])
+async def get_contacts(
+    page: int = 1,
+    limit: int = 50,
+    company: Optional[str] = None,
+):
+    async with db_session() as db:
+        query = db.query(Contact).order_by(Contact.found_at.desc())
+        if company:
+            query = query.filter(Contact.company.ilike(f"%{company}%"))
+        
+        total_query = db.query(func.count(Contact.id))
+        if company:
+            total_query = total_query.filter(Contact.company.ilike(f"%{company}%"))
+        total = total_query.scalar()
+        
+        contacts = query.offset((page - 1) * limit).limit(limit).all()
+        
+        return {
+            "status": "success",
+            "contacts": [
+                {
+                    "id": c.id, "name": c.name, "title": getattr(c, 'title', None),
+                    "email": getattr(c, 'email', None), "linkedin_url": getattr(c, 'linkedin_url', None),
+                    "company": c.company, "department": getattr(c, 'department', None),
+                    "confidence_score": getattr(c, 'confidence_score', 0),
+                    "source": getattr(c, 'source', None),
+                    "found_at": c.found_at.isoformat() if c.found_at else None,
+                }
+                for c in contacts
+            ],
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "pages": (total + limit - 1) // limit if limit > 0 else 0,
+            },
         }
 
 
@@ -937,6 +1098,124 @@ async def sh_result(linkedin_url: str, state: AppState = Depends(get_state)):
     r = state.get_cb(linkedin_url)
     return ({"status": "found", "contact": r} if r
             else {"status": "not_found", "message": "No callback yet"})
+
+
+# ── Cloudflare Crawl ──────────────────────────────────────────────────────────
+
+@app.post("/crawl", tags=["crawl"])
+async def crawl(
+    request: CrawlRequest,
+    req: Request,
+    state: AppState = Depends(get_state),
+):
+    """
+    Crawl a company careers site via Cloudflare Browser Rendering (headless Chrome).
+
+    - Pass the career page URL as `url` (e.g. https://stripe.com/jobs)
+    - `include_patterns` / `exclude_patterns` restrict which pages are crawled
+    - `query` filters returned pages by keyword after crawling (post-processing)
+    - `feed_pipeline` runs matched pages through the job scoring pipeline
+
+    Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in settings.
+    """
+    if not _CRAWL_OK:
+        raise HTTPException(503, "Cloudflare crawl module not available — check startup logs")
+
+    trace = req.state.trace_id
+
+    if not settings.cloudflare_account_id or not settings.cloudflare_api_token:
+        raise HTTPException(
+            503,
+            "Cloudflare credentials not configured. "
+            "Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in .env.",
+        )
+
+    log.info("[%s] CF crawl start: %s (limit=%d, depth=%d)",
+             trace, request.url, request.limit, request.depth)
+
+    pages = await cloudflare_crawl(
+        url=request.url,
+        limit=request.limit,
+        depth=request.depth,
+        include_patterns=request.include_patterns,
+        exclude_patterns=request.exclude_patterns,
+    )
+
+    # Post-crawl keyword filter (query is not sent to Cloudflare)
+    if request.query:
+        q = request.query.lower()
+        pages = [p for p in pages if q in p["text"].lower() or q in p["title"].lower()]
+        log.info("[%s] Query filter '%s' → %d pages", trace, request.query, len(pages))
+
+    log.info("[%s] CF crawled %d pages", trace, len(pages))
+
+    # Store each page as a Job row
+    stored_ids: list[int] = []
+    async with db_session() as db:
+        for page in pages:
+            existing = db.query(Job).filter(Job.job_id == page["url"]).first()
+            if not existing:
+                job = Job(
+                    job_id=page["url"],
+                    title=page["title"] or page["url"],
+                    company=request.company_name or urlparse(page["url"]).netloc,
+                    location="remote",
+                    description=page["text"][:8000],
+                    url=page["url"],
+                    source="cloudflare_crawl",
+                    fetched_at=datetime.utcnow(),
+                )
+                db.add(job)
+                db.flush()
+                stored_ids.append(job.id)
+            else:
+                stored_ids.append(existing.id)
+        db.commit()
+
+    # Optionally feed into job pipeline
+    pipeline_result = None
+    if request.feed_pipeline and state.job_processor:
+        query_hint = request.query or (pages[0]["title"] if pages else request.url)
+        resume_path = state.resume_router.route(query_hint)
+        try:
+            resume_text = _read_resume(resume_path)
+        except HTTPException:
+            resume_text = ""
+
+        if resume_text:
+            log.info("[%s] Feeding CF crawl into pipeline (resume=%s)", trace, resume_path)
+            try:
+                result = await _call_with_accepted(
+                    state.job_processor.process_all_jobs,
+                    resume_text,
+                    min_score=0,
+                )
+                if inspect.isawaitable(result):
+                    result = await result
+                pipeline_result = {"resume_used": resume_path, "result": str(result)}
+            except Exception as exc:
+                log.error("[%s] Pipeline error: %s", trace, exc, exc_info=True)
+                pipeline_result = {"resume_used": resume_path, "result": f"error: {exc}"}
+        else:
+            pipeline_result = {"resume_used": None, "result": "skipped — no resume found"}
+
+    return {
+        "status": "success",
+        "trace_id": trace,
+        "start_url": request.url,
+        "pages_crawled": len(pages),
+        "pages_stored": len(stored_ids),
+        "feed_pipeline": request.feed_pipeline,
+        "pipeline": pipeline_result,
+        "pages": [
+            {
+                "url":          p["url"],
+                "title":        p["title"],
+                "text_preview": p["text"][:300],
+            }
+            for p in pages
+        ],
+    }
 
 
 # =============================================================================
