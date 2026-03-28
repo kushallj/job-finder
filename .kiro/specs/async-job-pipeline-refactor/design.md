@@ -362,6 +362,7 @@ BEGIN
       // Exponential backoff
       delay ← base_delay * (2 ^ attempt)
       AWAIT sleep(delay)
+      
     END TRY
   END LOOP
 END

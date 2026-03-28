@@ -1,6 +1,12 @@
 # =============================================================================
-# Cloudflare Browser Rendering — /crawl helper
-# Exports: CrawlRequest, cloudflare_crawl
+# Cloudflare Browser Rendering helpers
+# Exports: CrawlRequest, cloudflare_crawl, cloudflare_render_page
+#
+# Two distinct APIs:
+#   /content  — single-page render, synchronous, returns HTML immediately.
+#               Use for job-board search pages (Naukri, Hirist, Indeed).
+#   /crawl    — multi-page async crawl with polling.
+#               Use for company career sites (already implemented below).
 # =============================================================================
 
 import asyncio
@@ -137,3 +143,79 @@ async def cloudflare_crawl(
     log.info("CF crawl %s done — %d/%d pages usable",
              job_id, len(pages), data.get("total", 0))
     return pages
+
+
+async def cloudflare_render_page(
+    url:              str,
+    wait_selector:    Optional[str] = None,
+    wait_ms:          int           = 2000,
+    timeout_ms:       int           = 30000,
+) -> Optional[str]:
+    """
+    Cloudflare Browser Rendering /content — single-page synchronous render.
+
+    Renders a URL in a real Chromium instance at Cloudflare's edge and returns
+    the fully-rendered HTML. Bypasses bot detection without needing a local browser.
+
+    Perfect for job-board search pages (Naukri, Hirist, Indeed) that block
+    direct HTTP requests or TLS impersonation.
+
+    Args:
+        url:           Page to render.
+        wait_selector: Optional CSS selector to wait for before returning HTML.
+        wait_ms:       Additional ms to wait after page load (default 2s).
+        timeout_ms:    Max render time in ms (default 30s).
+
+    Returns:
+        Rendered HTML string, or None on failure.
+    """
+    account_id = settings.cloudflare_account_id
+    api_token  = settings.cloudflare_api_token
+
+    if not account_id or not api_token:
+        log.warning("cloudflare_render_page: missing CF credentials — skipping")
+        return None
+
+    cf_url  = (
+        f"https://api.cloudflare.com/client/v4/accounts"
+        f"/{account_id}/browser-rendering/content"
+    )
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type":  "application/json",
+    }
+    payload: dict = {
+        "url": url,
+        # Skip heavy assets — faster render, same HTML content
+        "rejectResourceTypes": ["image", "media", "font", "stylesheet"],
+        # networkidle2: wait until no more than 2 in-flight network requests for 500ms
+        # This ensures SPA frameworks (React/Next.js) finish fetching data before snapshot
+        "gotoOptions": {"waitUntil": "networkidle2", "timeout": timeout_ms},
+    }
+    if wait_selector:
+        payload["waitForSelector"] = {"selector": wait_selector, "timeout": timeout_ms}
+    elif wait_ms:
+        payload["waitForTimeout"] = wait_ms
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout_ms / 1000 + 10) as client:
+            resp = await client.post(cf_url, headers=headers, json=payload)
+
+        if resp.status_code != 200:
+            log.warning("CF /content error %d for %s: %s",
+                        resp.status_code, url, resp.text[:200])
+            return None
+
+        data = resp.json()
+        # Response shape: {"success": true, "result": "<html>..."}
+        html = data.get("result") or data.get("html") or ""
+        if not html:
+            log.warning("CF /content returned empty body for %s", url)
+            return None
+
+        log.info("CF /content OK — %d chars for %s", len(html), url)
+        return html
+
+    except Exception as exc:
+        log.warning("CF /content exception for %s: %s", url, exc)
+        return None

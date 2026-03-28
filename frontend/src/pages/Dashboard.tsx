@@ -16,6 +16,7 @@ import {
   TextField,
   InputAdornment,
   Slider,
+
 } from '@mui/material';
 import {
   Work as JobsIcon,
@@ -26,6 +27,7 @@ import {
   PlayArrow as FetchIcon,
   RocketLaunch as OutreachRunIcon,
   Search as SearchIcon,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { useStats } from '../hooks/useStats';
 import { useJobs } from '../hooks/useJobs';
@@ -116,7 +118,7 @@ const QuickAction: React.FC<QuickActionProps> = ({ title, description, icon, onC
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { stats, recentOutreach, isLoadingStats } = useStats();
+  const { stats, recentOutreach, isLoadingStats, refetchStats } = useStats();
   const { pendingOutreach, isPendingOutreachLoading, runQuery, isRunningQuery } = useJobs();
 
   // Search state for job fetching
@@ -168,8 +170,8 @@ export const Dashboard: React.FC = () => {
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
-            title="Contacts"
-            value={formatNumber(stats?.total_applications)}
+            title="Contacts Found"
+            value={formatNumber(stats?.total_contacts)}
             icon={<ContactsIcon />}
             color="success"
             loading={isLoadingStats}
@@ -238,6 +240,14 @@ export const Dashboard: React.FC = () => {
               startIcon={isRunningQuery ? <Skeleton variant="circular" width={20} height={20} /> : <FetchIcon />}
             >
               {isRunningQuery ? 'Searching...' : 'Fetch Jobs'}
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => void refetchStats()}
+              disabled={isLoadingStats}
+              startIcon={<RefreshIcon />}
+            >
+              Refresh Stats
             </Button>
           </Box>
         </CardContent>

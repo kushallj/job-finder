@@ -30,7 +30,7 @@ import type { RecentOutreach } from '../api/types';
 const COLORS = ['#4caf50', '#ff9800', '#f44336', '#9c27b0', '#2196f3'];
 
 export const Stats: React.FC = () => {
-  const { stats, recentOutreach, isLoadingStats, refetchStats } = useStats();
+  const { stats, recentOutreach, isLoadingStats, refetchStats, statsError, statsSource, statsTimestamp } = useStats();
 
   // Prepare data for charts
   const statusData = React.useMemo(() => {
@@ -75,6 +75,22 @@ export const Stats: React.FC = () => {
     );
   }
 
+  if (statsError) {
+    return (
+      <Box sx={{ textAlign: 'center', py: 4 }}>
+        <Typography variant="h6" color="error" gutterBottom>
+          Failed to load statistics
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          {statsError instanceof Error ? statsError.message : 'Unknown error occurred'}
+        </Typography>
+        <Button variant="contained" onClick={() => refetchStats()}>
+          Retry
+        </Button>
+      </Box>
+    );
+  }
+
   return (
     <Box>
       {/* Header Section */}
@@ -105,6 +121,24 @@ export const Stats: React.FC = () => {
         </Box>
       </Box>
 
+      {/* Debug Info */}
+      {statsSource && (
+        <Card sx={{ mb: 3, backgroundColor: 'action.hover' }}>
+          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              <Typography variant="caption" color="text.secondary">
+                Data source: <strong>{statsSource}</strong>
+              </Typography>
+              {statsTimestamp && (
+                <Typography variant="caption" color="text.secondary">
+                  Last updated: {new Date(statsTimestamp).toLocaleTimeString()}
+                </Typography>
+              )}
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Key Metrics */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -115,6 +149,18 @@ export const Stats: React.FC = () => {
               </Typography>
               <Typography variant="h4" fontWeight={700}>
                 {formatNumber(stats?.total_jobs || 0)}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Total Contacts Found
+              </Typography>
+              <Typography variant="h4" fontWeight={700}>
+                {formatNumber(stats?.total_contacts || 0)}
               </Typography>
             </CardContent>
           </Card>

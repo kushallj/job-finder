@@ -58,7 +58,7 @@ def export_jobs_to_sheet(sheet_client: GoogleSheetsClient, worksheet_name: str =
         )
     
     # Write data
-    worksheet.update('A1', rows)
+    worksheet.update(values=rows, range_name='A1')
     
     # Format header
     worksheet.format('A1:J1', {
@@ -116,7 +116,7 @@ def export_contacts_to_sheet(sheet_client: GoogleSheetsClient, worksheet_name: s
         )
     
     # Write data
-    worksheet.update('A1', rows)
+    worksheet.update(values=rows, range_name='A1')
     
     # Format header
     worksheet.format('A1:J1', {
@@ -180,7 +180,7 @@ def export_outreach_to_sheet(sheet_client: GoogleSheetsClient, worksheet_name: s
         )
     
     # Write data
-    worksheet.update('A1', rows)
+    worksheet.update(values=rows, range_name='A1')
     
     # Format header
     worksheet.format('A1:K1', {
@@ -241,7 +241,7 @@ def export_applications_to_sheet(sheet_client: GoogleSheetsClient, worksheet_nam
         )
     
     # Write data
-    worksheet.update('A1', rows)
+    worksheet.update(values=rows, range_name='A1')
     
     # Format header
     worksheet.format('A1:I1', {
@@ -310,7 +310,7 @@ def export_summary_to_sheet(sheet_client: GoogleSheetsClient, worksheet_name: st
         )
     
     # Write data
-    worksheet.update('A1', rows)
+    worksheet.update(values=rows, range_name='A1')
     
     # Format title
     worksheet.format('A1:B1', {

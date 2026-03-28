@@ -747,16 +747,17 @@ class HTMLParser:
 # =============================================================================
 
 _NAUKRI_CARDS = [
-    "article.jobTuple",
-    "div.srp-jobtuple-wrapper",
+    "div.srp-jobtuple-wrapper",   # current React SPA class (networkidle2 render)
+    "article.jobTuple",           # older SSR class
+    "div[class*='srp-jobtuple']",
     "div[class*='job-tuple']",
     "div[class*='job-container']",
 ]
 _NAUKRI_FIELDS = {
-    "title":   ["a.title", "a.title-href", "a[class*='title']"],
-    "url":     ["a.title[href]", "a.title-href[href]"],
-    "company": ["a.subTitle", "a.comp-name", "span.comp-name"],
-    "location":["span.locWdth", "span.loc-wrap", "span[class*='loc']"],
+    "title":   ["a.title", "a.title-href", "a[class*='title']", "h2 a", "h3 a"],
+    "url":     ["a.title[href]", "a.title-href[href]", "h2 a[href]", "h3 a[href]"],
+    "company": ["a.subTitle", "a.comp-name", "span.comp-name", "a[class*='comp']"],
+    "location":["span.locWdth", "span.loc-wrap", "span[class*='loc']", "li[class*='loc']"],
     "description":["div.job-description", "div.row3", "div[class*='desc']"],
 }
 
@@ -892,7 +893,14 @@ async def _scrape_naukri(
     cache: ScrapeCache,
     log: TLog,
 ) -> List[Dict]:
-    """Naukri scraper using persistent strategy graph (CBs survive across calls)."""
+    """Naukri scraper using persistent strategy graph (CBs survive across calls).
+
+    Strategy order:
+      1. cloudflare — renders in real Chromium at CF edge, bypasses bot detection
+      2. tls         — curl_cffi TLS impersonation (fast, sometimes blocked)
+      3. browser     — local nodriver/playwright (slow, needs browser installed)
+      4. llm         — LLM HTML extraction (last resort)
+    """
     cached = cache.get("naukri", keyword, location)
     if cached is not None:
         log.info("Cache HIT naukri/%s/%s", keyword, location)
@@ -903,6 +911,21 @@ async def _scrape_naukri(
            f"{location.lower().replace(' ','-')}")
 
     tls_layer = TLSLayer()
+
+    async def _via_cloudflare() -> List[Dict]:
+        try:
+            from src.scrapers.crawl import cloudflare_render_page
+        except ImportError:
+            return []
+        # No waitForSelector — use networkidle2 (inside cloudflare_render_page via
+        # gotoOptions) so the React SPA finishes fetching job data before snapshot.
+        html = await cloudflare_render_page(url)
+        if not html or len(html) < 50_000:   # splash-screen guard: full page > 100KB
+            return []
+        jobs_raw = HTMLParser.parse_job_listings(html, "naukri", _NAUKRI_CARDS, _NAUKRI_FIELDS)
+        results  = [j.to_dict() for j in [normalize(r, "naukri") for r in jobs_raw] if j][:max_jobs]
+        log.info("CF /content → %d Naukri jobs for '%s' in '%s'", len(results), keyword, location)
+        return results
 
     async def _via_tls() -> List[Dict]:
         html = await tls_layer.get(url)
@@ -932,15 +955,20 @@ async def _scrape_naukri(
         raw  = await llm.extract_jobs_from_html(html, "naukri")
         return [j.to_dict() for j in [normalize(r, "naukri") for r in raw] if j][:max_jobs]
 
-    # FIX #10: use persistent per-source circuit breakers, not new ones each call
-    sg = StrategyGraph()
-    sg.add_node("tls",     _via_tls,     naukri_cbs["tls"])
-    sg.add_node("browser", _via_browser, naukri_cbs["browser"])
-    sg.add_node("llm",     _via_llm,     naukri_cbs["llm"])
-    sg.add_edge("tls", "browser")
-    sg.add_edge("browser", "llm")
+    # Add cloudflare CB alongside the existing ones
+    if "cloudflare" not in naukri_cbs:
+        naukri_cbs["cloudflare"] = CircuitBreaker("naukri_cloudflare")
 
-    jobs = await sg.execute("tls", timeout=35.0)
+    sg = StrategyGraph()
+    sg.add_node("cloudflare", _via_cloudflare, naukri_cbs["cloudflare"])
+    sg.add_node("tls",        _via_tls,        naukri_cbs["tls"])
+    sg.add_node("browser",    _via_browser,    naukri_cbs["browser"])
+    sg.add_node("llm",        _via_llm,        naukri_cbs["llm"])
+    sg.add_edge("cloudflare", "tls")
+    sg.add_edge("tls",        "browser")
+    sg.add_edge("browser",    "llm")
+
+    jobs = await sg.execute("cloudflare", timeout=40.0)
     if jobs:
         cache.set("naukri", keyword, location, jobs)
     return jobs
@@ -1184,7 +1212,9 @@ class APIJobScraper(BaseScraper):
         self._selenium   = None
         self._llm        = LocalLLMService()
         self._multi      = MultiPlatformJobScraper()
-        self._jobspy = JobSpyScraper()
+        self._jobspy     = JobSpyScraper()
+        from src.scrapers.ats_scraper import ATSScraper
+        self._ats        = ATSScraper()
         self._mcp_layer  = MCPLayer(self)
 
         self._browser_graph = self._build_browser_graph()
@@ -1455,18 +1485,19 @@ class APIJobScraper(BaseScraper):
             self._timed("foorilla",       self._fetch_foorilla(query, location)),
             self._timed("multi_platform", self._fetch_multi_platform(query)),
             self._timed("jobspy",         self._jobspy.search(query, location), timeout=60.0),
-
+            self._timed("ats",            self._ats.search(query, location),    timeout=35.0),
         ))
         tier2 = asyncio.ensure_future(
             self._timed("browser", self._fetch_browser_sources(query, location))
         )
 
-        (t1_rem, t1_adz, t1_foo, t1_mp, t1_spy), t2_all = await asyncio.gather(tier1, tier2)
+        (t1_rem, t1_adz, t1_foo, t1_mp, t1_spy, t1_ats), t2_all = await asyncio.gather(tier1, tier2)
 
         all_raw: List[Dict] = []
         for name, jobs in [("remotive", t1_rem), ("adzuna", t1_adz),
                             ("foorilla", t1_foo), ("multi_platform", t1_mp),
-                            ("jobspy",   t1_spy),("browser",  t2_all)]:
+                            ("jobspy",   t1_spy), ("ats", t1_ats),
+                            ("browser",  t2_all)]:
             log.info("Source %-15s → %d jobs", name, len(jobs))
             all_raw.extend(jobs)
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Box,
   Card,
@@ -15,6 +15,7 @@ import {
   ListItemText,
   Avatar,
   Divider,
+  Pagination,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -26,19 +27,29 @@ import {
   Check as CheckIcon,
 } from '@mui/icons-material';
 import { useContacts } from '../hooks/useContacts';
+import { useFilterStore } from '../stores/useFilterStore';
 import { capitalizeFirst } from '../utils/formatters';
 import type { Contact } from '../api/types';
 
 export const Contacts: React.FC = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCompany, setSelectedCompany] = useState('');
-  const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
+  const filterStore = useFilterStore();
+  const [copiedEmail, setCopiedEmail] = React.useState<string | null>(null);
   
-  const { contacts, isLoading, refetch, search, isSearching } = useContacts(selectedCompany || undefined);
+  const filters = {
+    page: filterStore.contactsPage,
+    limit: filterStore.contactsLimit,
+    company: filterStore.contactCompanyFilter[0] ?? '',
+  };
+  
+  const { contacts, pagination, isLoading, refetch, search, isSearching } = useContacts(filters);
+
+  React.useEffect(() => {
+    refetch();
+  }, [filterStore.contactsPage, filterStore.contactsLimit, filterStore.contactCompanyFilter, refetch]);
 
   const handleSearch = () => {
-    if (searchQuery.trim()) {
-      search({ company_name: searchQuery });
+    if (filterStore.contactSearch.trim()) {
+      search({ company_name: filterStore.contactSearch.trim() });
     }
   };
 
@@ -48,17 +59,16 @@ export const Contacts: React.FC = () => {
     setTimeout(() => setCopiedEmail(null), 2000);
   };
 
-  // Get unique companies from contacts
-  const companies = [...new Set(contacts.map((c: Contact) => c.company))];
+  const companies = [...new Set(contacts.map((c) => c.company))];
 
-  const filteredContacts = contacts.filter((contact: Contact) =>
-    contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    contact.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (contact.email && contact.email.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredContacts = contacts.filter((contact) =>
+    contact.name.toLowerCase().includes(filterStore.contactSearch.toLowerCase()) ||
+    contact.company.toLowerCase().includes(filterStore.contactSearch.toLowerCase()) ||
+    contact.email?.toLowerCase().includes(filterStore.contactSearch.toLowerCase()) ||
+    filterStore.contactCompanyFilter.some((f) => contact.company.toLowerCase().includes(f.toLowerCase()))
   );
 
-  // Group contacts by company
-  const groupedContacts = filteredContacts.reduce((acc: Record<string, Contact[]>, contact: Contact) => {
+  const groupedContacts = filteredContacts.reduce((acc: Record<string, Contact[]>, contact) => {
     const company = contact.company || 'Unknown';
     if (!acc[company]) {
       acc[company] = [];
@@ -69,7 +79,6 @@ export const Contacts: React.FC = () => {
 
   return (
     <Box>
-      {/* Header Section */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" fontWeight={700} gutterBottom>
           Contacts
@@ -79,14 +88,13 @@ export const Contacts: React.FC = () => {
         </Typography>
       </Box>
 
-      {/* Search Section */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'end' }}>
             <TextField
               placeholder="Search by name, company, or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={filterStore.contactSearch}
+              onChange={(e) => filterStore.setContactSearch(e.target.value)}
               size="small"
               sx={{ flex: 1, minWidth: 250 }}
               InputProps={{
@@ -101,8 +109,15 @@ export const Contacts: React.FC = () => {
             <TextField
               select
               label="Filter by Company"
-              value={selectedCompany}
-              onChange={(e) => setSelectedCompany(e.target.value)}
+              value={filterStore.contactCompanyFilter[0] || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val) {
+                  filterStore.setContactCompanyFilter([val]);
+                } else {
+                  filterStore.setContactCompanyFilter([]);
+                }
+              }}
               size="small"
               sx={{ minWidth: 200 }}
               SelectProps={{ native: true }}
@@ -118,9 +133,9 @@ export const Contacts: React.FC = () => {
             <Button
               variant="contained"
               onClick={handleSearch}
-              disabled={isSearching || !searchQuery.trim()}
+              disabled={isSearching || !filterStore.contactSearch.trim()}
             >
-              {isSearching ? <CircularProgress size={20} /> : 'Search'}
+              {isSearching ? <CircularProgress size={20} /> : 'Search Contacts'}
             </Button>
 
             <Button
@@ -130,128 +145,146 @@ export const Contacts: React.FC = () => {
             >
               Refresh
             </Button>
+
+            <Button
+              variant="outlined"
+              onClick={() => filterStore.resetContactFilters()}
+            >
+              Reset Filters
+            </Button>
           </Box>
         </CardContent>
       </Card>
 
-      {/* Contacts by Company */}
       {isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
           <CircularProgress />
         </Box>
-      ) : filteredContacts.length === 0 ? (
+      ) : contacts.length === 0 ? (
         <Card>
           <CardContent sx={{ textAlign: 'center', py: 6 }}>
             <Typography variant="h6" color="text.secondary" gutterBottom>
               No contacts found
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Search for contacts by company name to discover contacts
+              Run job search first to populate contacts
             </Typography>
           </CardContent>
         </Card>
       ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {Object.entries(groupedContacts).map(([company, companyContacts]) => (
-            <Card key={company}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <CompanyIcon color="primary" />
-                  <Typography variant="h6" fontWeight={600}>
-                    {company}
-                  </Typography>
-                  <Chip label={`${companyContacts.length}`} size="small" color="primary" variant="outlined" />
-                </Box>
-                
-                <Divider sx={{ mb: 2 }} />
-                
-                <List disablePadding>
-                  {companyContacts.map((contact: Contact, index: number) => (
-                    <React.Fragment key={contact.id}>
-                      <ListItem
-                        sx={{
-                          px: 0,
-                          py: 2,
-                          '&:hover': { backgroundColor: 'action.hover' },
-                        }}
-                        secondaryAction={
-                          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                            {contact.confidence_score > 0 && (
-                              <Chip
-                                label={`${contact.confidence_score}%`}
-                                size="small"
-                                color={contact.confidence_score >= 80 ? 'success' : contact.confidence_score >= 60 ? 'warning' : 'default'}
-                              />
-                            )}
-                            {contact.email && (
-                              <IconButton
-                                size="small"
-                                onClick={() => handleCopyEmail(contact.email!)}
-                                title="Copy email"
-                              >
-                                {copiedEmail === contact.email ? (
-                                  <CheckIcon color="success" fontSize="small" />
-                                ) : (
-                                  <CopyIcon fontSize="small" />
-                                )}
-                              </IconButton>
-                            )}
-                          </Box>
-                        }
-                      >
-                        <Avatar sx={{ mr: 2, bgcolor: 'primary.light' }}>
-                          <PersonIcon />
-                        </Avatar>
-                        <ListItemText
-                          primary={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="body1" fontWeight={500}>
-                                {contact.name}
-                              </Typography>
-                              {contact.title && (
-                                <Typography variant="body2" color="text.secondary">
-                                  - {contact.title}
-                                </Typography>
-                              )}
-                            </Box>
-                          }
-                          secondary={
-                            <Box sx={{ display: 'flex', gap: 2, mt: 0.5, flexWrap: 'wrap' }}>
-                              {contact.email && (
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  <EmailIcon fontSize="small" color="action" />
-                                  <Typography variant="caption">{contact.email}</Typography>
-                                </Box>
-                              )}
-                              {contact.linkedin_url && (
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  <LinkedInIcon fontSize="small" color="action" />
-                                  <Typography variant="caption">LinkedIn</Typography>
-                                </Box>
-                              )}
-                              {contact.source && (
+        <>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              Showing {filteredContacts.length} of {pagination.total} contacts
+            </Typography>
+            <Pagination 
+              count={Math.ceil(pagination.total / filterStore.contactsLimit)} 
+              page={filterStore.contactsPage} 
+              onChange={(_, page) => filterStore.setContactsPage(page)} 
+              color="primary" 
+            />
+          </Box>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {Object.entries(groupedContacts).map(([company, companyContacts]) => (
+              <Card key={company}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <CompanyIcon color="primary" />
+                    <Typography variant="h6" fontWeight={600}>
+                      {company}
+                    </Typography>
+                    <Chip label={`${companyContacts.length}`} size="small" color="primary" variant="outlined" />
+                  </Box>
+                  
+                  <Divider sx={{ mb: 2 }} />
+                  
+                  <List disablePadding>
+                    {companyContacts.map((contact, index) => (
+                      <React.Fragment key={contact.id}>
+                        <ListItem
+                          sx={{
+                            px: 0,
+                            py: 2,
+                            '&:hover': { backgroundColor: 'action.hover' },
+                          }}
+                          secondaryAction={
+                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                              {contact.confidence_score > 0 && (
                                 <Chip
-                                  label={capitalizeFirst(contact.source)}
+                                  label={`${contact.confidence_score}%`}
                                   size="small"
-                                  variant="outlined"
+                                  color={contact.confidence_score >= 80 ? 'success' : contact.confidence_score >= 60 ? 'warning' : 'default'}
                                 />
                               )}
+                              {contact.email && (
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleCopyEmail(contact.email)}
+                                  title="Copy email"
+                                >
+                                  {copiedEmail === contact.email ? (
+                                    <CheckIcon color="success" fontSize="small" />
+                                  ) : (
+                                    <CopyIcon fontSize="small" />
+                                  )}
+                                </IconButton>
+                              )}
                             </Box>
                           }
-                        />
-                      </ListItem>
-                      {index < companyContacts.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </List>
-              </CardContent>
-            </Card>
-          ))}
-        </Box>
+                        >
+                          <Avatar sx={{ mr: 2, bgcolor: 'primary.light' }}>
+                            <PersonIcon />
+                          </Avatar>
+                          <ListItemText
+                            primary={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="body1" fontWeight={500}>
+                                  {contact.name}
+                                </Typography>
+                                {contact.title && (
+                                  <Typography variant="body2" color="text.secondary">
+                                    - {contact.title}
+                                  </Typography>
+                                )}
+                              </Box>
+                            }
+                            secondary={
+                              <Box sx={{ display: 'flex', gap: 2, mt: 0.5, flexWrap: 'wrap' }}>
+                                {contact.email && (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <EmailIcon fontSize="small" color="action" />
+                                    <Typography variant="caption">{contact.email}</Typography>
+                                  </Box>
+                                )}
+                                {contact.linkedin_url && (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <LinkedInIcon fontSize="small" color="action" />
+                                    <Typography variant="caption">LinkedIn</Typography>
+                                  </Box>
+                                )}
+                                {contact.source && (
+                                  <Chip
+                                    label={capitalizeFirst(contact.source)}
+                                    size="small"
+                                    variant="outlined"
+                                  />
+                                )}
+                              </Box>
+                            }
+                          />
+                        </ListItem>
+                        {index < companyContacts.length - 1 && <Divider />}
+                      </React.Fragment>
+                    ))}
+                  </List>
+                </CardContent>
+              </Card>
+            ))}
+          </Box>
+        </>
       )}
     </Box>
   );
 };
 
 export default Contacts;
-

@@ -16,7 +16,7 @@ import {
   CircularProgress,
   Alert,
   InputAdornment,
-  Slider,
+  Pagination,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -33,25 +33,22 @@ import { formatSource, formatRelativeTime } from '../utils/formatters';
 import type { PendingOutreachJob } from '../api/types';
 
 const Jobs: React.FC = () => {
+  const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
-  const [minScore, setMinScore] = useState(50);
+  const [jobsPerPage] = useState(50);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<PendingOutreachJob | null>(null);
 
   const {
-    pendingOutreach,
-    isPendingOutreachLoading,
-    runQuery,
-    isRunningQuery,
-    queryResult,
-    refetchPendingOutreach,
-  } = useJobs();
+    allJobs,
+    allJobsTotal,
+    allJobsPages,
+    isAllJobsLoading,
+    allJobsError,
+    refetchAllJobs,
+  } = useJobs(page, jobsPerPage);
 
   const { isSendingOutreach } = useOutreach();
-
-  const handleSearch = () => {
-    runQuery({ query: searchQuery, min_score: minScore });
-  };
 
   const handleJobClick = (job: PendingOutreachJob) => {
     setSelectedJob(job);
@@ -69,8 +66,12 @@ const Jobs: React.FC = () => {
     }
   };
 
-  const jobs = pendingOutreach?.jobs || [];
-  const filteredJobs = jobs.filter((job) =>
+  const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
+    setPage(value);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const filteredJobs = allJobs.filter((job) =>
     job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     job.company.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -83,7 +84,7 @@ const Jobs: React.FC = () => {
           Jobs
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Manage and track your job applications
+          Browse all {allJobsTotal} jobs • Page {page} of {allJobsPages}
         </Typography>
       </Box>
 
@@ -92,7 +93,7 @@ const Jobs: React.FC = () => {
         <CardContent>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <TextField
-              placeholder="Search jobs..."
+              placeholder="Search jobs by title or company..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               size="small"
@@ -105,54 +106,31 @@ const Jobs: React.FC = () => {
                 ),
               }}
             />
-            
-            <Box sx={{ width: 200, px: 2 }}>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Min Score: {minScore}%
-              </Typography>
-              <Slider
-                value={minScore}
-                onChange={(_, value) => setMinScore(value as number)}
-                min={0}
-                max={100}
-                step={5}
-                valueLabelDisplay="auto"
-                color="primary"
-              />
-            </Box>
-
-            <Button
-              variant="contained"
-              onClick={handleSearch}
-              disabled={isRunningQuery || !searchQuery.trim()}
-              startIcon={isRunningQuery ? <CircularProgress size={20} color="inherit" /> : <RefreshIcon />}
-            >
-              {isRunningQuery ? 'Searching...' : 'Fetch Jobs'}
-            </Button>
 
             <Button
               variant="outlined"
-              onClick={() => refetchPendingOutreach()}
-              disabled={isPendingOutreachLoading}
+              onClick={() => refetchAllJobs()}
+              disabled={isAllJobsLoading}
+              startIcon={isAllJobsLoading ? <CircularProgress size={20} /> : <RefreshIcon />}
             >
               Refresh
             </Button>
           </Box>
-
-          {queryResult && (
-            <Alert severity="success" sx={{ mt: 2 }}>
-              {queryResult.jobs_fetched} jobs fetched using resume: {queryResult.resume_used}
-            </Alert>
-          )}
         </CardContent>
       </Card>
 
+      {allJobsError && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          Error loading jobs: {String(allJobsError)}
+        </Alert>
+      )}
+
       {/* Jobs List */}
       <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
-        {filteredJobs.length} Jobs Found
+        {filteredJobs.length} Jobs on This Page
       </Typography>
 
-      {isPendingOutreachLoading ? (
+      {isAllJobsLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
           <CircularProgress />
         </Box>
@@ -160,10 +138,12 @@ const Jobs: React.FC = () => {
         <Card>
           <CardContent sx={{ textAlign: 'center', py: 6 }}>
             <Typography variant="h6" color="text.secondary" gutterBottom>
-              No jobs found
+              {allJobs.length === 0 ? 'No jobs found' : 'No jobs match your search'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Try searching for jobs or adjusting your filters
+              {allJobs.length === 0 
+                ? 'Try refreshing or checking back later'
+                : 'Try adjusting your search query'}
             </Typography>
           </CardContent>
         </Card>
@@ -236,6 +216,19 @@ const Jobs: React.FC = () => {
               </CardContent>
             </Card>
           ))}
+        </Box>
+      )}
+
+      {/* Pagination */}
+      {!isAllJobsLoading && allJobsPages > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4, mb: 4 }}>
+          <Pagination
+            count={allJobsPages}
+            page={page}
+            onChange={handlePageChange}
+            color="primary"
+            size="large"
+          />
         </Box>
       )}
 

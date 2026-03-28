@@ -17,9 +17,17 @@ export const contactsApi = {
   /**
    * Get all contacts (with optional company filter)
    */
-  getAll: async (company?: string, limit: number = 100): Promise<Contact[]> => {
-    const response = await api.get<Contact[]>('/api/contacts', {
-      params: { company, limit },
+  getAll: async (company?: string, page: number = 1, limit: number = 50): Promise<{
+    contacts: Contact[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
+  }> => {
+    const response = await api.get('/api/contacts', {
+      params: { company, page, limit },
     });
     return response.data;
   },

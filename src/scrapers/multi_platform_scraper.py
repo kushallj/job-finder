@@ -127,35 +127,71 @@ class BaseJobScraper:
 class NaukriScraper(BaseJobScraper):
     BASE_URL = "https://www.naukri.com"
 
+    # Selectors in priority order — Naukri updates their DOM frequently
+    _CARD_SELECTORS = ["article.jobTuple", "div.srp-jobtuple-wrapper",
+                       "div[class*='job-tuple']", "div.jobTuple"]
+
     async def search(self, keyword: str, location: str) -> List[JobPosting]:
-        jobs = []
+        url = (f"{self.BASE_URL}/"
+               f"{keyword.lower().replace(' ', '-')}-jobs-in-"
+               f"{location.lower().replace(' ', '-')}")
+        logger.info(f"Searching Naukri for: {keyword} in {location}")
+
+        html = await self._fetch_via_cloudflare(url) or await self._fetch_via_http(url)
+        if not html:
+            return []
+        return self._parse(html, location)
+
+    async def _fetch_via_cloudflare(self, url: str):
+        """Render via Cloudflare Browser Rendering — networkidle2 waits for SPA data."""
         try:
-            search_url = f"{self.BASE_URL}/jobs-in-{location.lower()}"
-            params = {'k': keyword, 'l': location, 'experience': '2'}
-            logger.info(f"Searching Naukri for: {keyword} in {location}")
-            async with self.session.get(search_url, params=params, headers=self.headers) as response:
-                if response.status == 200:
-                    html = await response.text()
-                    soup = BeautifulSoup(html, 'html.parser')
-                    job_cards = soup.find_all('div', class_='jobTuple')
-                    for card in job_cards[:20]:
-                        try:
-                            title_elem = card.find('a', class_='title')
-                            company_elem = card.find('a', class_='subTitle')
-                            location_elem = card.find('span', class_='locationsContainer')
-                            if title_elem and company_elem:
-                                jobs.append(self.normalize_job({
-                                    'title': title_elem.get_text(strip=True),
-                                    'company': company_elem.get_text(strip=True),
-                                    'location': location_elem.get_text(strip=True) if location_elem else location,
-                                    'url': urljoin(self.BASE_URL, title_elem.get('href', '')),
-                                    'description': card.get_text(strip=True)[:500],
-                                    'job_id': f"naukri_{hash(title_elem.get('href', ''))}"
-                                }, JobSource.NAUKRI.value))
-                        except Exception as e:
-                            logger.error(f"Error parsing Naukri job card: {e}")
-        except Exception as e:
-            logger.error(f"Error scraping Naukri: {e}")
+            from src.scrapers.crawl import cloudflare_render_page
+            html = await cloudflare_render_page(url)
+            if html and len(html) > 50_000:   # guard: full SPA page > 50KB
+                logger.info(f"Naukri CF render OK — {len(html):,} chars")
+                return html
+        except Exception as exc:
+            logger.warning(f"Naukri CF render failed: {exc}")
+        return None
+
+    async def _fetch_via_http(self, url: str):
+        """Direct HTTP fallback — fast but often blocked by Naukri."""
+        try:
+            async with self.session.get(url, headers=self.headers, timeout=15) as resp:
+                if resp.status == 200:
+                    return await resp.text()
+        except Exception as exc:
+            logger.warning(f"Naukri direct HTTP failed: {exc}")
+        return None
+
+    def _parse(self, html: str, location: str) -> List[JobPosting]:
+        soup = BeautifulSoup(html, 'html.parser')
+        jobs = []
+        for selector in self._CARD_SELECTORS:
+            # BeautifulSoup doesn't support attribute selectors natively
+            tag, *cls = selector.replace("[class*='", " ").rstrip("']").split()
+            cards = soup.find_all(tag, class_=cls[0] if cls else False) if cls else soup.find_all(tag)
+            if cards:
+                break
+        else:
+            cards = []
+
+        for card in cards[:20]:
+            try:
+                title_elem   = card.find('a', class_='title') or card.find('a', attrs={'class': lambda c: c and 'title' in c})
+                company_elem = card.find('a', class_='subTitle') or card.find('a', attrs={'class': lambda c: c and ('comp' in c or 'company' in c)})
+                loc_elem     = card.find('span', class_='locWdth') or card.find('span', attrs={'class': lambda c: c and 'loc' in c})
+                if title_elem and company_elem:
+                    jobs.append(self.normalize_job({
+                        'title':       title_elem.get_text(strip=True),
+                        'company':     company_elem.get_text(strip=True),
+                        'location':    loc_elem.get_text(strip=True) if loc_elem else location,
+                        'url':         urljoin(self.BASE_URL, title_elem.get('href', '')),
+                        'description': card.get_text(separator=' ', strip=True)[:500],
+                        'job_id':      f"naukri_{hash(title_elem.get('href', ''))}",
+                    }, JobSource.NAUKRI.value))
+            except Exception as exc:
+                logger.debug(f"Naukri card parse error: {exc}")
         return jobs
 
 class LinkedInScraper(BaseJobScraper):

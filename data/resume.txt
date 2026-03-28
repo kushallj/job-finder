@@ -1,119 +1,49 @@
 Kushall Jain
-Software Development Engineer — Full Stack Web Development • RESTful APIs • Cloud Architecture
-
+Software Development Engineer · Full Stack Web Development · RESTful APIs · Cloud Architecture
 kushall.jain07@gmail.com | linkedin.com/in/kushall-jain-263009261 | github.com/kushallj | kushall.in | 9990079764
-
-
 PROFESSIONAL SUMMARY
-
-Software Development Engineer with 3+ years of professional experience designing, developing, and deploying enterprise-grade web applications and RESTful APIs serving 1000+ SMEs with 10,000+ daily active users. Proven expertise in full-stack development using React (JavaScript/TypeScript), Python backend services (Django/FastAPI), Node.js, and SQL databases (PostgreSQL, MySQL). Strong foundation in SOLID/OOP principles, microservices architecture, and agile development methodologies. Successfully delivered mission-critical systems processing 150+ Cr monthly transactions with 99.5% uptime. Currently expanding expertise in C# and .NET ecosystem to complement full-stack capabilities. Demonstrated ability to translate business requirements into technical solutions, collaborate across cross-functional teams, and deliver high-quality, maintainable code from design through production deployment.
-
-
+Software Development Engineer with 3+ years designing, developing, and deploying enterprise-grade web applications and RESTful APIs. Proven
+expertise in full-stack development with React (TypeScript), Python (Django/FastAPI), Node.js, and PostgreSQL. Delivered mission-critical systems
+processing 150+ Cr monthly transactions with 99.5% uptime serving 1000+ SMEs and 10,000+ DAU. Strong foundation in SOLID/OOP
+principles, microservices architecture, and agile methodologies. Currently expanding into C# and .NET.
 TECHNICAL SKILLS
-
-Programming & Web Development: Python (FastAPI, Django REST Framework), Node.js (Express), JavaScript/TypeScript (ES6+), SQL, React.js, HTML5, CSS3 — Currently Learning: C# fundamentals, .NET Core basics
-
-Architecture & Design: RESTful API Design & Development, Microservices Architecture, MVC Pattern, SOLID Principles, OOP Concepts, Design Patterns (Factory, Singleton, Strategy), Clean Code Practices, Async Programming
-
-Frontend Development: React.js (JavaScript/TypeScript), Redux Toolkit, React Hooks, Material UI, Responsive Design, Single Page Applications (SPA)
-
-Databases & Data Management: PostgreSQL (Advanced), MySQL, SQL Optimization, Query Performance Tuning, MongoDB, Django ORM, Complex Joins
-
-Cloud Services & DevOps: AWS (S3, ECS, IAM), Docker (Containerization), Git/GitHub, CI/CD Pipelines (GitHub Actions), Postman
-
-Development Methodologies: Agile/Scrum (Sprint Planning, Daily Standups, Retrospectives), Continuous Integration/Deployment, Version Control, Documentation Best Practices
-
-
+Languages & Frameworks: Python (FastAPI, Django REST), Node.js (Express), JavaScript/TypeScript (ES6+), React.js, Redux Toolkit, HTML5,
+CSS3 · Learning: C#, .NET Core
+Architecture & Design: RESTful API Design, Microservices, MVC, SOLID Principles, OOP, Design Patterns (Factory, Singleton, Strategy), Async
+Programming
+Databases: PostgreSQL (Advanced), MySQL, MongoDB, Django ORM, SQL Optimization, Query Performance Tuning
+Cloud & DevOps: AWS (S3, ECS, IAM), Docker, Git/GitHub, CI/CD (GitHub Actions), Postman, Agile/Scrum
 PROFESSIONAL EXPERIENCE
-
 Full Stack Software Developer
-Progfin Pvt Ltd (FinTech Sector) | Dec 2023 – Present | Delhi, India
-
-• Designed and developed mission-critical financial platform serving 1000+ SMEs with 10,000+ daily active users, processing 150+ Cr monthly transactions with 99.5% uptime using React, Python (Django/FastAPI), PostgreSQL, and AWS
-
-• Built scalable, responsive front-end using React 18 with TypeScript, Redux Toolkit state management, and component-based architecture following modern web development best practices
-
-• Implemented secure, performant backend using Python (Django REST Framework, FastAPI) handling 10,000+ API requests/day with comprehensive validation, error handling, JWT authentication, and monitoring
-
-• Developed 10+ RESTful microservices implementing proper HTTP methods (GET, POST, PUT, DELETE), request/response validation using Pydantic, role-based authorization, and comprehensive API documentation using Swagger/OpenAPI specifications
-
-• Created credit scoring rule engine, automated lending workflows, and real-time financial data processing services using Django for high-performance endpoints with async processing via Celery task queues
-
-• Designed normalized PostgreSQL database schemas with proper relationships (one-to-many, many-to-many), constraints, and indexes supporting thousands of concurrent financial transactions
-
-• Implemented Django ORM models with custom managers and querysets, achieving 70% query performance improvement through select_related, prefetch_related, and strategic indexing
-
-• Optimized complex SQL queries involving multiple joins, subqueries, and aggregations reducing response time from 800ms to 200ms (75% improvement) through systematic profiling
-
-• Collaborated closely with product managers, designers, and QA engineers translating business requirements into technical specifications through entire software development lifecycle from requirement clarification through deployment
-
-• Actively participated in Agile/Scrum ceremonies including sprint planning, daily standups, sprint reviews, and retrospectives
-
-• Conducted thorough code reviews ensuring code quality, adherence to SOLID principles, and knowledge sharing across team
-
-• Mentored 2 junior developers on Python, Django, React best practices, design patterns, and professional software engineering standards
-
-• Provided architectural guidance for feature implementations considering scalability, maintainability, and long-term technical debt
-
-
-Subject Matter Expert (Educational Technology Platform)
-ByteDance Pvt Ltd | April 2020 – November 2021 | India
-
-• Collaborated with engineering team building Django REST Framework APIs for content management system serving grades 9-12 educational platform achieving 2M+ video views
-
-• Implemented RESTful endpoints for user enrollment, progress tracking, assessment systems, and gamified learning frameworks contributing to 30% enrollment growth
-
-• Participated in full software development lifecycle from requirements gathering through testing and deployment working closely with developers on Python backend and React frontend integration
-
-• Worked on business logic implementation for learning analytics and recommendation engine contributing to 25% increase in user engagement
-
-• Identified and resolved edge cases in content delivery workflows, assessment grading logic, and user interaction patterns improving system reliability
-
-• Implemented data validation logic and comprehensive error handling reducing support tickets by 40% through proactive bug fixes
-
-• Analyzed user behavior data using Python (Pandas, NumPy) processing 2M+ interactions to derive insights for platform feature optimization
-
-• Built automated Python scripts for content validation, data extraction, performance reporting, and bulk operations reducing manual work by 60%
-
-• Created data pipelines for ETL processes ensuring data quality and timely reporting to stakeholders
-
-• Participated in Agile methodologies including sprint planning, daily standups, and retrospectives working alongside product managers, engineers, and designers
-
-• Translated educational requirements into technical implementations bridging gap between content creators and development team
-
-
-KEY PROJECTS & TECHNICAL DEMONSTRATIONS
-
-Enterprise Financial Platform (Production) | Django REST Framework, FastAPI, React (TypeScript), PostgreSQL, AWS
-Full-stack financial application processing 150+ Cr monthly transactions across 25+ institutions. Implemented credit scoring microservices, automated lending workflows, real-time dashboards achieving 85% automation.
-
-DevFrnds - Developer Networking Platform | React.js (TypeScript), Node.js (Express), MongoDB | 2023
-• Full-stack developer connection platform with Tinder-like matching interface serving 500+ active users
-• Implemented swipe-based matching algorithm, real-time chat using WebSocket, JWT authentication
-• Built RESTful APIs for user management, connections, messaging with proper error handling and validation
-• Production URL: devfrnds.online — GitHub: github.com/kushallj
-
-
+Progfin Pvt Ltd (FinTech) · Dec 2023 – Present · Delhi, India
+(cid:127) Architected mission-critical financial platform serving 1000+ SMEs and 10,000+ DAU, processing 150+ Cr monthly transactions at 99.5%
+uptime — stack: React 18/TypeScript, Django/FastAPI, PostgreSQL, AWS
+(cid:127) Built 10+ RESTful microservices with Pydantic validation, JWT auth, role-based authorization, and Swagger/OpenAPI docs; async task processing
+via Celery
+(cid:127) Designed normalized PostgreSQL schemas with strategic indexing; optimized ORM queries (select_related, prefetch_related) achieving 70%
+query performance improvement
+(cid:127) Reduced SQL response time 800ms fi 200ms (75%) via systematic profiling of complex joins, subqueries, and aggregations
+(cid:127) Delivered credit scoring rule engine and automated lending workflows, achieving 85% process automation across real-time financial data
+pipelines
+(cid:127) Mentored 2 junior developers; led code reviews enforcing SOLID principles and architectural guidance across sprint cycles
+Subject Matter Expert — EdTech Platform
+ByteDance Pvt Ltd · Apr 2020 – Nov 2021 · India
+(cid:127) Built Django REST Framework APIs for content management system serving grades 9–12 platform with 2M+ video views; contributed to 30%
+enrollment growth
+(cid:127) Implemented business logic for learning analytics and recommendation engine, driving 25% increase in user engagement
+(cid:127) Analyzed 2M+ user interactions (Python/Pandas/NumPy) to derive product insights; built ETL data pipelines for quality reporting
+(cid:127) Automated content validation, data extraction, and bulk operations via Python scripts — reduced manual work by 60%; cut support tickets 40% via
+proactive error handling
+KEY PROJECTS
+Enterprise Financial Platform · Django REST, FastAPI, React/TypeScript, PostgreSQL, AWS
+Production system processing 150+ Cr monthly across 25+ institutions. Credit scoring microservices, automated lending workflows, real-time
+dashboards — 85% process automation.
+DevFrnds — Developer Networking Platform · React/TypeScript, Node.js, MongoDB · 2023 · devfrnds.online
+Full-stack developer matching platform (500+ users). Swipe-based matching, real-time WebSocket chat, JWT auth, RESTful APIs for
+user/connection/messaging management.
 EDUCATION
-
-Bachelor of Technology (B.Tech) in Civil Engineering
-G L Bajaj Institute of Technology & Management | August 2014 – June 2018 | India
-Relevant Coursework: Data Structures & Algorithms, Object-Oriented Programming, Database Management Systems, Software Engineering, Web Technologies, Computer Networks
-
-
-CERTIFICATIONS & CONTINUOUS LEARNING
-
-Frontend Development: React - The Complete Guide (TypeScript), Advanced React Patterns, Redux Toolkit Masterclass
-
-Database & Performance: PostgreSQL Performance Tuning, Advanced SQL for Developers, Database Design and Optimization
-
-Currently Learning: C# Fundamentals (understanding syntax, OOP principles in C# context), .NET Core Basics (exploring .NET ecosystem, ASP.NET Core fundamentals), Microservices with .NET (learning patterns similar to Python/Node.js implementations)
-
-
-ADDITIONAL INFORMATION
-
-Problem Solving: Active on LeetCode (300+ problems solved) - Strong foundation in algorithms and data structures
-
-Technical Strengths: Rapid learning ability demonstrated through mastering multiple tech stacks (Python, JavaScript, React, Node.js). Strong understanding of SOLID principles and design patterns applicable across programming languages. Experience with enterprise-scale systems handling millions of requests with reliability and performance focus
-
-Professional Approach: Commitment to clean, maintainable code with comprehensive documentation. Proactive in code reviews and knowledge sharing. Focus on long-term system stability and user experience over quick fixes
+B.Tech in Civil Engineering · G L Bajaj Institute of Technology & Management · 2014 – 2018
+Relevant: Data Structures & Algorithms, OOP, DBMS, Software Engineering, Web Technologies, Computer Networks
+CERTIFICATIONS & ADDITIONAL
+Frontend: React – The Complete Guide (TypeScript), Advanced React Patterns, Redux Toolkit · Database: PostgreSQL Performance Tuning,
+Advanced SQL, Database Design · Learning: C# Fundamentals, .NET Core, ASP.NET Core · LeetCode: 300+ problems solved

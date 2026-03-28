@@ -2,8 +2,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { jobsApi } from '../api';
 import type { QueryRequest } from '../api/types';
 
-export const useJobs = () => {
+export const useJobs = (page: number = 1, limit: number = 50) => {
   const queryClient = useQueryClient();
+
+  // Get all jobs with pagination
+  const allJobsQuery = useQuery({
+    queryKey: ['jobs', 'all', page, limit],
+    queryFn: () => jobsApi.getAllJobs(page, limit),
+    staleTime: 30000, // 30 seconds
+  });
 
   // Get pending outreach jobs
   const pendingOutreachQuery = useQuery({
@@ -16,17 +23,27 @@ export const useJobs = () => {
   const runQueryMutation = useMutation({
     mutationFn: (data: QueryRequest) => jobsApi.runQuery(data),
     onSuccess: () => {
-      // Invalidate and refetch jobs
+      // Invalidate queries so they refetch on next render
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['stats'] });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
     },
   });
 
   return {
-    // Queries
+    // All jobs query
+    allJobs: allJobsQuery.data?.jobs || [],
+    allJobsTotal: allJobsQuery.data?.pagination?.total || 0,
+    allJobsPages: allJobsQuery.data?.pagination?.pages || 0,
+    isAllJobsLoading: allJobsQuery.isLoading,
+    allJobsError: allJobsQuery.error,
+    refetchAllJobs: allJobsQuery.refetch,
+    
+    // Pending outreach query
     pendingOutreach: pendingOutreachQuery.data,
     isPendingOutreachLoading: pendingOutreachQuery.isLoading,
     pendingOutreachError: pendingOutreachQuery.error,
+    refetchPendingOutreach: pendingOutreachQuery.refetch,
     
     // Mutations
     runQuery: runQueryMutation.mutate,
@@ -34,9 +51,6 @@ export const useJobs = () => {
     isRunningQuery: runQueryMutation.isPending,
     queryError: runQueryMutation.error,
     queryResult: runQueryMutation.data,
-    
-    // Refetch
-    refetchPendingOutreach: pendingOutreachQuery.refetch,
   };
 };
 

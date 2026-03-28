@@ -17,6 +17,16 @@ export const jobsApi = {
   },
 
   /**
+   * Get all jobs with pagination, sorted by recently fetched
+   */
+  getAllJobs: async (page: number = 1, limit: number = 50): Promise<PendingOutreachResponse> => {
+    const response = await api.get<PendingOutreachResponse>('/api/jobs', {
+      params: { page, limit },
+    });
+    return response.data;
+  },
+
+  /**
    * Get jobs that are pending outreach (matched with resume but not yet reached out)
    */
   getPendingOutreach: async (minScore: number = 50, limit: number = 50): Promise<PendingOutreachResponse> => {

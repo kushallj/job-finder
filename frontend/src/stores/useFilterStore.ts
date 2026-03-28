@@ -14,6 +14,10 @@ interface FilterState {
   setContactSearch: (search: string) => void;
   contactCompanyFilter: string[];
   setContactCompanyFilter: (companies: string[]) => void;
+  contactsPage: number;
+  setContactsPage: (page: number) => void;
+  contactsLimit: number;
+  setContactsLimit: (limit: number) => void;
   
   // Outreach filters
   outreachStatusFilter: string[];
@@ -37,6 +41,8 @@ const initialState = {
   jobMinScore: 50,
   contactSearch: '',
   contactCompanyFilter: [] as string[],
+  contactsPage: 1,
+  contactsLimit: 50,
   outreachStatusFilter: [] as string[],
   dateRange: {
     start: null as Date | null,
@@ -54,6 +60,8 @@ export const useFilterStore = create<FilterState>((set) => ({
   // Contact filters
   setContactSearch: (search) => set({ contactSearch: search }),
   setContactCompanyFilter: (companies) => set({ contactCompanyFilter: companies }),
+  setContactsPage: (page) => set({ contactsPage: page }),
+  setContactsLimit: (limit) => set({ contactsLimit: limit }),
   
   // Outreach filters
   setOutreachStatusFilter: (statuses) => set({ outreachStatusFilter: statuses }),
@@ -65,9 +73,12 @@ export const useFilterStore = create<FilterState>((set) => ({
     jobSourceFilter: initialState.jobSourceFilter,
     jobMinScore: initialState.jobMinScore,
   }),
+
   resetContactFilters: () => set({
     contactSearch: initialState.contactSearch,
     contactCompanyFilter: initialState.contactCompanyFilter,
+    contactsPage: initialState.contactsPage,
+    contactsLimit: initialState.contactsLimit,
   }),
   resetOutreachFilters: () => set({
     outreachStatusFilter: initialState.outreachStatusFilter,

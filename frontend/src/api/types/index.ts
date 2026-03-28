@@ -145,6 +145,7 @@ export interface PendingOutreachResponse {
 
 export interface OutreachStats {
   total_jobs: number;
+  total_contacts: number;
   total_applications: number;
   total_outreach_attempts: number;
   emails_sent: number;

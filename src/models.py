@@ -102,6 +102,12 @@ class OutreachRecord(Base):
     follow_up_sent = Column(Boolean, default=False)
     follow_up_count = Column(Integer, default=0)
     last_follow_up_at = Column(DateTime)
+
+    # Outreach intelligence (Task 6)
+    reply_sentiment = Column(String(20))        # positive|negative|neutral|unsubscribe|referral
+    ab_variant = Column(Integer, default=0)     # which A/B subject variant was used
+    send_scheduled_at = Column(DateTime)        # SmartTimer scheduled send time
+    timezone_detected = Column(String(100))     # detected recipient timezone
     
     # Relationships
     contact = relationship("Contact", back_populates="outreach_records")

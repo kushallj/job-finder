@@ -1377,6 +1377,213 @@ class DomainResolver:
 
 
 # ---------------------------------------------------------------------------
+# Provider: Wayback Machine (free — no API key)
+# ---------------------------------------------------------------------------
+
+class WaybackEmailProvider(BaseEmailProvider):
+    """
+    Wayback Machine CDX API — mine emails from archived web pages.
+
+    How it works:
+      1. CDX API: list all archived URLs for the domain (free, no auth)
+      2. Filter to high-value pages (/team, /about, /contact, /people)
+      3. Fetch those snapshots from archive.org
+      4. Regex-extract emails that belong to the company domain
+
+    Covers historical emails even when the live page was updated or removed.
+    """
+    name = "wayback"
+    CDX_URL = "http://web.archive.org/cdx/search/cdx"
+    WB_URL  = "https://web.archive.org/web"
+
+    _HIGH_VALUE = ["/team", "/about", "/about-us", "/people", "/leadership",
+                   "/contact", "/contact-us", "/our-team", "/management",
+                   "/founders", "/press", "/investors"]
+    _EMAIL_RE   = re.compile(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}')
+    _NOISE      = {"noreply", "no-reply", "donotreply", "bounce", "mailer-daemon",
+                   "privacy", "legal", "abuse", "postmaster", "webmaster",
+                   "notifications", "unsubscribe", "newsletter"}
+
+    def __init__(self):
+        self._client = httpx.AsyncClient(
+            timeout=20.0, follow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; EmailResearch/1.0)"},
+        )
+
+    async def find_contacts(self, company_name: str, domain: str, limit: int) -> List[DiscoveredEmail]:
+        try:
+            urls = await self._archive_urls(domain)
+            if not urls:
+                return []
+            pages = await asyncio.gather(
+                *[self._fetch(u) for u in urls[:5]], return_exceptions=True
+            )
+            emails: set = set()
+            for page in pages:
+                if not isinstance(page, str):
+                    continue
+                for email in self._EMAIL_RE.findall(page):
+                    local, _, dom = email.partition("@")
+                    if dom.lower() == domain and local.lower() not in self._NOISE:
+                        emails.add(email.lower())
+
+            results = [
+                DiscoveredEmail(email=e, name="", title="", company=company_name,
+                                confidence=55, source=self.name, sources=[self.name])
+                for e in list(emails)[:limit]
+            ]
+            if results:
+                logger.info(f"[Wayback] {len(results)} emails found for {domain}")
+            return results
+        except Exception as exc:
+            logger.debug(f"[Wayback] {domain}: {exc}")
+            return []
+
+    async def _archive_urls(self, domain: str) -> List[str]:
+        try:
+            resp = await self._client.get(self.CDX_URL, params={
+                "url": f"{domain}/", "matchType": "prefix", "output": "json",
+                "fl": "original,timestamp", "filter": ["statuscode:200", "mime:text/html"],
+                "limit": 100, "from": "20230101", "collapse": "urlkey",
+            })
+            rows = resp.json() if resp.status_code == 200 else []
+            if len(rows) <= 1:
+                return []
+
+            good = [(r[0], r[1]) for r in rows[1:]
+                    if any(r[0].lower().split(domain)[-1].split("?")[0].startswith(p)
+                           for p in self._HIGH_VALUE)]
+            if not good:
+                good = [(r[0], r[1]) for r in rows[1:5]]
+
+            seen, out = set(), []
+            for url, ts in good[:10]:
+                path = url.lower().split(domain)[-1].split("?")[0]
+                if path not in seen:
+                    seen.add(path)
+                    out.append(f"{self.WB_URL}/{ts}/{url}")
+            return out
+        except Exception as exc:
+            logger.debug(f"[Wayback] CDX error for {domain}: {exc}")
+            return []
+
+    async def _fetch(self, url: str) -> str:
+        try:
+            r = await self._client.get(url)
+            if r.status_code == 200:
+                return re.sub(r"<[^>]+>", " ", r.text)
+        except Exception:
+            pass
+        return ""
+
+    async def close(self):
+        await self._client.aclose()
+
+
+# ---------------------------------------------------------------------------
+# Provider: crt.sh Certificate Transparency (free — no API key)
+# ---------------------------------------------------------------------------
+
+class CertShEmailProvider(BaseEmailProvider):
+    """
+    crt.sh Certificate Transparency Logs — discover subdomains, crawl for emails.
+
+    How it works:
+      1. Query crt.sh for every SSL cert issued to *.domain (public, no auth)
+      2. Extract unique subdomains from the cert common-name/SAN fields
+      3. Prioritise high-value subdomains (team, about, contact, people, blog)
+      4. Crawl those live pages and regex-extract emails
+
+    Every SSL certificate is publicly logged via RFC 6962. This gives a complete
+    map of a company's subdomains — many of which expose contact pages not linked
+    from the main site.
+    """
+    name = "certsh"
+    CRTSH_URL = "https://crt.sh/"
+
+    _HIGH_VALUE_SUBS = {"team", "about", "people", "contact", "leadership",
+                        "careers", "jobs", "blog", "press", "investors",
+                        "management", "founders", "support", "hello"}
+    _EMAIL_RE = re.compile(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}')
+    _NOISE    = {"noreply", "no-reply", "donotreply", "bounce",
+                 "privacy", "legal", "abuse", "postmaster", "webmaster"}
+
+    def __init__(self):
+        self._client = httpx.AsyncClient(
+            timeout=15.0, follow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; EmailResearch/1.0)"},
+        )
+
+    async def find_contacts(self, company_name: str, domain: str, limit: int) -> List[DiscoveredEmail]:
+        try:
+            subdomains = await self._subdomains(domain)
+            if not subdomains:
+                return []
+            pages = await asyncio.gather(
+                *[self._fetch(f"https://{sub}") for sub in subdomains[:8]],
+                return_exceptions=True
+            )
+            emails: set = set()
+            for page in pages:
+                if not isinstance(page, str):
+                    continue
+                for email in self._EMAIL_RE.findall(page):
+                    local, _, dom = email.partition("@")
+                    if (dom.lower() == domain or dom.lower().endswith(f".{domain}")):
+                        if local.lower() not in self._NOISE:
+                            emails.add(email.lower())
+
+            results = [
+                DiscoveredEmail(email=e, name="", title="", company=company_name,
+                                confidence=60, source=self.name, sources=[self.name])
+                for e in list(emails)[:limit]
+            ]
+            if results:
+                logger.info(f"[crt.sh] {len(results)} emails found for {domain}")
+            return results
+        except Exception as exc:
+            logger.debug(f"[crt.sh] {domain}: {exc}")
+            return []
+
+    async def _subdomains(self, domain: str) -> List[str]:
+        try:
+            resp = await self._client.get(
+                self.CRTSH_URL, params={"q": f"%.{domain}", "output": "json"}, timeout=20.0,
+            )
+            if resp.status_code != 200:
+                return []
+            certs = resp.json()
+            names: set = set()
+            for cert in certs:
+                for field in ("name_value", "common_name"):
+                    for name in cert.get(field, "").split("\n"):
+                        name = name.strip().lstrip("*.")
+                        if name.endswith(f".{domain}") and name != domain:
+                            names.add(name)
+
+            def _priority(fqdn: str) -> int:
+                sub = fqdn.replace(f".{domain}", "").split(".")[-1].lower()
+                return 0 if sub in self._HIGH_VALUE_SUBS else 1
+
+            return sorted(names, key=_priority)[:15]
+        except Exception as exc:
+            logger.debug(f"[crt.sh] lookup failed for {domain}: {exc}")
+            return []
+
+    async def _fetch(self, url: str) -> str:
+        try:
+            r = await self._client.get(url)
+            if r.status_code == 200:
+                return re.sub(r"<[^>]+>", " ", r.text)
+        except Exception:
+            pass
+        return ""
+
+    async def close(self):
+        await self._client.aclose()
+
+
+# ---------------------------------------------------------------------------
 # Deduplication + Confidence Merger
 # ---------------------------------------------------------------------------
 
@@ -1423,7 +1630,9 @@ class EmailDiscoveryService:
 
     def __init__(self, settings=None):
         self.providers: List[BaseEmailProvider] = []
-        self.free_finder = FreeEmailFinder(smtp_verify=False)
+        self.free_finder    = FreeEmailFinder(smtp_verify=False)
+        self.wayback_finder = WaybackEmailProvider()
+        self.certsh_finder  = CertShEmailProvider()
         self.domain_resolver = DomainResolver()
 
         # Load providers from settings if available
@@ -1524,11 +1733,19 @@ class EmailDiscoveryService:
             for batch in gathered:
                 all_raw.extend(batch)
 
-        # Free fallback if we don't have enough results
+        # Free fallback — run all free sources concurrently when paid providers
+        # don't return enough results (Hunter monthly limit, Apollo free plan, etc.)
         if len(all_raw) < limit:
             self.free_finder.smtp_verify = smtp_verify
-            free = await self.free_finder.find_contacts(company_name, domain, limit)
-            all_raw.extend(free)
+            free_results = await asyncio.gather(
+                self.free_finder.find_contacts(company_name, domain, limit),
+                self.wayback_finder.find_contacts(company_name, domain, limit),
+                self.certsh_finder.find_contacts(company_name, domain, limit),
+                return_exceptions=True,
+            )
+            for batch in free_results:
+                if isinstance(batch, list):
+                    all_raw.extend(batch)
 
         # Deduplicate + merge
         deduped = deduplicate(all_raw)
@@ -1624,5 +1841,6 @@ class EmailDiscoveryService:
 
     async def close(self):
         tasks = [p.close() for p in self.providers] + \
-                [self.free_finder.close(), self.domain_resolver.close()]
+                [self.free_finder.close(), self.wayback_finder.close(),
+                 self.certsh_finder.close(), self.domain_resolver.close()]
         await asyncio.gather(*tasks, return_exceptions=True)
