@@ -335,14 +335,6 @@ async def outreach_node(state: NEXUSState) -> None:
         return
 
     try:
-        from src.outreach_orchestrator import OutreachOrchestrator
-        from src.contact_finder import Contact
-
-        orchestrator = OutreachOrchestrator()
-
-        sent    = 0
-        skipped = 0
-
         if state.dry_run:
             _save_drafts(state.personalized_outreaches)
             skipped = len(state.personalized_outreaches)
@@ -352,42 +344,24 @@ async def outreach_node(state: NEXUSState) -> None:
             state.mark_node_done("outreach", t0)
             return
 
-        for outreach in state.personalized_outreaches:
-
-            # Build a Contact object for the orchestrator
-            contact = Contact(
-                name             = outreach.contact_name,
-                title            = "",
-                email            = outreach.contact_email,
-                company          = outreach.company,
-                confidence_score = outreach.personalization_score,
-            )
-
-            try:
-                result = await orchestrator.send_one(
-                    contact       = contact,
-                    subject       = outreach.email.subject,
-                    body          = outreach.email.body,
-                    job_title     = "",
-                    cover_letter  = outreach.cover_letter,
-                )
-                if result:
-                    sent += 1
-                    state.outreach_results.append(result)
-                else:
-                    skipped += 1
-            except Exception as exc:
-                log.debug("outreach_node send to %s: %s", outreach.contact_name, exc)
-                skipped += 1
-
-        state.emails_sent    = sent
-        state.emails_skipped = skipped
-
-        # Routing: only run feedback if we actually sent something
-        state.route_decision = "run_feedback" if sent > 0 else "skip_feedback"
-
-        log.info("outreach_node: sent=%d skipped=%d", sent, skipped)
-        state.mark_node_done("outreach", t0)
+        # NOTE: real (non-dry-run) sending through OutreachOrchestrator is not
+        # wired up yet. OutreachOrchestrator.orchestrate()/_send_one() build
+        # their own subject line via A/B testing and don't accept the
+        # already-personalized outreach.email.subject/body/cover_letter this
+        # node has — routing through them as-is would silently discard the
+        # personalization that personalize_node just produced. This used to
+        # call a nonexistent `orchestrator.send_one(...)` method, which threw
+        # AttributeError on every contact and was swallowed by the broad
+        # except block below (logged at .debug, so effectively invisible).
+        # Failing loudly here instead of pretending to work until
+        # OutreachOrchestrator supports sending pre-built content directly.
+        raise NotImplementedError(
+            "outreach_node non-dry-run sending is not implemented — "
+            "OutreachOrchestrator needs a send method that accepts pre-built "
+            "subject/body/cover_letter instead of generating its own via A/B "
+            "testing. See comment above. Real outreach sending currently "
+            "happens via job_processor.py through the Celery beat schedule."
+        )
 
     except Exception as exc:
         state.mark_node_failed("outreach", str(exc), t0)
