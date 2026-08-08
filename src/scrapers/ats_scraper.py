@@ -364,8 +364,17 @@ class ATSScraper:
                  len(GREENHOUSE_COMPANIES), len(LEVER_COMPANIES), query)
 
         sem    = asyncio.Semaphore(_MAX_CONCURRENT)
-        client = httpx.AsyncClient(timeout=_TIMEOUT, http2=False,
-                                   headers={"User-Agent": "Mozilla/5.0 (compatible; JobSearchBot/1.0)"})
+        # Configure connection pooling with httpx limits
+        limits = httpx.Limits(
+            max_connections=50,      # Max total connections in pool
+            max_keepalive_connections=20,  # Max idle connections to keep alive
+        )
+        client = httpx.AsyncClient(
+            timeout=_TIMEOUT,
+            http2=False,
+            limits=limits,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; JobSearchBot/1.0)"}
+        )
 
         async def _gh(slug: str, name: str) -> List[Dict]:
             async with sem:

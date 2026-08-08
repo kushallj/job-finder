@@ -1,9 +1,9 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import DeclarativeBase, relationship
 from datetime import datetime
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
 
 class Job(Base):
     __tablename__ = "jobs"
@@ -74,6 +74,11 @@ class Contact(Base):
     source = Column(String(100))  # 'linkedin', 'website', 'generated'
     found_at = Column(DateTime, default=datetime.utcnow)
     
+    # Unsubscribe / Do-not-contact tracking (Requirement 17.4)
+    do_not_contact = Column(Boolean, default=False)  # True when contact requests unsubscribe
+    do_not_contact_reason = Column(String(255))  # e.g., 'unsubscribe_reply', 'bounced'
+    do_not_contact_at = Column(DateTime)  # When the do-not-contact flag was set
+    
     # Relationships
     outreach_records = relationship("OutreachRecord", back_populates="contact")
 
@@ -112,3 +117,68 @@ class OutreachRecord(Base):
     # Relationships
     contact = relationship("Contact", back_populates="outreach_records")
     job = relationship("Job")
+
+class ProcessingResult(Base):
+    """Results from async pipeline job processing (Requirement 21.6)."""
+    __tablename__ = "processing_results"
+    
+    id = Column(Integer, primary_key=True)
+    job_id = Column(String(255), nullable=False)
+    
+    # Processing status
+    status = Column(String(50), nullable=False)  # pending, processing, completed, failed, retrying
+    
+    # Result data
+    data = Column(Text)  # JSON string with processing result data
+    error = Column(Text)  # Error message if failed
+    error_type = Column(String(100))  # Error type/category
+    
+    # Metrics
+    attempt_count = Column(Integer, default=1)
+    processing_time_ms = Column(Float, default=0.0)
+    worker_id = Column(String(100))
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class PipelineMetric(Base):
+    """Performance metrics for async pipeline execution (Requirement 21.7)."""
+    __tablename__ = "pipeline_metrics"
+    
+    id = Column(Integer, primary_key=True)
+    
+    # Job metrics
+    jobs_queued = Column(Integer, default=0)
+    jobs_completed = Column(Integer, default=0)
+    jobs_failed = Column(Integer, default=0)
+    
+    # Queue metrics
+    queue_size = Column(Integer, default=0)
+    queue_backpressure_events = Column(Integer, default=0)
+    queue_wait_time_ms = Column(Float, default=0.0)
+    
+    # Worker metrics
+    workers_active = Column(Integer, default=0)
+    workers_total = Column(Integer, default=0)
+    worker_utilization_percent = Column(Float, default=0.0)
+    
+    # Performance metrics
+    throughput_jobs_per_second = Column(Float, default=0.0)
+    latency_p50_ms = Column(Float, default=0.0)
+    latency_p95_ms = Column(Float, default=0.0)
+    latency_p99_ms = Column(Float, default=0.0)
+    
+    # API metrics
+    api_rate_limit_waits = Column(Integer, default=0)
+    api_rate_limit_wait_time_ms = Column(Float, default=0.0)
+    
+    # Error metrics
+    retry_attempts = Column(Integer, default=0)
+    retry_successes = Column(Integer, default=0)
+    retry_failures = Column(Integer, default=0)
+    
+    # Timestamps
+    recorded_at = Column(DateTime, default=datetime.utcnow)
+    pipeline_start_time = Column(DateTime)
+    pipeline_end_time = Column(DateTime)

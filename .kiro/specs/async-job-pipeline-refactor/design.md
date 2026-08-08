@@ -1362,132 +1362,217 @@ async def rate_limited_api_call():
 
 ## Correctness Properties
 
-### Property 1: Memory Efficiency (O(1) Memory Usage)
+*A property is a characteristic or behavior that should hold true across all valid executions of a system—essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
 
-**Universal Quantification:**
-```
-∀ total_jobs ∈ ℕ, chunk_size ∈ ℕ:
-  memory_usage(streaming_producer(total_jobs, chunk_size)) = O(chunk_size)
-  ∧ memory_usage(streaming_producer(total_jobs, chunk_size)) ≠ O(total_jobs)
-```
+### Property 1: Streaming Job Production
 
-**Invariant:** Memory usage is bounded by chunk_size regardless of total number of jobs in database.
+*For any* database query and chunk size, the Job_Producer SHALL yield jobs one at a time using async generators, maintaining O(chunk_size) memory usage regardless of total job count.
 
-**Verification:** Use async generators that yield one job at a time. After yielding, the job object is eligible for garbage collection. Database sessions are closed after each chunk, releasing connection resources.
+**Validates: Requirements 1.2, 1.4, 10.1, 10.4**
 
-### Property 2: No Job Loss (Exactly-Once Processing)
+### Property 2: Database Session Cleanup
 
-**Universal Quantification:**
-```
-∀ job ∈ Jobs:
-  (job ∈ database) ⟹ (∃! result ∈ Results: result.job_id = job.job_id)
-```
+*For any* chunk of jobs fetched, the Job_Producer SHALL close the database session immediately after yielding all jobs in that chunk, before fetching the next chunk.
 
-**Invariant:** Every job in the database is processed exactly once, producing exactly one result.
+**Validates: Requirements 1.3, 10.5**
 
-**Verification:**
-- Producer yields each job exactly once (no duplicates in query)
-- Workers process each job from queue exactly once
-- Database transactions ensure atomic result storage
-- No job is lost due to worker failure (retry mechanism)
+### Property 3: Queue Backpressure Blocking
 
-### Property 3: Bounded Concurrency
+*For any* bounded Job_Queue, when the queue reaches maximum capacity, put() operations SHALL block the producer until a worker consumes a job from the queue.
 
-**Universal Quantification:**
-```
-∀ t ∈ Time:
-  active_workers(t) ≤ worker_count
-  ∧ concurrent_api_calls(t) ≤ semaphore_value
-  ∧ queue_size(t) ≤ max_queue_size
-```
+**Validates: Requirements 2.2, 2.3**
 
-**Invariant:** System never exceeds configured concurrency limits at any point in time.
+### Property 4: Queue Size Invariant
 
-**Verification:**
-- Worker pool spawns exactly worker_count workers
-- Semaphore.acquire() blocks when limit reached
-- Bounded queue blocks producer when full
-- All resources properly released in finally blocks
+*For any* point in time during execution, the Job_Queue size SHALL be less than or equal to the configured maximum size.
 
-### Property 4: Backpressure Correctness
+**Validates: Requirements 2.5**
 
-**Universal Quantification:**
-```
-∀ producer_rate, consumer_rate:
-  (producer_rate > consumer_rate) ⟹ (queue_full_events > 0)
-  ∧ (queue_full_events > 0) ⟹ (producer_blocked_time > 0)
-```
+### Property 5: Queue Empty Blocking
 
-**Invariant:** When producer is faster than consumers, queue fills up and producer blocks, preventing memory overflow.
+*For any* Job_Queue, when the queue is empty, get() operations SHALL block workers until the producer adds a job to the queue.
 
-**Verification:**
-- Queue.put() blocks when qsize() == maxsize
-- Producer cannot add jobs faster than workers can process
-- Memory usage remains bounded even with slow workers
+**Validates: Requirements 2.4**
 
-### Property 5: Retry Correctness
+### Property 6: Worker Count Invariant
 
-**Universal Quantification:**
-```
-∀ job ∈ Jobs, operation ∈ Operations:
-  (operation(job) fails ∧ attempt < max_retries) ⟹ (operation(job) retried)
-  ∧ (operation(job) fails ∧ attempt = max_retries) ⟹ (result.status = FAILED)
-  ∧ retry_delay(attempt) = base_delay × exponential_base^attempt
-```
+*For any* point in time during execution, the number of active worker coroutines SHALL be less than or equal to the configured worker_count.
 
-**Invariant:** Failed operations are retried with exponential backoff up to max_retries, then marked as failed.
+**Validates: Requirements 3.1, 3.5**
 
-**Verification:**
-- Tenacity library guarantees retry behavior
-- Exponential backoff formula verified by tests
-- Failed jobs after max_retries have status=FAILED in results
+### Property 7: Worker Error Isolation
 
-### Property 6: Rate Limiting Correctness
+*For any* worker that encounters an exception while processing a job, that worker SHALL continue processing subsequent jobs, and other workers SHALL remain unaffected.
 
-**Universal Quantification:**
-```
-∀ time_window ∈ [t, t+1 second]:
-  api_calls_in_window(time_window) ≤ rate_limit
-```
+**Validates: Requirements 3.4, 13.1, 13.2**
 
-**Invariant:** Number of API calls in any 1-second window never exceeds configured rate limit.
+### Property 8: Exactly-Once Processing
 
-**Verification:**
-- Token bucket algorithm guarantees rate limit
-- acquire() blocks when tokens insufficient
-- Tokens refill at configured rate
+*For any* job in the database, the system SHALL produce exactly one ProcessingResult with a unique job_id, with no duplicates and no jobs skipped.
 
-### Property 7: Graceful Shutdown
+**Validates: Requirements 4.1, 4.2, 4.4**
 
-**Universal Quantification:**
-```
-∀ shutdown_signal:
-  (shutdown_signal received) ⟹
-    (producer stops ∧ poison_pills sent ∧ workers drain queue ∧ all resources released)
-```
+### Property 9: Retry on Transient Failure
 
-**Invariant:** On shutdown, producer stops, workers finish current jobs, and all resources are properly released.
+*For any* External_API call that fails with a retryable error, if the attempt count is less than max_retries, the Retry_Manager SHALL retry the operation after an exponential backoff delay.
 
-**Verification:**
-- Producer stops yielding on shutdown signal
-- Poison pills (None) sent to queue for each worker
-- Workers exit loop on receiving poison pill
-- All database sessions, HTTP sessions, and semaphores released in finally blocks
+**Validates: Requirements 5.1, 5.2**
 
-### Property 8: Progress Monotonicity
+### Property 10: Retry Exhaustion
 
-**Universal Quantification:**
-```
-∀ t1, t2 ∈ Time:
-  (t1 < t2) ⟹ (processed_jobs(t2) ≥ processed_jobs(t1))
-```
+*For any* operation that fails and reaches max_retries attempts, the Retry_Manager SHALL mark the job with status=FAILED and SHALL NOT retry again.
 
-**Invariant:** Number of processed jobs never decreases over time.
+**Validates: Requirements 5.3, 4.3, 14.3**
 
-**Verification:**
-- Results list is append-only
-- No job is removed from results after processing
-- Progress counter increments monotonically
+### Property 11: Exponential Backoff Formula
+
+*For any* retry attempt n, the Retry_Manager SHALL calculate the delay as base_delay × (exponential_base ^ n), capped at max_delay.
+
+**Validates: Requirements 5.4, 5.5**
+
+### Property 12: Rate Limiter Blocking
+
+*For any* Rate_Limiter, when tokens are insufficient, the acquire() operation SHALL block the caller until tokens are refilled at the configured rate.
+
+**Validates: Requirements 6.3, 6.4**
+
+### Property 13: Rate Limit Enforcement
+
+*For any* 1-second time window, the number of External_API calls SHALL be less than or equal to the configured rate limit.
+
+**Validates: Requirements 6.5**
+
+### Property 14: Semaphore Concurrency Limit
+
+*For any* point in time, the number of concurrent External_API calls SHALL be less than or equal to the Semaphore value.
+
+**Validates: Requirements 7.3**
+
+### Property 15: Semaphore Release on Completion
+
+*For any* External_API call that completes (successfully or with error), the worker SHALL release the Semaphore, ensuring it is not leaked.
+
+**Validates: Requirements 7.4, 7.5**
+
+### Property 16: Worker Completes Current Job on Poison Pill
+
+*For any* worker that receives a Poison_Pill while processing a job, the worker SHALL complete the current job before terminating.
+
+**Validates: Requirements 8.3, 8.5**
+
+### Property 17: Log Field Completeness
+
+*For any* job processed, the system SHALL log entries containing job_id, status, processing_time, and attempt_count.
+
+**Validates: Requirements 9.2**
+
+### Property 18: Error Logging Completeness
+
+*For any* error that occurs during processing, the system SHALL log error_type, error message, and full traceback.
+
+**Validates: Requirements 9.3**
+
+### Property 19: Memory Usage Independence from Total Jobs
+
+*For any* two job counts N1 and N2 where N1 < N2, peak memory usage SHALL remain approximately constant (bounded by queue_size + worker_count), NOT scale with job count.
+
+**Validates: Requirements 10.3, 10.4**
+
+### Property 20: Job Garbage Collection
+
+*For any* job yielded by the Job_Producer, after the job is processed and the result is stored, the job object SHALL be eligible for garbage collection (no lingering references).
+
+**Validates: Requirements 10.2**
+
+### Property 21: Async Concurrency
+
+*For any* I/O operation (database query, External_API call), while one coroutine is waiting for I/O, other coroutines SHALL make progress concurrently.
+
+**Validates: Requirements 11.4**
+
+### Property 22: HTTP Session Reuse
+
+*For any* sequence of External_API calls to the same service, the number of HTTP session objects created SHALL be less than the number of API calls (sessions reused).
+
+**Validates: Requirements 12.2**
+
+### Property 23: Database Connection Return
+
+*For any* database operation that completes, the database connection SHALL be returned to the connection pool for reuse.
+
+**Validates: Requirements 12.3**
+
+### Property 24: API Timeout Isolation
+
+*For any* External_API call that times out for one job, other concurrent jobs SHALL continue processing without being affected.
+
+**Validates: Requirements 13.3**
+
+### Property 25: Transaction Rollback Isolation
+
+*For any* database transaction that fails and rolls back, other workers' transactions SHALL complete successfully without being affected.
+
+**Validates: Requirements 13.5**
+
+### Property 26: Processing Result Structure
+
+*For any* job processed, the system SHALL create a ProcessingResult containing status, data (if successful), error (if failed), attempt_count, processing_time_ms, and timestamp.
+
+**Validates: Requirements 14.1, 14.2, 14.3, 14.4**
+
+### Property 27: Configuration Validation
+
+*For any* invalid configuration value (negative numbers, max_delay < base_delay, etc.), the system SHALL raise a validation error and SHALL NOT start processing.
+
+**Validates: Requirements 15.5**
+
+### Property 28: Throughput Metrics Logging
+
+*For any* processing run, the system SHALL calculate and log throughput metrics including jobs per second and average processing time.
+
+**Validates: Requirements 9.5, 16.5, 20.2**
+
+### Property 29: Job Context Immutability
+
+*For any* JobContext object, attempts to modify its fields after creation SHALL raise an error (frozen dataclass property).
+
+**Validates: Requirements 17.2**
+
+### Property 30: Timeout Exception on API Delay
+
+*For any* External_API call that exceeds its configured timeout, the system SHALL raise asyncio.TimeoutError.
+
+**Validates: Requirements 18.1, 18.2**
+
+### Property 31: Retry After Timeout
+
+*For any* External_API call that times out, if attempts < max_retries, the Retry_Manager SHALL retry the operation after exponential backoff.
+
+**Validates: Requirements 18.4**
+
+### Property 32: Transaction Atomicity
+
+*For any* ProcessingResult storage operation, either all related database records SHALL be committed in a single transaction, or none SHALL be committed (atomic all-or-nothing).
+
+**Validates: Requirements 19.2**
+
+### Property 33: Rollback on Database Error
+
+*For any* database error during a transaction, the system SHALL execute a rollback before raising the exception.
+
+**Validates: Requirements 19.3**
+
+### Property 34: Connection Release After Rollback
+
+*For any* database transaction that is rolled back, the database connection SHALL be released back to the connection pool.
+
+**Validates: Requirements 19.5**
+
+### Property 35: Metrics Tracking Completeness
+
+*For any* processing run, the system SHALL track and log: total jobs processed, success count, failure count, average/min/max processing time, queue size, active workers, and API latencies.
+
+**Validates: Requirements 20.1, 20.2, 20.3, 20.4**
 
 
 ## Error Handling

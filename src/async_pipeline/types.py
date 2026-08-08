@@ -245,12 +245,23 @@ class RetryStats:
 @dataclass
 class RateLimiterStats:
     """Statistics for rate limiting."""
-    tokens_acquired: int = 0
-    wait_events: int = 0
-    total_wait_time_ms: float = 0.0
+    tokens_consumed: int = 0  # Total tokens consumed (same as tokens_acquired)
+    requests_blocked: int = 0  # Number of times requests had to wait
+    total_wait_time_ms: float = 0.0  # Total time spent waiting
+    tokens_acquired: int = 0  # Alias for tokens_consumed for backwards compatibility
+    wait_events: int = 0  # Alias for requests_blocked for backwards compatibility
+    
+    @property
+    def average_wait_time_ms(self) -> float:
+        """Calculate average wait time per blocked request."""
+        if self.requests_blocked == 0:
+            return 0.0
+        return self.total_wait_time_ms / self.requests_blocked
     
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        data["average_wait_time_ms"] = self.average_wait_time_ms
+        return data
 
 
 @dataclass

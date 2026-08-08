@@ -57,6 +57,7 @@ from sqlalchemy.orm import Session
 
 from src.contact_finder import Contact as ContactData
 from src.email_discovery import EmailDiscoveryService
+from src.email_engine.discovery_engine import EmailDiscoveryEngine
 from src.database import SessionLocal
 from src.models import Job, Contact, OutreachRecord
 from src.email_outreach import EmailOutreach, OutreachConfig
@@ -87,7 +88,9 @@ _fh = logging.handlers.RotatingFileHandler(
     LOG_DIR / "outreach_processor.log", maxBytes=5_000_000, backupCount=5, encoding="utf-8"
 )
 _fh.setFormatter(_fmt)
-_efh = logging.FileHandler(LOG_DIR / "processor_failures.log", encoding="utf-8")
+_efh = logging.handlers.RotatingFileHandler(
+    LOG_DIR / "processor_failures.log", maxBytes=5_000_000, backupCount=3, encoding="utf-8"
+)
 _efh.setLevel(logging.ERROR)
 _efh.setFormatter(_fmt)
 
@@ -740,21 +743,23 @@ class OutreachProcessor:
         self,
         cfg: Optional[ProcessorConfig] = None,
         email_outreach: Optional[EmailOutreach] = None,
-        email_discovery: Optional[EmailDiscoveryService] = None,
+        email_discovery: Optional[EmailDiscoveryEngine] = None,
     ):
         self.cfg = cfg or ProcessorConfig()
-        # Initialize email discovery service
+        # Initialize discovery — EmailDiscoveryEngine wraps EmailDiscoveryService
+        # (12+ paid providers) and adds GitHub mining, web crawling, pattern mining,
+        # and SMTP verification on top.
         if email_discovery:
             self.email_discovery = email_discovery
         else:
-            # Import settings and create service
             try:
                 from src.config import settings
-                self.email_discovery = EmailDiscoveryService(settings=settings)
+                inner_svc = EmailDiscoveryService(settings=settings)
             except Exception as e:
                 print(f"⚠️  Failed to initialize EmailDiscoveryService with settings: {e}")
                 print("   Using EmailDiscoveryService without settings (free mode only)")
-                self.email_discovery = EmailDiscoveryService()
+                inner_svc = EmailDiscoveryService()
+            self.email_discovery = EmailDiscoveryEngine(discovery_service=inner_svc)
         
         self.email_outreach = email_outreach  # injected or lazily created
         self.stats = StatsIndex()

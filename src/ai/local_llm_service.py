@@ -10,7 +10,7 @@ What changed from original:
   ✓ temperature=0.2 for structured extraction (was 0.7 — too creative for JSON)
   ✓ Prompt truncation guards — never overflow context window
   ✓ OllamaManager merged in (no duplicate class)
-  ✓ llama3.2:3b is now primary model (Mistral 7B too large for 8GB M1)
+  ✓ qwen2.5-coder:7b is now primary model — best coding + JSON quality at 7B
   ✓ Per-method timeouts prevent outer 35s budget from silently cancelling calls
   ✓ exc_info=True on all warnings for full tracebacks
 
@@ -18,9 +18,10 @@ Install:
   macOS/Linux:  curl -fsSL https://ollama.com/install.sh | sh
   Windows:      https://ollama.ai/download
   Models:
-    ollama pull llama3.2:3b    # PRIMARY — best for 8GB M1 (2GB, ~18 tok/s)
-    ollama pull llama3.2:1b    # ultra fast if 3b is too slow (1GB)
-    ollama pull mistral:7b     # only if you have 16GB+ RAM
+    ollama pull qwen2.5-coder:7b  # PRIMARY — superior code/JSON quality (4.7GB)
+    ollama pull qwen2.5:3b        # lighter fallback (1.9GB)
+    ollama pull llama3.2:3b       # strong fallback (2GB, ~18 tok/s)
+    ollama pull llama3.2:1b       # ultra fast if 3b is too slow (1GB)
 """
 
 from __future__ import annotations
@@ -50,22 +51,25 @@ log = logging.getLogger(__name__)
 # Mistral variants pushed to end — 4.9GB, starves OS on 8GB machines
 # =============================================================================
 _MODEL_ORDER = [
-    "llama3.2:3b",      # PRIMARY for 8GB M1 — 2GB, fast, good quality
+    "phi3:mini",        # PRIMARY — 2-3GB RAM, designed for low-resource devices, no lag/heat on 8GB
+    "phi3.5:mini",      # Microsoft Phi3.5, slightly larger but still lean
+    "qwen2.5:3b",       # lighter fallback — best instruction following at 3B (1.9GB)
+    "llama3.2:3b",      # strong fallback — 2GB, good quality
     "llama3.2:1b",      # ultra-fast fallback — 1GB
-    "llama3:8b",
-    "phi3:mini",
     "gemma2:2b",
+    "qwen2.5-coder:7b", # 4.7GB — only if you have headroom (16GB+)
+    "llama3:8b",
     "mistral:latest",   # too large for 8GB M1 — use only on 16GB+
     "mistral:7b",
     "mistral",
 ]
 
 # Per-method LLM call timeouts (seconds)
-# Tuned for llama3.2:3b on M1 — adjust down if still timing out
-_TIMEOUT_EXTRACT   = 20.0   # extract_skills, match_resume
-_TIMEOUT_REWRITE   = 45.0   # rewrite_resume — longer output
-_TIMEOUT_COVER     = 30.0   # cover letter
-_TIMEOUT_HTML      = 25.0   # extract_jobs_from_html
+# qwen2.5-coder:7b on M1 is ~25s for short prompts, longer for big outputs
+_TIMEOUT_EXTRACT   = 90.0   # extract_skills, match_resume
+_TIMEOUT_REWRITE   = 240.0  # rewrite_resume — longer output
+_TIMEOUT_COVER     = 180.0  # cover letter
+_TIMEOUT_HTML      = 150.0  # extract_jobs_from_html
 
 
 class LocalLLMService:
@@ -145,7 +149,7 @@ class LocalLLMService:
 
                 log.warning(
                     "Ollama running but no supported model found.\n"
-                    "  → Run: ollama pull llama3.2:3b\n"
+                    "  → Run: ollama pull qwen2.5-coder:7b\n"
                     "  → Installed: %s",
                     sorted(full_names),
                 )
@@ -168,18 +172,19 @@ class LocalLLMService:
         """
         model = LocalLLMService._cached_model
         if not model:
-            raise ConnectionError("Ollama not available. Run: ollama pull llama3.2:3b")
+            raise ConnectionError("Ollama not available. Run: ollama pull qwen2.5-coder:7b")
 
         async with self._http(timeout=timeout + 5.0) as c:
             resp = await asyncio.wait_for(
                 c.post("/api/generate", json={
                     "model":  model,
-                    "prompt": prompt[:6000],   # 6k chars ~ fits 3b context
+                    "prompt": prompt[:12000],  # 12k chars — fits 7b context comfortably
                     "stream": False,
                     "options": {
-                        "num_predict": max_tokens,
-                        "temperature": 0.2,
-                        "top_p":       0.9,
+                        "num_predict":   max_tokens,
+                        "temperature":   0.2,
+                        "top_p":         0.9,
+                        "num_ctx":       2048,   # phi3:mini sweet spot — halves RAM vs 4096
                     },
                 }),
                 timeout=timeout,
@@ -192,37 +197,65 @@ class LocalLLMService:
 
     @staticmethod
     def _parse_json(text: str, default: Any = None) -> Any:
+        """
+        Extract the most complete JSON object/array from LLM output.
+
+        Some models (qwen2.5) emit a placeholder {} before the real answer,
+        so we collect ALL JSON blocks and return the one with the most content
+        rather than blindly taking the first match.
+        """
         if not text:
             return default
 
         text = re.sub(r"```(?:json|python)?\s*", "", text)
         text = re.sub(r"```\s*$", "", text, flags=re.MULTILINE).strip()
 
+        # Try the whole stripped text first
         try:
             return json.loads(text)
         except json.JSONDecodeError:
             pass
 
+        # Collect all valid JSON blocks; pick the richest one
+        candidates = []
         for open_ch, close_ch in [('{', '}'), ('[', ']')]:
-            start = text.find(open_ch)
-            if start == -1:
-                continue
-            depth = 0
-            for i, ch in enumerate(text[start:], start):
-                if ch == open_ch:
-                    depth += 1
-                elif ch == close_ch:
-                    depth -= 1
-                    if depth == 0:
-                        candidate = text[start:i+1]
-                        try:
-                            return json.loads(candidate)
-                        except json.JSONDecodeError:
-                            try:
-                                return json.loads(candidate.replace("'", '"'))
-                            except json.JSONDecodeError:
-                                break
-        return default
+            pos = 0
+            while True:
+                start = text.find(open_ch, pos)
+                if start == -1:
+                    break
+                depth = 0
+                for i, ch in enumerate(text[start:], start):
+                    if ch == open_ch:
+                        depth += 1
+                    elif ch == close_ch:
+                        depth -= 1
+                        if depth == 0:
+                            fragment = text[start:i+1]
+                            for attempt in (fragment, fragment.replace("'", '"')):
+                                try:
+                                    parsed = json.loads(attempt)
+                                    candidates.append(parsed)
+                                except json.JSONDecodeError:
+                                    pass
+                            pos = i + 1
+                            break
+                else:
+                    break
+
+        if not candidates:
+            return default
+
+        # Return the candidate with the most content:
+        # dicts ranked by number of non-empty values, lists by length
+        def _richness(obj):
+            if isinstance(obj, dict):
+                return sum(1 for v in obj.values() if v)
+            if isinstance(obj, list):
+                return len(obj)
+            return 0
+
+        return max(candidates, key=_richness)
 
     # ── Public AI methods ─────────────────────────────────────────────────────
 
@@ -333,7 +366,7 @@ Cover letter:"""
         clean = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
         clean = re.sub(r"<style[^>]*>.*?</style>",  "", clean, flags=re.DOTALL)
         clean = re.sub(r"<[^>]+>", " ", clean)
-        clean = re.sub(r"\s+", " ", clean).strip()[:3000]  # 3k for 3b model
+        clean = re.sub(r"\s+", " ", clean).strip()[:6000]  # 6k for 7b model
 
         prompt = f"""Extract job listings from this text from {source}.
 
@@ -436,12 +469,13 @@ JSON array:"""
    macOS/Linux:  curl -fsSL https://ollama.com/install.sh | sh
    Windows:      https://ollama.ai/download
 
-2. Pull the recommended model for 8GB M1:
-   ollama pull llama3.2:3b    ← best for 8GB M1 (2GB, ~18 tok/s)
-   ollama pull llama3.2:1b    ← if 3b is still slow
+2. Pull the recommended model:
+   ollama pull phi3:mini          ← PRIMARY (2-3GB, fast, no heat on 8GB RAM)
+   ollama pull phi3.5:mini       ← slightly larger but still lean
+   ollama pull qwen2.5:3b        ← heavier fallback (1.9GB)
 
 3. Set in .env:
-   OLLAMA_MODEL=llama3.2:3b
+   OLLAMA_MODEL=qwen2.5-coder:7b
    OLLAMA_KEEP_ALIVE=60m
    SENDER_NAME=Your Name
 

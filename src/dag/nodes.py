@@ -38,8 +38,14 @@ async def scrape_node(state: NEXUSState) -> None:
     """
     Fetch new jobs from all configured platforms.
     Writes to: state.scraped_jobs, state.jobs_new_count
+
+    Skip if scraped_jobs is already populated (e.g. injected by cron runner).
     """
     t0 = state.mark_node_start("scrape")
+    if state.scraped_jobs:
+        log.info("scrape_node: %d jobs pre-loaded — skipping scrape", len(state.scraped_jobs))
+        state.mark_node_done("scrape", t0)
+        return
     try:
         from src.job_processor import JobProcessor
         from src.database import SessionLocal
@@ -209,7 +215,12 @@ async def contact_intel_node(state: NEXUSState) -> None:
             company = (job.company or "").strip()
             if not company or company in company_specs:
                 continue
-            domain = _domain_from_url(job.url or "")
+            # Only use domain from URL if it's the company's own site (not a job board)
+            url_domain = _domain_from_url(job.url or "")
+            JOB_BOARDS = {"adzuna.in", "indeed.com", "linkedin.com", "glassdoor.com",
+                          "naukri.com", "monster.com", "ziprecruiter.com", "lever.co",
+                          "greenhouse.io", "workable.com", "smartrecruiters.com"}
+            domain = "" if url_domain in JOB_BOARDS else url_domain
             jd     = state.jd_analyses.get(job.id)
             company_specs[company] = {
                 "company_name":  company,
@@ -269,13 +280,22 @@ async def personalize_node(state: NEXUSState) -> None:
             jd_text = job.description if job else ""
             jd_analysis = state.jd_analyses.get(job.id) if job else None
 
+            url_domain  = _domain_from_url(getattr(job, "url", "") or "")
+            JOB_BOARDS  = {"adzuna.in", "indeed.com", "linkedin.com", "glassdoor.com",
+                           "naukri.com", "monster.com", "ziprecruiter.com", "lever.co",
+                           "greenhouse.io", "workable.com", "smartrecruiters.com"}
+            job_domain  = "" if url_domain in JOB_BOARDS else url_domain
+            # Prefer the email domain (already discovered by contact_intel) over URL guess
+            email_domain = rc.email.split("@")[1] if rc.email and "@" in rc.email else ""
+            domain = email_domain or job_domain
+
             contact_specs.append({
-                "contact_name":  rc.name,
-                "contact_email": rc.email,
-                "company_name":  company,
-                "domain":        _domain_from_url(getattr(job, "url", "") or ""),
-                "jd_text":       jd_text,
-                "job_title":     rc.title or (job.title if job else ""),
+                "name":    rc.name,
+                "email":   rc.email,
+                "company": company,
+                "domain":  domain,
+                "jd_text": jd_text,
+                "job_title": rc.title or (job.title if job else ""),
             })
 
         outreaches = await engine.batch_personalize(
@@ -323,22 +343,22 @@ async def outreach_node(state: NEXUSState) -> None:
         sent    = 0
         skipped = 0
 
+        if state.dry_run:
+            _save_drafts(state.personalized_outreaches)
+            skipped = len(state.personalized_outreaches)
+            log.info("outreach_node: %d drafts saved to data/outreach_queue.json", skipped)
+            state.emails_skipped = skipped
+            state.route_decision = "skip_feedback"
+            state.mark_node_done("outreach", t0)
+            return
+
         for outreach in state.personalized_outreaches:
-            if state.dry_run:
-                log.info(
-                    "[DRY RUN] Would send to %s <%s>: %s",
-                    outreach.contact_name,
-                    outreach.email.subject,
-                    outreach.email.body[:80],
-                )
-                skipped += 1
-                continue
 
             # Build a Contact object for the orchestrator
             contact = Contact(
                 name             = outreach.contact_name,
                 title            = "",
-                email            = outreach.email.subject,   # will be overridden by subject
+                email            = outreach.contact_email,
                 company          = outreach.company,
                 confidence_score = outreach.personalization_score,
             )
@@ -415,3 +435,45 @@ def _domain_from_url(url: str) -> str:
         if len(parts) >= 2:
             return ".".join(parts[-2:])
     return ""
+
+
+def _save_drafts(outreaches: list) -> None:
+    """
+    Append dry-run outreach drafts to data/outreach_queue.json.
+    Each draft gets a unique ID and 'pending' status for manual review.
+    """
+    import json, uuid
+    from datetime import datetime
+    from pathlib import Path
+
+    queue_path = Path("data/outreach_queue.json")
+    queue_path.parent.mkdir(exist_ok=True)
+
+    # Load existing queue
+    existing: list = []
+    if queue_path.exists():
+        try:
+            existing = json.loads(queue_path.read_text())
+        except Exception:
+            existing = []
+
+    now = datetime.utcnow().isoformat()
+    new_drafts = []
+    for o in outreaches:
+        draft = {
+            "id":                   str(uuid.uuid4())[:8],
+            "status":               "pending",          # pending | approved | sent | skipped
+            "created_at":           now,
+            "contact_name":         o.contact_name,
+            "contact_email":        getattr(o, "contact_email", ""),
+            "company":              o.company,
+            "personalization_score": o.personalization_score,
+            "subject":              o.email.subject,
+            "body":                 o.email.body,
+            "subject_variants":     getattr(o.email, "subject_variants", []),
+            "cover_letter":         getattr(o, "cover_letter", ""),
+        }
+        new_drafts.append(draft)
+
+    queue_path.write_text(json.dumps(existing + new_drafts, indent=2))
+    log.info("_save_drafts: saved %d drafts → %s", len(new_drafts), queue_path)

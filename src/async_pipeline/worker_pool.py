@@ -2,24 +2,30 @@
 Async worker pool for the job pipeline.
 
 This module manages concurrent workers that process jobs from a bounded queue,
-with semaphore-based rate limiting and graceful shutdown support.
+with semaphore-based rate limiting, graceful shutdown support, and comprehensive
+metrics collection.
 """
 
 import asyncio
 import logging
 import time
+import traceback
 import uuid
 from typing import Any, Callable, List, Optional
 
+from src.async_pipeline import get_logger, get_correlation_id
 from src.async_pipeline.bounded_queue import BoundedQueue
 from src.async_pipeline.config import ProcessorConfig
+from src.async_pipeline.metrics import MetricsCollector
 from src.async_pipeline.types import (
     JobContext,
+    JobStatus,
     ProcessingResult,
     WorkerPoolStats,
 )
 
-logger = logging.getLogger(__name__)
+# Use structured logger
+logger = get_logger(__name__)
 
 
 class AsyncWorkerPool:
@@ -49,6 +55,8 @@ class AsyncWorkerPool:
         semaphore: asyncio.Semaphore,
         queue: BoundedQueue,
         config: Optional[ProcessorConfig] = None,
+        metrics_collector: Optional[MetricsCollector] = None,
+        on_job_complete: Optional[Callable[[ProcessingResult], None]] = None,
     ):
         """
         Initialize the worker pool.
@@ -59,6 +67,8 @@ class AsyncWorkerPool:
             semaphore: Concurrency limiter for external API calls.
             queue: Bounded queue for job distribution.
             config: Optional processor configuration.
+            metrics_collector: Optional metrics collector for tracking.
+            on_job_complete: Optional callback invoked when a job completes.
         """
         if worker_count <= 0:
             raise ValueError("worker_count must be positive")
@@ -68,6 +78,8 @@ class AsyncWorkerPool:
         self._semaphore = semaphore
         self._queue = queue
         self._config = config or ProcessorConfig()
+        self._metrics_collector = metrics_collector
+        self._on_job_complete = on_job_complete
         
         self._workers: List[asyncio.Task] = []
         self._results: List[ProcessingResult] = []
@@ -163,7 +175,7 @@ class AsyncWorkerPool:
         Args:
             worker_id: Unique identifier for this worker.
         """
-        logger.debug(f"{worker_id} started")
+        logger.debug("worker_started", worker_id=worker_id)
         
         while True:
             try:
@@ -172,13 +184,28 @@ class AsyncWorkerPool:
                 
                 # Check for poison pill
                 if job is None:
-                    logger.debug(f"{worker_id} received poison pill, shutting down")
+                    logger.debug(
+                        "worker_shutdown",
+                        worker_id=worker_id,
+                        reason="poison_pill_received"
+                    )
                     break
                 
                 # Track active workers
                 async with self._active_lock:
                     self._active_workers += 1
                     self._stats.workers_active = self._active_workers
+                
+                # Get correlation ID if set by processor
+                correlation_id = get_correlation_id()
+                
+                logger.debug(
+                    "worker_processing_job",
+                    worker_id=worker_id,
+                    job_id=job.job_id,
+                    status=JobStatus.PROCESSING.value,
+                    correlation_id=correlation_id,
+                )
                 
                 try:
                     # Process job with semaphore
@@ -201,13 +228,20 @@ class AsyncWorkerPool:
                         self._stats.workers_active = self._active_workers
                 
             except asyncio.CancelledError:
-                logger.info(f"{worker_id} cancelled")
+                logger.info("worker_cancelled", worker_id=worker_id)
                 break
             except Exception as exc:
-                logger.error(f"{worker_id} error: {exc}", exc_info=True)
+                error_traceback = traceback.format_exc()
+                logger.error(
+                    "worker_error",
+                    worker_id=worker_id,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                    traceback=error_traceback,
+                )
                 # Continue processing other jobs
         
-        logger.debug(f"{worker_id} stopped")
+        logger.debug("worker_stopped", worker_id=worker_id)
     
     async def _process_job_with_metrics(
         self,
@@ -226,6 +260,11 @@ class AsyncWorkerPool:
         """
         start_time = time.perf_counter()
         attempt_count = 1
+        correlation_id = get_correlation_id()
+        
+        # Record job start in metrics
+        if self._metrics_collector:
+            self._metrics_collector.record_job_start(job.job_id)
         
         while True:
             try:
@@ -239,21 +278,71 @@ class AsyncWorkerPool:
                 # Update stats
                 if result.is_success():
                     self._stats.jobs_processed += 1
-                    logger.debug(
-                        f"{worker_id} completed job {job.job_id} in "
-                        f"{result.processing_time_ms:.2f}ms"
+                    
+                    # Record success in metrics
+                    if self._metrics_collector:
+                        self._metrics_collector.record_job_success(
+                            job.job_id,
+                            result.processing_time_ms
+                        )
+                    
+                    logger.info(
+                        "job_completed_by_worker",
+                        worker_id=worker_id,
+                        job_id=job.job_id,
+                        status=JobStatus.COMPLETED.value,
+                        processing_time_ms=round(result.processing_time_ms, 2),
+                        attempt_count=attempt_count,
+                        correlation_id=correlation_id,
                     )
                 else:
                     self._stats.jobs_failed += 1
-                    logger.warning(
-                        f"{worker_id} failed job {job.job_id}: {result.error}"
+                    
+                    # Record failure in metrics
+                    if self._metrics_collector:
+                        self._metrics_collector.record_job_failure(
+                            job.job_id,
+                            result.processing_time_ms
+                        )
+                    
+                    logger.error(
+                        "job_failed_by_worker",
+                        worker_id=worker_id,
+                        job_id=job.job_id,
+                        status=JobStatus.FAILED.value,
+                        error_type=result.error_type,
+                        error_message=result.error,
+                        attempt_count=attempt_count,
+                        correlation_id=correlation_id,
                     )
                 
                 self._stats.total_processing_time_ms += result.processing_time_ms
                 
+                # Notify callback if set
+                if self._on_job_complete:
+                    try:
+                        if asyncio.iscoroutinefunction(self._on_job_complete):
+                            await self._on_job_complete(result)
+                        else:
+                            self._on_job_complete(result)
+                    except Exception as callback_exc:
+                        logger.error(
+                            "job_complete_callback_error",
+                            worker_id=worker_id,
+                            job_id=job.job_id,
+                            error_type=type(callback_exc).__name__,
+                            error_message=str(callback_exc),
+                            correlation_id=correlation_id,
+                        )
+                
                 return result
                 
             except Exception as exc:
+                # Record retry attempt in metrics
+                error_type = type(exc).__name__
+                if self._metrics_collector:
+                    self._metrics_collector.record_retry_attempt(error_type)
+                
                 # Check if we should retry
                 if attempt_count < self._config.max_retries:
                     attempt_count += 1
@@ -268,19 +357,39 @@ class AsyncWorkerPool:
                     )
                     
                     logger.warning(
-                        f"{worker_id} retrying job {job.job_id} "
-                        f"(attempt {attempt_count}/{self._config.max_retries}) "
-                        f"after {delay:.2f}s: {exc}"
+                        "job_retry",
+                        worker_id=worker_id,
+                        job_id=job.job_id,
+                        status=JobStatus.RETRYING.value,
+                        attempt_count=attempt_count,
+                        max_retries=self._config.max_retries,
+                        delay_seconds=round(delay, 2),
+                        error_type=type(exc).__name__,
+                        error_message=str(exc),
+                        correlation_id=correlation_id,
                     )
                     
                     await asyncio.sleep(delay)
                 else:
                     # All retries exhausted
                     self._stats.jobs_failed += 1
+                    error_traceback = traceback.format_exc()
+                    
+                    # Record final failure in metrics
+                    if self._metrics_collector:
+                        self._metrics_collector.record_retry_failure(error_type)
+                        self._metrics_collector.record_job_failure(job.job_id)
                     
                     logger.error(
-                        f"{worker_id} failed job {job.job_id} after "
-                        f"{attempt_count} attempts: {exc}"
+                        "job_failed_after_retries",
+                        worker_id=worker_id,
+                        job_id=job.job_id,
+                        status=JobStatus.FAILED.value,
+                        attempt_count=attempt_count,
+                        error_type=type(exc).__name__,
+                        error_message=str(exc),
+                        traceback=error_traceback,
+                        correlation_id=correlation_id,
                     )
                     
                     return ProcessingResult.failure(
@@ -290,6 +399,16 @@ class AsyncWorkerPool:
                         attempt_count=attempt_count,
                         worker_id=worker_id,
                     )
+    
+    def get_stats(self) -> WorkerPoolStats:
+        """
+        Get worker pool statistics.
+        
+        Returns:
+            WorkerPoolStats with current active worker count, jobs processed, 
+            success/failure counts, and processing metrics.
+        """
+        return self._stats
     
     def get_active_workers(self) -> int:
         """Get the number of currently active workers."""

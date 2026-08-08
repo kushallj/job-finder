@@ -13,7 +13,8 @@ import json
 
 from src.job_processor import JobProcessor
 from src.outreach_processor import OutreachProcessor
-from src.contact_finder import ContactFinder, Contact
+from src.contact_finder import Contact
+from src.email_discovery import EmailDiscoveryService
 from src.email_outreach import EmailOutreach
 from src.database import SessionLocal, init_db
 from src.models import Job, Contact as ContactModel, OutreachRecord
@@ -217,32 +218,34 @@ async def search_contacts(request: ContactSearchRequest):
     Use this in n8n to find HR/Engineering contacts for outreach.
     """
     try:
-        contact_finder = ContactFinder()
-        
-        # Find contacts
-        contacts_data = await contact_finder.find_company_contacts(
-            request.company_name,
-            request.job_title
+        from src.config import settings as app_settings
+        discovery = EmailDiscoveryService(settings=app_settings)
+
+        contacts_data = await discovery.find_contacts(
+            company_name=request.company_name,
+            job_title=request.job_title,
+            limit=10,
         )
-        
-        await contact_finder.close()
-        
-        # Convert to dict format
-        contacts_list = []
-        for contact in contacts_data:
-            contacts_list.append({
-                "name": contact.name,
-                "title": contact.title,
-                "email": contact.email,
-                "linkedin_url": contact.linkedin_url,
-                "company": contact.company,
-                "department": contact.department,
-                "confidence_score": contact.confidence_score
-            })
-        
+
+        await discovery.close()
+
+        contacts_list = [
+            {
+                "name":             c.get("name", ""),
+                "title":            c.get("title", ""),
+                "email":            c.get("email", ""),
+                "linkedin_url":     c.get("linkedin_url", ""),
+                "company":          c.get("company", request.company_name),
+                "department":       "",
+                "confidence_score": float(c.get("confidence", 0)),
+            }
+            for c in contacts_data
+            if c.get("email")
+        ]
+
         return ContactSearchResponse(
             total_contacts=len(contacts_list),
-            contacts=contacts_list
+            contacts=contacts_list,
         )
         
     except Exception as e:

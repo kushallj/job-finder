@@ -53,7 +53,7 @@ class ProcessorConfig:
     min_score: int = getattr(settings, "min_score", 50)
 
     # Seconds to wait between email sends (rate limiting)
-    email_delay_seconds: float = getattr(settings, "email_delay_seconds", 30.0)
+    email_delay_seconds: float = float(getattr(settings, "email_delay_seconds", 30.0))
 
     # Max contacts to look up per company
     max_contacts: int = getattr(settings, "max_contacts", 3)

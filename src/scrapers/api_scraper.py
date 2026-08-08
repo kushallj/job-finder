@@ -1370,8 +1370,16 @@ class APIJobScraper(BaseScraper):
         if cached: return cached
         try:
             import aiohttp as _aio
+            # Configure connection pooling for efficient resource reuse
+            connector = _aio.TCPConnector(
+                limit=10,
+                limit_per_host=5,
+                ttl_dns_cache=300,
+                enable_cleanup_closed=True,
+            )
             async with _aio.ClientSession(
-                timeout=_aio.ClientTimeout(total=30)
+                timeout=_aio.ClientTimeout(total=30, connect=5.0, sock_read=15.0),
+                connector=connector,
             ) as session:
                 raw  = await asyncio.wait_for(_Foorilla(session).search(query, location), 28.0)
                 jobs = []

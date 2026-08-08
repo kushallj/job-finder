@@ -31,6 +31,9 @@ google-generativeai==0.8.6
 openai==1.3.7
 pytest-asyncio==0.23.7
 
+# Testing
+hypothesis==6.165.0
+
 # Google Services
 google-api-python-client==2.108.0
 google-auth-httplib2==0.1.1
@@ -41,6 +44,8 @@ gspread==5.12.0
 sqlalchemy==2.0.23
 alembic==1.13.0
 psycopg2-binary==2.9.9
+aiosqlite==0.19.0
+asyncpg==0.29.0
 
 # Task Queue
 celery==5.3.4
@@ -48,6 +53,8 @@ redis==5.0.1
 
 # Email
 secure-smtplib==0.1.1
+sendgrid==6.11.0
+boto3==1.34.0
 
 # DNS
 dnspython==2.8.0
@@ -55,3 +62,6 @@ dnspython==2.8.0
 # Utilities
 python-multipart==0.0.6
 pandas==2.1.4
+structlog==24.1.0
+tenacity==8.2.3
+rich==13.7.0prometheus_client==0.26.0

@@ -1380,7 +1380,7 @@ class DomainResolver:
 # Provider: Wayback Machine (free — no API key)
 # ---------------------------------------------------------------------------
 
-class WaybackEmailProvider(BaseEmailProvider):
+class EmailProvider(BaseEmailProvider):
     """
     Wayback Machine CDX API — mine emails from archived web pages.
 
@@ -1631,7 +1631,6 @@ class EmailDiscoveryService:
     def __init__(self, settings=None):
         self.providers: List[BaseEmailProvider] = []
         self.free_finder    = FreeEmailFinder(smtp_verify=False)
-        self.wayback_finder = WaybackEmailProvider()
         self.certsh_finder  = CertShEmailProvider()
         self.domain_resolver = DomainResolver()
 
@@ -1695,6 +1694,46 @@ class EmailDiscoveryService:
         if not self.providers:
             logger.info("ℹ️ No paid providers configured — using free fallback only")
 
+    async def discover_contacts(
+        self,
+        company_name: str,
+        domain: str,
+        limit: int = 5,
+    ) -> List[DiscoveredEmail]:
+        """
+        Low-level method used by EmailDiscoveryEngine.
+        Runs all providers with a pre-resolved domain.
+        Returns raw DiscoveredEmail objects (not dicts).
+        """
+        async def safe_find(provider: BaseEmailProvider) -> List[DiscoveredEmail]:
+            try:
+                return await asyncio.wait_for(
+                    provider.find_contacts(company_name, domain, limit),
+                    timeout=45.0,
+                )
+            except (asyncio.TimeoutError, Exception):
+                return []
+
+        all_raw: List[DiscoveredEmail] = []
+        if self.providers:
+            gathered = await asyncio.gather(*[safe_find(p) for p in self.providers])
+            for batch in gathered:
+                all_raw.extend(batch)
+
+        if len(all_raw) < limit:
+            free_results = await asyncio.gather(
+                self.free_finder.find_contacts(company_name, domain, limit),
+                self.certsh_finder.find_contacts(company_name, domain, limit),
+                return_exceptions=True,
+            )
+            for batch in free_results:
+                if isinstance(batch, list):
+                    all_raw.extend(batch)
+
+        deduped = deduplicate(all_raw)
+        deduped.sort(key=lambda x: x.confidence, reverse=True)
+        return deduped[:limit]
+
     async def find_contacts(
         self,
         company_name: str,
@@ -1739,7 +1778,6 @@ class EmailDiscoveryService:
             self.free_finder.smtp_verify = smtp_verify
             free_results = await asyncio.gather(
                 self.free_finder.find_contacts(company_name, domain, limit),
-                self.wayback_finder.find_contacts(company_name, domain, limit),
                 self.certsh_finder.find_contacts(company_name, domain, limit),
                 return_exceptions=True,
             )
@@ -1841,6 +1879,13 @@ class EmailDiscoveryService:
 
     async def close(self):
         tasks = [p.close() for p in self.providers] + \
-                [self.free_finder.close(), self.wayback_finder.close(),
+                [self.free_finder.close(),
                  self.certsh_finder.close(), self.domain_resolver.close()]
         await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+        return False

@@ -164,10 +164,17 @@ class GoogleCareerScraper(BaseScraper):
         if self._pw:
             return await self._pw.get_page_html(url, timeout=30.0)
 
-        # Fallback: plain httpx (no JS rendering)
+        # Fallback: plain httpx (no JS rendering) with connection pooling
         try:
             import httpx
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            limits = httpx.Limits(
+                max_connections=10,
+                max_keepalive_connections=5,
+            )
+            async with httpx.AsyncClient(
+                timeout=15.0,
+                limits=limits,
+            ) as client:
                 resp = await client.get(url, headers={
                     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                                   "AppleWebKit/537.36 (KHTML, like Gecko) "

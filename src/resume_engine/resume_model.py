@@ -192,7 +192,7 @@ class ResumeParser:
         phone    = cls._extract_phone(contact)
         linkedin = cls._extract_link(contact, "linkedin")
         github   = cls._extract_link(contact, "github")
-        website  = cls._extract_link(contact, "kushall.in")
+        website  = cls._extract_link(contact, "portfolio") or cls._extract_link(contact, ".in")
 
         # --- Detect sections ---
         sections = cls._split_sections(lines[3:], text)

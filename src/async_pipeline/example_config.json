@@ -1,0 +1,20 @@
+{
+  "worker_count": 10,
+  "max_concurrent_api_calls": 20,
+  "queue_size": 200,
+  "chunk_size": 50,
+  "max_retries": 5,
+  "base_delay": 2.0,
+  "max_delay": 120.0,
+  "exponential_base": 2.5,
+  "llm_rate_limit": 15.0,
+  "email_rate_limit": 2.0,
+  "scraper_rate_limit": 10.0,
+  "llm_timeout_seconds": 45.0,
+  "email_timeout_seconds": 20.0,
+  "scraper_timeout_seconds": 30.0,
+  "db_timeout_seconds": 15.0,
+  "log_level": "INFO",
+  "structured_logging": true,
+  "enable_progress_bar": true
+}

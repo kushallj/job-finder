@@ -146,6 +146,13 @@ Key strengths highlighted based on job requirements.
     async def generate_cover_letter(self, resume: str, job_description: str, company: str) -> str:
         """Generate a basic cover letter template"""
         
+        # Get sender name from config (avoid hardcoding PII)
+        try:
+            from src.config import settings
+            sender_name = getattr(settings, "sender_name", None) or "The Candidate"
+        except Exception:
+            sender_name = "The Candidate"
+        
         # Extract key skills from resume for personalization
         resume_lower = resume.lower()
         key_skills = []
@@ -179,6 +186,6 @@ I have attached my resume for your review and would welcome the opportunity to d
 Thank you for your consideration. I look forward to hearing from you.
 
 Best regards,
-Kushall Jain"""
+{sender_name}"""
 
         return cover_letter

@@ -281,9 +281,9 @@ class ResumeEngine:
 _default_engine: Optional[ResumeEngine] = None
 
 
-def get_engine() -> ResumeEngine:
+def get_engine(resume_path: str = "data/resume.txt") -> ResumeEngine:
     """Return (or create) the default ResumeEngine singleton."""
     global _default_engine
     if _default_engine is None:
-        _default_engine = ResumeEngine()
+        _default_engine = ResumeEngine(resume_path=resume_path)
     return _default_engine

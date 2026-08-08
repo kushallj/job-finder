@@ -401,8 +401,19 @@ class MultiPlatformJobScraper:
             keywords  = self.config.PROFILE['keywords'][:5]
             locations = self.config.PROFILE['locations'][:5]
 
-        timeout = aiohttp.ClientTimeout(total=25)  # slightly under our 35s budget
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        # Configure connection pooling for efficient resource reuse
+        timeout = aiohttp.ClientTimeout(total=25, connect=5.0, sock_read=15.0)
+        connector = aiohttp.TCPConnector(
+            limit=50,              # Max total connections
+            limit_per_host=10,     # Max connections per host
+            ttl_dns_cache=300,     # DNS cache TTL (5 min)
+            enable_cleanup_closed=True,
+        )
+        async with aiohttp.ClientSession(
+            timeout=timeout,
+            connector=connector,
+            headers={'User-Agent': 'Mozilla/5.0 (compatible; JobSearchBot/1.0)'}
+        ) as session:
             from src.scrapers.foorilla_scraper import FoorillaScraper
 
             scrapers = {

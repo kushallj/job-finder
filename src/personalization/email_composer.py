@@ -51,17 +51,15 @@ log = logging.getLogger(__name__)
 # Sender identity (pulled from config; fallback to placeholder)
 try:
     from src.config import settings as _cfg
-    _MY_NAME     = getattr(_cfg, "sender_name",  "Kushall Jain")
+    _MY_NAME     = getattr(_cfg, "sender_name",  "Your Name")
     _MY_EMAIL    = getattr(_cfg, "sender_email", "")
-    _MY_LINKEDIN = getattr(_cfg, "linkedin_url", "linkedin.com/in/kushall-jain")
+    _MY_LINKEDIN = getattr(_cfg, "linkedin_url", "")
 except Exception:
-    _MY_NAME     = "Kushall Jain"
+    _MY_NAME     = "Your Name"
     _MY_EMAIL    = ""
-    _MY_LINKEDIN = "linkedin.com/in/kushall-jain"
+    _MY_LINKEDIN = ""
 
-_MY_TAGLINE = (
-    "Software Engineer — Python/FastAPI/React, 3+ yrs fintech & consumer scale"
-)
+_MY_TAGLINE = getattr(_cfg, "tagline", "") if "_cfg" in dir() else ""
 
 
 class EmailComposer:
@@ -78,7 +76,7 @@ class EmailComposer:
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
-    def compose(
+    async def compose(
         self,
         hooks:    List[Hook],
         company:  CompanyProfile,
@@ -118,10 +116,7 @@ class EmailComposer:
         # Optional LLM polish (only if score < 60 — template hooks need more work)
         if self._ai and score < 60:
             try:
-                import asyncio
-                polished = asyncio.get_event_loop().run_until_complete(
-                    self._llm_polish(email, company, contact, jd)
-                )
+                polished = await self._llm_polish(email, company, contact, jd)
                 if polished:
                     return polished
             except Exception as exc:
@@ -144,7 +139,7 @@ class EmailComposer:
         achievement = _best_achievement(resume, jd) if resume else ""
         best_hook   = hooks[0].text if hooks else ""
         top_skills  = ", ".join(getattr(jd, "required_skills", [])[:3])
-        pain_point  = getattr(jd, "pain_points", [""])[0]
+        pain_point  = (getattr(jd, "pain_points", []) or [""])[0]
 
         paragraphs = []
 
@@ -361,7 +356,8 @@ class EmailComposer:
         prompt = (
             f"Polish this cold email to sound more natural and genuine. "
             f"RULES: keep ALL facts exactly, stay ≤ 150 words, no fluff, "
-            f"no fake claims. Output ONLY the email body.\n\n"
+            f"no fake claims, keep the signature exactly as-is (sender is {_MY_NAME}). "
+            f"Output ONLY the email body.\n\n"
             f"Original:\n{email.body}"
         )
         try:
@@ -369,12 +365,24 @@ class EmailComposer:
             if backend and hasattr(backend, "generate"):
                 polished_body = await backend.generate(prompt)
                 if polished_body and len(polished_body.split()) <= 180:
+                    # Strip any LLM-generated signature and re-attach the real one
+                    body = polished_body.strip()
+                    for sig_marker in ["\nBest,", "\nBest regards,", "\nSincerely,",
+                                       "\nThanks,", "\nCheers,"]:
+                        if sig_marker in body:
+                            body = body[:body.index(sig_marker)].rstrip()
+                            break
+                    # Re-attach canonical signature
+                    sig = f"\nBest,\n{_MY_NAME}"
+                    if _MY_LINKEDIN:
+                        sig += f"\n{_MY_LINKEDIN}"
+                    body = body + sig
                     return PersonalizedEmail(
                         subject               = email.subject,
-                        body                  = polished_body.strip(),
+                        body                  = body,
                         hooks_used            = email.hooks_used,
                         personalization_score = email.personalization_score,
-                        word_count            = len(polished_body.split()),
+                        word_count            = len(body.split()),
                         subject_variants      = email.subject_variants,
                     )
         except Exception as exc:

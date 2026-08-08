@@ -1,28 +1,20 @@
 """
-gemini_service.py — Gemini AI client.
+gemini_service.py — Gemini AI client with async HTTP support.
 
-FIXED:
-  • Migrated from deprecated `google.generativeai` → `google.genai`
-    (google.generativeai is end-of-life, receives no more updates/bug fixes)
-  • New SDK uses google.genai.Client with a different call signature
-  • All public methods (_call_gemini, extract_skills, match_resume_to_job,
-    rewrite_resume, generate_cover_letter) preserve the same interface
-    so nothing else in the codebase needs to change
+REFACTORED for async pipeline:
+  • Uses aiohttp.ClientSession for true async HTTP calls (no thread executor blocking)
+  • Connection pooling with configurable limits (max connections, timeouts)
+  • Proper session cleanup on shutdown via async context manager
+  • Direct REST API calls to Gemini API endpoints for non-blocking I/O
+  • Maintains same public interface (extract_skills, match_resume_to_job, etc.)
 
-Migration reference:
-  OLD: import google.generativeai as genai
-       genai.configure(api_key=...)
-       model = genai.GenerativeModel("gemini-pro")
-       response = model.generate_content(prompt)
+Migration from SDK to REST API:
+  OLD: client.models.generate_content() (blocking, requires run_in_executor)
+  NEW: aiohttp POST to https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
+       (true async, no thread executor needed)
 
-  NEW: from google import genai
-       client = genai.Client(api_key=...)
-       response = client.models.generate_content(
-           model="gemini-2.0-flash",
-           contents=prompt,
-       )
-
-Install: pip install google-genai
+API Reference: https://ai.google.dev/api/rest/v1beta/models/generateContent
+Install: aiohttp already in requirements.txt
 """
 
 from __future__ import annotations
@@ -33,14 +25,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
-# ── New SDK ───────────────────────────────────────────────────────────────────
-try:
-    from google import genai
-    from google.genai import types as genai_types
-    _GENAI_AVAILABLE = True
-except ImportError:
-    _GENAI_AVAILABLE = False
-    genai = None  # type: ignore
+import aiohttp
 
 from src.config import settings
 
@@ -49,30 +34,47 @@ log = logging.getLogger(__name__)
 
 class GeminiService:
     """
-    Async wrapper around the new google-genai SDK.
+    Async Gemini AI service using aiohttp for true non-blocking HTTP calls.
 
-    All methods are async — they run the blocking SDK call in a thread
-    executor so the FastAPI event loop is never blocked.
+    Features:
+    - Shared ClientSession with connection pooling (reuse across requests)
+    - Configurable connection limits and timeouts
+    - Direct REST API calls (no blocking SDK)
+    - Proper cleanup via async context manager
+    - Same public interface as before
 
-    Public interface (unchanged from old version):
-        await ai.extract_skills(description)          → List[str]
-        await ai.match_resume_to_job(resume, skills)  → Dict
-        await ai.rewrite_resume(resume, description)  → str
-        await ai.generate_cover_letter(resume, desc, company) → str
-        await ai._call_gemini(prompt, max_tokens)     → str
+    Usage:
+        async with GeminiService() as ai:
+            skills = await ai.extract_skills(description)
+            match = await ai.match_resume_to_job(resume, skills)
+
+    Or initialize once and reuse:
+        ai = GeminiService()
+        await ai.initialize()
+        # ... use ai ...
+        await ai.close()
     """
 
-    # Model to use — gemini-2.0-flash is the current fast default
-    MODEL = getattr(settings, "gemini_model", "gemini-2.0-flash")
+    # API endpoint and model configuration
+    BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+    MODEL = getattr(settings, "gemini_model", "gemini-2.0-flash-exp")
 
-    def __init__(self):
-        if not _GENAI_AVAILABLE:
-            raise ImportError(
-                "google-genai package not installed.\n"
-                "Run: pip install google-genai\n"
-                "Do NOT install google-generativeai — that package is deprecated."
-            )
+    def __init__(
+        self,
+        max_connections: int = 100,
+        max_connections_per_host: int = 10,
+        connection_timeout: float = 30.0,
+        request_timeout: float = 60.0,
+    ):
+        """
+        Initialize GeminiService with connection pooling configuration.
 
+        Args:
+            max_connections: Total connection pool size
+            max_connections_per_host: Max connections per host (rate limiting)
+            connection_timeout: Timeout for establishing connection
+            request_timeout: Timeout for complete request/response
+        """
         api_key = getattr(settings, "gemini_api_key", None) or getattr(settings, "google_api_key", None)
         if not api_key:
             raise ValueError(
@@ -81,43 +83,157 @@ class GeminiService:
                 "Get a key at: https://aistudio.google.com/apikey"
             )
 
-        # Client is created once and reused — thread-safe for concurrent calls
-        self._client = genai.Client(api_key=api_key)
-        log.info("GeminiService ready (model=%s)", self.MODEL)
+        self._api_key = api_key
+        self._session: Optional[aiohttp.ClientSession] = None
+        
+        # Connection pool configuration
+        self._connector_config = {
+            "limit": max_connections,
+            "limit_per_host": max_connections_per_host,
+            "ttl_dns_cache": 300,  # DNS cache TTL in seconds
+            "enable_cleanup_closed": True,
+        }
+        
+        # Timeout configuration
+        self._timeout = aiohttp.ClientTimeout(
+            total=request_timeout,
+            connect=connection_timeout,
+            sock_read=request_timeout,
+        )
+        
+        log.info(
+            "GeminiService initialized (model=%s, max_conn=%d, conn_per_host=%d)",
+            self.MODEL,
+            max_connections,
+            max_connections_per_host,
+        )
 
-    # ── Core call — everything else goes through here ─────────────────────────
+    async def initialize(self) -> None:
+        """
+        Initialize the HTTP session. Must be called before making requests
+        if not using the async context manager.
+        """
+        if self._session is None:
+            connector = aiohttp.TCPConnector(**self._connector_config)
+            self._session = aiohttp.ClientSession(
+                connector=connector,
+                timeout=self._timeout,
+                raise_for_status=False,  # Handle errors manually
+            )
+            log.debug("HTTP session created with connection pooling")
+
+    async def close(self) -> None:
+        """Close the HTTP session and cleanup resources."""
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
+            log.debug("HTTP session closed")
+
+    async def __aenter__(self) -> "GeminiService":
+        """Async context manager entry."""
+        await self.initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Async context manager exit."""
+        await self.close()
+
+    def _ensure_session(self) -> aiohttp.ClientSession:
+        """Ensure session is initialized."""
+        if self._session is None:
+            raise RuntimeError(
+                "GeminiService not initialized. Call await service.initialize() "
+                "or use async with GeminiService() as service:"
+            )
+        return self._session
+
+    async def _ensure_initialized(self) -> None:
+        """Auto-initialize session if not already done (for backward compatibility)."""
+        if self._session is None:
+            log.debug("Auto-initializing GeminiService session")
+            await self.initialize()
+
+    # ── Core HTTP call — everything else goes through here ───────────────────
 
     async def _call_gemini(self, prompt: str, max_tokens: int = 1024) -> str:
         """
-        Send a prompt to Gemini and return the text response.
-        Runs the blocking SDK call in a thread executor (keeps event loop free).
+        Send a prompt to Gemini via REST API and return the text response.
+        Uses aiohttp for true async HTTP (no thread executor needed).
 
-        Raises on API errors — callers should wrap in try/except or use
-        the with_retry() helper from job_processor.py.
+        Args:
+            prompt: The prompt to send to Gemini
+            max_tokens: Maximum tokens in response
+
+        Returns:
+            Generated text from Gemini
+
+        Raises:
+            aiohttp.ClientError: On HTTP errors
+            asyncio.TimeoutError: On timeout
+            ValueError: On invalid API response
         """
-        loop = asyncio.get_event_loop()
-
-        def _blocking_call() -> str:
-            response = self._client.models.generate_content(
-                model=self.MODEL,
-                contents=prompt,
-                config=genai_types.GenerateContentConfig(
-                    max_output_tokens=max_tokens,
-                    temperature=0.7,
-                ),
-            )
-            # Extract text from the response
-            if response.text:
-                return response.text
-            # Fallback: manually join parts if .text is None
-            parts = []
-            for candidate in (response.candidates or []):
-                for part in (candidate.content.parts or []):
-                    if hasattr(part, "text") and part.text:
-                        parts.append(part.text)
-            return "".join(parts)
-
-        return await loop.run_in_executor(None, _blocking_call)
+        # Auto-initialize if needed (for backward compatibility)
+        await self._ensure_initialized()
+        session = self._ensure_session()
+        
+        # Build REST API URL
+        url = f"{self.BASE_URL}/{self.MODEL}:generateContent"
+        
+        # Build request payload (Gemini REST API format)
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "maxOutputTokens": max_tokens,
+                "temperature": 0.7,
+            },
+        }
+        
+        # Add API key as query parameter
+        params = {"key": self._api_key}
+        
+        try:
+            async with session.post(url, json=payload, params=params) as response:
+                # Check for HTTP errors
+                if response.status != 200:
+                    error_text = await response.text()
+                    log.error(
+                        "Gemini API error (status=%d): %s",
+                        response.status,
+                        error_text[:500],
+                    )
+                    raise aiohttp.ClientError(
+                        f"Gemini API returned status {response.status}: {error_text[:200]}"
+                    )
+                
+                # Parse response
+                data = await response.json()
+                
+                # Extract text from response structure
+                # Response format: {candidates: [{content: {parts: [{text: "..."}]}}]}
+                try:
+                    candidates = data.get("candidates", [])
+                    if not candidates:
+                        log.warning("No candidates in Gemini response")
+                        return ""
+                    
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if not parts:
+                        log.warning("No parts in Gemini response")
+                        return ""
+                    
+                    text = parts[0].get("text", "")
+                    return text
+                    
+                except (KeyError, IndexError, TypeError) as exc:
+                    log.error("Failed to parse Gemini response: %s", exc)
+                    raise ValueError(f"Invalid Gemini API response structure: {exc}")
+                    
+        except asyncio.TimeoutError:
+            log.error("Gemini API request timed out")
+            raise
+        except aiohttp.ClientError as exc:
+            log.error("Gemini API HTTP error: %s", exc)
+            raise
 
     # ── Public methods ────────────────────────────────────────────────────────
 

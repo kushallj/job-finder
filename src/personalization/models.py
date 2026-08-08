@@ -108,6 +108,7 @@ class PersonalizedOutreach:
     email:                 PersonalizedEmail
     cover_letter:          str
     personalization_score: float
+    contact_email:         str                      = ""  # actual email address to send to
     company_profile:       Optional[CompanyProfile] = None
     contact_profile:       Optional[ContactProfile] = None
     research_time_ms:      int                      = 0   # wall-clock research duration

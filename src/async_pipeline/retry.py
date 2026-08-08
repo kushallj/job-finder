@@ -3,6 +3,11 @@ Retry logic with exponential backoff for the async job pipeline.
 
 This module provides retry functionality using the tenacity library,
 with configurable policies and statistics tracking.
+
+Supports retryable exceptions:
+- aiohttp.ClientError: HTTP client errors from aiohttp
+- asyncio.TimeoutError: Async operation timeouts
+- httpx.RequestError: HTTP errors from httpx library
 """
 
 import asyncio
@@ -140,7 +145,12 @@ class RetryManager:
                 if attempt > 1:
                     self.stats.successful_retries += 1
                     logger.info(
-                        f"Operation succeeded on attempt {attempt}/{max_attempts}"
+                        f"Operation succeeded on attempt {attempt}/{max_attempts}",
+                        extra={
+                            "attempt_number": attempt,
+                            "max_attempts": max_attempts,
+                            "status": "success_after_retry"
+                        }
                     )
                 
                 return result
@@ -149,24 +159,48 @@ class RetryManager:
                 last_exception = exc
                 self.stats.failed_retries += 1
                 
+                # Extract error type and message for structured logging
+                error_type = type(exc).__name__
+                error_message = str(exc)
+                
                 if attempt < max_attempts:
-                    # Calculate delay
+                    # Calculate delay with exponential backoff
                     delay = min(
                         self.config.base_delay * (self.config.exponential_base ** (attempt - 1)),
                         self.config.max_delay
                     )
                     
+                    # Add jitter if configured
+                    if self.config.jitter:
+                        delay += random.uniform(0, 1)
+                    
                     self.stats.total_delay_seconds += delay
                     
+                    # Structured logging with error details
                     logger.warning(
-                        f"Operation failed on attempt {attempt}/{max_attempts}: {exc}. "
-                        f"Retrying in {delay:.2f}s..."
+                        f"Operation failed on attempt {attempt}/{max_attempts}",
+                        extra={
+                            "error_type": error_type,
+                            "error_message": error_message,
+                            "attempt_number": attempt,
+                            "max_attempts": max_attempts,
+                            "retry_delay_seconds": round(delay, 2),
+                            "status": "retrying"
+                        }
                     )
                     
                     await asyncio.sleep(delay)
                 else:
+                    # All retries exhausted - final failure
                     logger.error(
-                        f"Operation failed after {max_attempts} attempts: {exc}"
+                        f"Operation failed after {max_attempts} attempts",
+                        extra={
+                            "error_type": error_type,
+                            "error_message": error_message,
+                            "attempt_number": attempt,
+                            "max_attempts": max_attempts,
+                            "status": "failed"
+                        }
                     )
         
         # All retries exhausted
@@ -262,7 +296,12 @@ def retry_on_api_error(
     """
     Retry decorator specifically for API calls.
     
-    Retries on common HTTP errors and timeouts.
+    Retries on common HTTP errors and timeouts from aiohttp, httpx, and asyncio.
+    
+    Retryable exceptions:
+    - aiohttp.ClientError: HTTP client errors from aiohttp
+    - asyncio.TimeoutError: Async operation timeouts
+    - httpx.RequestError: HTTP errors from httpx library
     
     Example:
         @retry_on_api_error()
@@ -281,15 +320,24 @@ def retry_on_api_error(
     """
     import aiohttp
     
+    # Build exception tuple - include httpx if available
+    retry_exceptions = [
+        aiohttp.ClientError,
+        aiohttp.ClientResponseError,
+        asyncio.TimeoutError,
+        TimeoutError,
+    ]
+    
+    try:
+        import httpx
+        retry_exceptions.append(httpx.RequestError)
+    except ImportError:
+        logger.debug("httpx not available, skipping httpx.RequestError in retry policy")
+    
     return retry(
         stop=stop_after_attempt(max_attempts),
         wait=wait_exponential(multiplier=base_delay, max=max_delay),
-        retry=retry_if_exception_type((
-            aiohttp.ClientError,
-            aiohttp.ClientResponseError,
-            asyncio.TimeoutError,
-            TimeoutError,
-        )),
+        retry=retry_if_exception_type(tuple(retry_exceptions)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )

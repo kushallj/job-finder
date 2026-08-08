@@ -121,6 +121,15 @@ temp/
 *.bak
 
 # ===============================
+# Generated / runtime files
+# ===============================
+data/resume_v*.pdf
+data/applications.md
+data/outreach_queue.json
+celerybeat-schedule
+celerybeat.pid
+
+# ===============================
 # Virtual Environments (project-local)
 # ===============================
 job311/
@@ -134,3 +143,4 @@ job311/
 # ===============================
 config/
 .blackboxcli/
+.env
