@@ -8,6 +8,7 @@ Commands:
     tracker                     Regenerate data/applications.md
     status <app_id> <Status>    Update an application's status
     scan <query>                Fetch new jobs for a search query
+    firecrawl-scan               Scrape top Indian startup career pages → DB + Sheet + outreach
     process-async <query>       Process jobs using async pipeline (NEW)
     pipeline                    List pending entries in data/pipeline.md
     verify                      DB health check (orphans, nulls, integrity)
@@ -99,6 +100,25 @@ def cmd_scan(args):
             await processor.close()
 
     asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------------
+# firecrawl-scan
+# ---------------------------------------------------------------------------
+
+def cmd_firecrawl_scan(args):
+    """Scrape top Indian startup career pages via Firecrawl, store + outreach."""
+    import argparse as _argparse
+
+    from firecrawl_startup_pipeline import run as _pipeline_run
+
+    pipeline_args = _argparse.Namespace(
+        query=args.query or "",
+        send=args.send,
+        max_companies=args.max_companies or 0,
+        max_contacts=args.max_contacts or 2,
+    )
+    asyncio.run(_pipeline_run(pipeline_args))
 
 
 # ---------------------------------------------------------------------------
@@ -652,6 +672,7 @@ COMMANDS = {
     "dedup":     cmd_dedup,
     "normalize": cmd_normalize,
     "digest":    cmd_digest,
+    "firecrawl-scan": cmd_firecrawl_scan,
     "drafts":    cmd_drafts,
     "send":      cmd_send,
     "skip":      cmd_skip,
@@ -694,6 +715,18 @@ def main():
     p_scan = subparsers.add_parser("scan", help="Fetch new jobs for a query")
     p_scan.add_argument("query", nargs="?", default="software engineer",
                         help='Search query (default: "software engineer")')
+
+    p_firecrawl = subparsers.add_parser(
+        "firecrawl-scan",
+        help="Scrape top Indian startup career pages (Firecrawl) → DB + Sheet + outreach",
+    )
+    p_firecrawl.add_argument("--query", default="", help="Filter jobs by title keyword")
+    p_firecrawl.add_argument("--send", action="store_true",
+                             help="Actually send outreach emails (default: dry run)")
+    p_firecrawl.add_argument("--max-companies", type=int, default=0,
+                             help="Limit number of companies scanned (0 = all ~100)")
+    p_firecrawl.add_argument("--max-contacts", type=int, default=2,
+                             help="Max contacts to find per company (default: 2)")
 
     p_process_async = subparsers.add_parser("process-async", 
                                              help="Process jobs using async pipeline")

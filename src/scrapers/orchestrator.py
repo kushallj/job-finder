@@ -324,6 +324,33 @@ class GoogleCareersScraperAdapter(UnifiedScraperInterface):
         return jobs[:max_results]
 
 
+class FirecrawlScraperAdapter(UnifiedScraperInterface):
+    """Adapter for FirecrawlCareerScraper (top Indian startups' career pages)."""
+
+    def __init__(self):
+        self._scraper = None
+
+    @property
+    def name(self) -> str:
+        return "firecrawl"
+
+    async def search(
+        self, query: str, location: str = "", max_results: int = 50
+    ) -> List[Dict]:
+        from src.config import settings
+        from src.scrapers.firecrawl_scraper import FirecrawlCareerScraper
+
+        if self._scraper is None:
+            self._scraper = FirecrawlCareerScraper(
+                api_key=getattr(settings, "firecrawl_api_key", None)
+            )
+
+        jobs = await self._scraper.search(
+            query=query, location=location, max_results=max_results
+        )
+        return jobs
+
+
 class FoorillaScraperAdapter(UnifiedScraperInterface):
     """Adapter for FoorillaScraper."""
     
@@ -488,6 +515,7 @@ class ScraperOrchestrator:
         "jobspy": JobSpyScraperAdapter,
         "google_careers": GoogleCareersScraperAdapter,
         "foorilla": FoorillaScraperAdapter,
+        "firecrawl": FirecrawlScraperAdapter,
     }
     
     def __init__(self, config: Optional[ScraperConfig] = None):
