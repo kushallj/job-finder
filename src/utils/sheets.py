@@ -20,6 +20,17 @@ DEFAULT_HEADERS = [
     "source",
 ]
 
+JOBS_WORKSHEET = "Jobs"
+JOBS_HEADERS = [
+    "timestamp",
+    "title",
+    "company",
+    "location",
+    "url",
+    "source",
+    "posted_date",
+]
+
 CONTACTS_WORKSHEET = "Contacts"
 CONTACTS_HEADERS = [
     "timestamp",
@@ -163,6 +174,46 @@ class GoogleSheetsClient:
             str(verified),
             linkedin_url,
             phone,
+        ]
+        self.worksheet.append_row(
+            row,
+            value_input_option="USER_ENTERED",
+            insert_data_option="INSERT_ROWS",
+        )
+
+    def ensure_jobs_worksheet(self) -> None:
+        """Create or open the Jobs worksheet (raw scraped listings, pre-AI-match)."""
+        self.ensure_worksheet(name=JOBS_WORKSHEET, headers=JOBS_HEADERS)
+
+    def append_job_row(
+        self,
+        title: str,
+        company: str,
+        location: str,
+        url: str,
+        source: str,
+        posted_date: str = "",
+    ) -> None:
+        """
+        Append a raw scraped job listing to the Jobs worksheet.
+
+        Unlike append_application_row(), this doesn't require an AI match
+        score — it's meant to log everything a scraper finds, before any
+        resume matching happens. Call ensure_jobs_worksheet() first (note:
+        like append_contact_row, this reuses self.worksheet, so re-call
+        ensure_jobs_worksheet() if you've since written to another sheet).
+        """
+        if not self.worksheet:
+            raise RuntimeError("Worksheet not initialized — call ensure_jobs_worksheet() first")
+
+        row = [
+            datetime.utcnow().isoformat(timespec="seconds"),
+            title,
+            company,
+            location,
+            url,
+            source,
+            posted_date,
         ]
         self.worksheet.append_row(
             row,
