@@ -42,6 +42,7 @@ from typing import Dict, List, Optional, Tuple
 from src.email_discovery import DiscoveredEmail, EmailDiscoveryService
 from src.email_engine.github_miner import GitHubMiner, GitHubContact
 from src.email_engine.web_crawler import TeamPageCrawler, CrawlContact
+from src.email_engine.wayback_miner import WaybackMiner, WaybackContact
 from src.email_engine.pattern_miner import PatternMiner, PatternDB, PatternResult, _normalize_domain
 from src.email_engine.confidence_scorer import ConfidenceScorer, ScoringSignals
 
@@ -89,6 +90,7 @@ class EmailDiscoveryEngine:
         discovery_service: Optional[EmailDiscoveryService] = None,
         github_miner:      Optional[GitHubMiner]           = None,
         web_crawler:       Optional[TeamPageCrawler]       = None,
+        wayback_miner:     Optional[WaybackMiner]          = None,
         pattern_db_path:   str                             = "email_patterns.db",
         enable_smtp:       bool                            = True,
         min_confidence:    int                             = 30,
@@ -96,6 +98,7 @@ class EmailDiscoveryEngine:
         self._providers    = discovery_service or EmailDiscoveryService()
         self._github       = github_miner or GitHubMiner()
         self._crawler      = web_crawler or TeamPageCrawler()
+        self._wayback      = wayback_miner or WaybackMiner()
         self._pattern_db   = PatternDB(db_path=pattern_db_path)
         self._miner        = PatternMiner(db=self._pattern_db)
         self._scorer       = ConfidenceScorer()
@@ -203,6 +206,10 @@ class EmailDiscoveryEngine:
                 self._collect_from_crawler(domain),
                 name="crawler",
             ),
+            asyncio.create_task(
+                self._collect_from_wayback(domain),
+                name="wayback",
+            ),
         ]
 
         results_list = await asyncio.gather(*tasks, return_exceptions=True)
@@ -268,6 +275,26 @@ class EmailDiscoveryEngine:
             ]
         except Exception as e:
             log.warning("Web crawler collection failed: %s", e)
+            return []
+
+    async def _collect_from_wayback(self, domain: str) -> List[DiscoveredEmail]:
+        try:
+            contacts: List[WaybackContact] = await self._wayback.mine(domain)
+            return [
+                DiscoveredEmail(
+                    email      = c.email,
+                    name       = c.name,
+                    title      = c.title,
+                    company    = domain,
+                    confidence = c.confidence,
+                    source     = "wayback_machine",
+                    sources    = ["wayback_machine"],
+                )
+                for c in contacts
+                if c.email
+            ]
+        except Exception as e:
+            log.warning("Wayback Machine collection failed: %s", e)
             return []
 
     # ── Layer 2: Pattern mining ───────────────────────────────────────────────
@@ -419,11 +446,57 @@ class EmailDiscoveryEngine:
 
         return sorted(seen.values(), key=lambda x: x.confidence, reverse=True)
 
+    # ── find_contacts adapter ─────────────────────────────────────────────────
+
+    async def find_contacts(
+        self,
+        company_name: str,
+        job_title: str = "",
+        limit: int = 5,
+        smtp_verify: bool = False,
+    ) -> List[Dict]:
+        """
+        Drop-in replacement for EmailDiscoveryService.find_contacts().
+        Resolves domain, then runs the full 5-layer pipeline (providers +
+        GitHub mining + web crawling + pattern mining + SMTP verification).
+        Returns List[Dict] with the same keys as EmailDiscoveryService.
+        """
+        domain = await self._providers.domain_resolver.resolve(company_name) or ""
+        if not domain:
+            from src.email_discovery import clean_company_slug
+            domain = clean_company_slug(company_name) + ".com"
+            log.warning("Domain resolution failed for '%s', guessing: %s", company_name, domain)
+
+        results = await self.discover(
+            company_name=company_name,
+            domain=domain,
+            limit=limit,
+            skip_smtp=not smtp_verify,
+        )
+
+        return [
+            {
+                "email":        r.email,
+                "name":         r.name,
+                "title":        r.title,
+                "company":      r.company,
+                "confidence":   r.confidence,
+                "source":       r.source,
+                "verified":     r.verified,
+                "linkedin_url": r.linkedin_url,
+                "phone":        getattr(r, "phone", ""),
+                "sources":      r.sources,
+            }
+            for r in results
+        ]
+
     # ── Cleanup ───────────────────────────────────────────────────────────────
 
     async def close(self) -> None:
+        await self._providers.close()
         await self._github.close()
         await self._crawler.close()
+        await self._wayback.close()
         self._smtp_pool.shutdown(wait=False)
 
     # ── Helpers ───────────────────────────────────────────────────────────────

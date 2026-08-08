@@ -137,7 +137,7 @@ class FeedbackLoop:
 
     def get_best_hours(self) -> Dict[str, float]:
         """Learned best send hours. Keys are str(hour), values are reply_rate."""
-        return self._optimizer.get_best_hours()
+        return self._optimizer.get_best_send_hours()
 
     def latest_digest_dict(self) -> Optional[dict]:
         """Latest digest as structured dict for dashboard API."""

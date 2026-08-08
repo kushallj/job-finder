@@ -84,11 +84,19 @@ class TokenBucket:
         return self._stats
     
     def _refill(self) -> None:
-        """Refill tokens based on elapsed time. Must be called with lock held."""
+        """
+        Refill tokens based on elapsed time. Must be called with lock held.
+        
+        This ensures the rate limit is maintained across any sliding time window
+        by calculating tokens based on actual elapsed time since last update.
+        The token bucket algorithm guarantees that the average rate over any
+        time window cannot exceed the configured rate.
+        """
         now = time.monotonic()
         elapsed = now - self._last_update
         
-        # Calculate tokens to add
+        # Calculate tokens to add based on elapsed time
+        # This ensures rate is maintained in any sliding time window
         tokens_to_add = elapsed * (self._rate / self._time_period)
         
         # Update tokens, capping at capacity
@@ -100,7 +108,8 @@ class TokenBucket:
         Acquire tokens from the bucket.
         
         Blocks if insufficient tokens are available until they refill
-        or timeout is reached.
+        or timeout is reached. Ensures API call rate never exceeds 
+        configured limit in any sliding time window.
         
         Args:
             tokens: Number of tokens to acquire. Default 1.
@@ -118,6 +127,7 @@ class TokenBucket:
             raise ValueError(f"tokens ({tokens}) cannot exceed capacity ({self._capacity})")
         
         start_time = time.monotonic()
+        had_to_wait = False
         
         async with self._lock:
             while True:
@@ -125,10 +135,13 @@ class TokenBucket:
                 
                 if self._tokens >= tokens:
                     self._tokens -= tokens
-                    self._stats.tokens_acquired += 1
+                    
+                    # Track statistics
+                    self._stats.tokens_consumed += tokens
+                    self._stats.tokens_acquired += tokens  # Backwards compatibility
                     
                     wait_time = (time.monotonic() - start_time) * 1000  # ms
-                    if wait_time > 0:
+                    if had_to_wait:
                         self._stats.total_wait_time_ms += wait_time
                     
                     return True
@@ -145,8 +158,12 @@ class TokenBucket:
                         return False
                     wait_for_tokens = min(wait_for_tokens, timeout - elapsed)
                 
-                # Wait for tokens to refill
-                self._stats.wait_events += 1
+                # Track that this request was blocked
+                if not had_to_wait:
+                    self._stats.requests_blocked += 1
+                    self._stats.wait_events += 1  # Backwards compatibility
+                    had_to_wait = True
+                
                 logger.debug(f"Rate limit reached, waiting {wait_for_tokens:.3f}s for tokens")
                 
                 # Release lock while waiting

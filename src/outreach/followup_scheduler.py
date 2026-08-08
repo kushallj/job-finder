@@ -310,6 +310,13 @@ class FollowUpScheduler:
     ) -> str:
         name = contact_name.split()[0] if contact_name and contact_name.lower() != "there" else "there"
 
+        # Get sender name from config
+        try:
+            from src.config import settings as _s
+            sender = getattr(_s, "sender_name", "").split()[0] or "Me"
+        except Exception:
+            sender = "Me"
+
         if follow_up_num == 0:
             return (
                 f"Hi {name},\n\n"
@@ -317,7 +324,7 @@ class FollowUpScheduler:
                 f"I just wanted to make sure it didn't get buried.\n\n"
                 f"I'm genuinely excited about the possibility of contributing to your team. "
                 f"Would you have 15 minutes this week for a quick chat?\n\n"
-                f"Best,\nKushall"
+                f"Best,\n{sender}"
             )
         elif follow_up_num == 1:
             return (
@@ -326,7 +333,7 @@ class FollowUpScheduler:
                 f"Since my last note, I've been thinking about how my background could "
                 f"specifically help with your engineering challenges. "
                 f"I'd love to share a few ideas if you're open to it.\n\n"
-                f"Either way, thanks for your time.\n\nBest,\nKushall"
+                f"Either way, thanks for your time.\n\nBest,\n{sender}"
             )
         else:
             return (
@@ -335,7 +342,7 @@ class FollowUpScheduler:
                 f"If the timing isn't right, I completely understand. "
                 f"I'll leave it here, but I'd genuinely love to stay in touch "
                 f"for future opportunities.\n\n"
-                f"Wishing you and the team all the best.\n\nKushall"
+                f"Wishing you and the team all the best.\n\n{sender}"
             )
 
     # ── Utility: schedule initial follow-up ───────────────────────────────────

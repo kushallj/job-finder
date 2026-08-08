@@ -1,13 +1,20 @@
 """
-reply_detector.py — IMAP-based reply detection.
+reply_detector.py — IMAP-based reply detection (Requirements 17.1-17.4).
 
 Design:
   - imaplib is synchronous/blocking → runs in ThreadPoolExecutor
-  - Polls the INBOX every `poll_interval_secs` (default 30 min)
+  - Polls the INBOX every `poll_interval_secs` (default 30 min = 1800 sec) [Req 17.1]
   - Matches replies by: Message-ID chain (References / In-Reply-To) first,
     then subject prefix fallback (Re: <original subject>)
-  - On match: updates OutreachRecord in DB, fires SentimentClassifier
+  - On match: updates OutreachRecord in DB, fires SentimentClassifier [Req 17.2, 17.3]
+  - On unsubscribe: marks Contact as do_not_contact [Req 17.4]
   - Handles Gmail-specific quirks (IMAP must be enabled, uses SSL port 993)
+
+Requirements implemented:
+  17.1: THE ReplyDetector SHALL poll IMAP for new replies at 30-minute intervals
+  17.2: WHEN a reply is detected, THE ReplyDetector SHALL update the outreach record status
+  17.3: THE ReplyDetector SHALL classify reply sentiment as positive, negative, neutral, referral, or unsubscribe
+  17.4: WHEN an unsubscribe reply is detected, THE ReplyDetector SHALL mark the contact as do-not-contact
 
 Gmail setup required:
   1. gmail.com → Settings → See all settings → Forwarding and POP/IMAP
@@ -30,21 +37,59 @@ import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.header import decode_header
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
 log = logging.getLogger(__name__)
 
+# Default polling interval: 30 minutes (1800 seconds) as per Requirement 17.1
+DEFAULT_POLL_INTERVAL_SECS = 1800
+
 # Matches "Re: " / "RE: " / "re: " prefix chains
 _REPLY_SUBJECT_RE = re.compile(r"^(re:\s*)+", re.IGNORECASE)
+
+
+@dataclass
+class ReplyStats:
+    """Statistics for reply detection (useful for monitoring and testing)."""
+    replies_detected: int = 0
+    replies_matched: int = 0
+    unsubscribes_processed: int = 0
+    contacts_marked_dnc: int = 0  # do-not-contact
+    poll_count: int = 0
+    last_poll_at: Optional[datetime] = None
+    errors: int = 0
+    sentiment_breakdown: dict = field(default_factory=lambda: {
+        "positive": 0, "negative": 0, "neutral": 0, "referral": 0, "unsubscribe": 0
+    })
+    
+    def as_dict(self) -> dict:
+        """Return stats as a dictionary."""
+        return {
+            "replies_detected": self.replies_detected,
+            "replies_matched": self.replies_matched,
+            "unsubscribes_processed": self.unsubscribes_processed,
+            "contacts_marked_do_not_contact": self.contacts_marked_dnc,
+            "poll_count": self.poll_count,
+            "last_poll_at": self.last_poll_at.isoformat() if self.last_poll_at else None,
+            "errors": self.errors,
+            "sentiment_breakdown": self.sentiment_breakdown.copy(),
+        }
 
 
 class ReplyDetector:
     """
     Polls Gmail INBOX for replies to outreach emails.
+    
+    Implements Requirements 17.1-17.4:
+      - 17.1: Polls at 30-minute intervals (configurable)
+      - 17.2: Updates outreach record status on reply detection
+      - 17.3: Classifies sentiment (positive, negative, neutral, referral, unsubscribe)
+      - 17.4: Marks contacts as do-not-contact when unsubscribe is detected
 
     Usage:
         detector = ReplyDetector(db_session_factory)
@@ -55,12 +100,13 @@ class ReplyDetector:
 
     def __init__(
         self,
-        db_session_factory,
+        db_session_factory: Callable[[], Session],
         sentiment_classifier=None,
-        poll_interval_secs: int = 1800,   # 30 minutes
+        poll_interval_secs: int = DEFAULT_POLL_INTERVAL_SECS,  # 30 minutes (Req 17.1)
         imap_host: str = "imap.gmail.com",
         imap_port: int = 993,
         max_workers: int = 2,
+        on_reply_callback: Optional[Callable] = None,
     ):
         self._db_factory    = db_session_factory
         self._sentiment     = sentiment_classifier
@@ -70,22 +116,42 @@ class ReplyDetector:
         self._executor      = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="imap")
         self._task: Optional[asyncio.Task] = None
         self._running = False
+        self._on_reply = on_reply_callback  # Optional callback for testing/integration
 
         # Read credentials from env
         self._email    = os.environ.get("GMAIL_ADDRESS", "")
         self._password = os.environ.get("GMAIL_PASSWORD", "")
+        
+        # Statistics tracking
+        self.stats = ReplyStats()
+    
+    @property
+    def poll_interval(self) -> int:
+        """Return the configured poll interval in seconds (Requirement 17.1)."""
+        return self._poll_interval
+    
+    @property
+    def is_running(self) -> bool:
+        """Return whether the detector is currently running."""
+        return self._running
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(self) -> None:
+        """Start the background polling loop."""
         if not self._email or not self._password:
             log.warning("GMAIL_ADDRESS/GMAIL_PASSWORD not set — reply detection disabled")
             return
         self._running = True
         self._task = asyncio.create_task(self._poll_loop(), name="reply_detector")
-        log.info("ReplyDetector started (interval=%ds)", self._poll_interval)
+        log.info(
+            "ReplyDetector started (poll_interval=%d secs = %d min) [Req 17.1]",
+            self._poll_interval,
+            self._poll_interval // 60,
+        )
 
     async def stop(self) -> None:
+        """Stop the background polling loop and clean up resources."""
         self._running = False
         if self._task:
             self._task.cancel()
@@ -94,17 +160,32 @@ class ReplyDetector:
             except asyncio.CancelledError:
                 pass
         self._executor.shutdown(wait=False)
-        log.info("ReplyDetector stopped")
+        log.info(
+            "ReplyDetector stopped. Stats: %s",
+            self.stats.as_dict(),
+        )
+    
+    async def poll_once(self) -> int:
+        """
+        Run a single poll cycle (useful for testing).
+        Returns the number of replies processed.
+        """
+        await self._run_poll()
+        return self.stats.replies_matched
 
-    # ── Poll loop ─────────────────────────────────────────────────────────────
+    # ── Poll loop (Requirement 17.1) ──────────────────────────────────────────
 
     async def _poll_loop(self) -> None:
+        """
+        Main polling loop that runs at 30-minute intervals (Requirement 17.1).
+        """
         while self._running:
             try:
                 await self._run_poll()
             except asyncio.CancelledError:
                 raise
             except Exception as e:
+                self.stats.errors += 1
                 log.error("Reply poll error: %s", e, exc_info=True)
             await asyncio.sleep(self._poll_interval)
 
@@ -112,7 +193,12 @@ class ReplyDetector:
         """Run one IMAP poll in the thread pool (imaplib is blocking)."""
         loop    = asyncio.get_event_loop()
         replies = await loop.run_in_executor(self._executor, self._fetch_replies)
+        
+        self.stats.poll_count += 1
+        self.stats.last_poll_at = datetime.now(timezone.utc)
+        
         if replies:
+            self.stats.replies_detected += len(replies)
             log.info("Found %d new replies", len(replies))
             for msg_id, subject, sender, body, msg_date in replies:
                 await self._process_reply(msg_id, subject, sender, body, msg_date)
@@ -174,7 +260,7 @@ class ReplyDetector:
 
         return results
 
-    # ── Reply processing ──────────────────────────────────────────────────────
+    # ── Reply processing (Requirements 17.2, 17.3, 17.4) ────────────────────────
 
     async def _process_reply(
         self,
@@ -184,8 +270,15 @@ class ReplyDetector:
         body: str,
         date_str: str,
     ) -> None:
-        """Match reply to an OutreachRecord and update DB."""
-        from src.models import OutreachRecord
+        """
+        Match reply to an OutreachRecord and update DB.
+        
+        Implements:
+          - Requirement 17.2: Update outreach record status
+          - Requirement 17.3: Classify sentiment
+          - Requirement 17.4: Mark contact as do-not-contact on unsubscribe
+        """
+        from src.models import OutreachRecord, Contact
 
         # Extract sender email
         sender_email = self._extract_email_from_header(sender)
@@ -212,38 +305,104 @@ class ReplyDetector:
                 )
                 return
 
-            # Update record
+            # Requirement 17.2: Update outreach record status
             record.replied_at = datetime.now(timezone.utc)
             record.status     = "replied"
+            self.stats.replies_matched += 1
 
-            # Run sentiment analysis
+            # Requirement 17.3: Run sentiment analysis
             sentiment_label = "neutral"
             if self._sentiment:
                 try:
                     label = await self._sentiment.classify(body)
                     sentiment_label = label.value
                     log.info(
-                        "Reply from %s → sentiment=%s",
+                        "Reply from %s → sentiment=%s [Req 17.3]",
                         sender_email, sentiment_label,
                     )
                 except Exception as e:
-                    log.warning("Sentiment failed: %s", e)
+                    log.warning("Sentiment classification failed: %s", e)
+            
+            # Track sentiment statistics
+            if sentiment_label in self.stats.sentiment_breakdown:
+                self.stats.sentiment_breakdown[sentiment_label] += 1
 
             # Store sentiment if column exists
             if hasattr(record, "reply_sentiment"):
                 record.reply_sentiment = sentiment_label
+            
+            # Requirement 17.4: Handle unsubscribe - mark contact as do-not-contact
+            if sentiment_label == "unsubscribe":
+                self.stats.unsubscribes_processed += 1
+                await self._mark_contact_do_not_contact(
+                    db=db,
+                    contact_id=record.contact_id,
+                    contact_email=sender_email,
+                    reason="unsubscribe_reply",
+                )
 
             db.commit()
             log.info(
-                "Reply matched: contact=%s job_id=%s sentiment=%s",
+                "Reply matched: contact=%s job_id=%s sentiment=%s [Req 17.2]",
                 sender_email, record.job_id, sentiment_label,
             )
+            
+            # Fire callback if registered (useful for testing/integration)
+            if self._on_reply:
+                try:
+                    self._on_reply(record, sentiment_label)
+                except Exception as e:
+                    log.warning("Reply callback failed: %s", e)
 
         except Exception as e:
             db.rollback()
+            self.stats.errors += 1
             log.error("Failed to process reply from %s: %s", sender_email, e, exc_info=True)
         finally:
             db.close()
+    
+    async def _mark_contact_do_not_contact(
+        self,
+        db: Session,
+        contact_id: Optional[int],
+        contact_email: str,
+        reason: str = "unsubscribe_reply",
+    ) -> None:
+        """
+        Mark a contact as do-not-contact (Requirement 17.4).
+        
+        This is called when an unsubscribe reply is detected.
+        The contact will be excluded from future outreach.
+        """
+        from src.models import Contact
+        
+        contact = None
+        
+        # Try to find by contact_id first
+        if contact_id:
+            contact = db.query(Contact).filter(Contact.id == contact_id).first()
+        
+        # Fallback: find by email
+        if not contact and contact_email:
+            contact = db.query(Contact).filter(Contact.email == contact_email).first()
+        
+        if not contact:
+            log.warning(
+                "Cannot mark do-not-contact: contact not found (id=%s, email=%s)",
+                contact_id, contact_email,
+            )
+            return
+        
+        # Mark as do-not-contact
+        contact.do_not_contact = True
+        contact.do_not_contact_reason = reason
+        contact.do_not_contact_at = datetime.now(timezone.utc)
+        
+        self.stats.contacts_marked_dnc += 1
+        log.info(
+            "Marked contact as do-not-contact: %s (reason=%s) [Req 17.4]",
+            contact_email, reason,
+        )
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

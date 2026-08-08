@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     # AI - Gemini
     gemini_api_key: Optional[str] = None
     gemini_model: str = "gemini-2.0-flash"
+
+    # AI - Ollama (local LLM)
+    ollama_model: str = "qwen2.5-coder:7b"
+    ollama_keep_alive: str = "5m"
     
     # Google Sheets
     google_sheet_title: Optional[str] = None
@@ -47,10 +51,32 @@ class Settings(BaseSettings):
     # GitHub
     github_token: Optional[str] = None
 
+    # Email provider — "smtp" | "sendgrid" | "ses"
+    email_provider: str = "smtp"
+    sendgrid_api_key: Optional[str] = None
+
+    # AWS SES
+    aws_access_key_id: Optional[str] = None
+    aws_secret_access_key: Optional[str] = None
+    aws_region: str = "us-east-1"
+    aws_ses_source_arn: Optional[str] = None  # verified SES identity ARN (optional)
+
+    # Job processing
+    email_delay_seconds: float = 30.0
+    job_concurrency: int = 5
+    min_score: int = 50
+    max_contacts: int = 3
+    db_chunk_size: int = 100
+
     # App
     env: str = "development"
     log_level: str = "INFO"
     auto_send_emails: bool = True  # Automatically send outreach emails after job matching
+
+    # Sender identity (used in outreach emails, cover letters, etc.)
+    sender_name: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    tagline: Optional[str] = None
     
     # Note: Pydantic v2 uses `model_config` above; the old inner `Config` is ignored.
 

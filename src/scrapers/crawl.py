@@ -95,7 +95,12 @@ async def cloudflare_crawl(
         },
     }
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    # Configure connection pooling with httpx limits
+    limits = httpx.Limits(
+        max_connections=10,
+        max_keepalive_connections=5,
+    )
+    async with httpx.AsyncClient(timeout=60, limits=limits) as client:
         # ── Step 1: Start crawl job ──────────────────────────────────────────
         resp = await client.post(cf_url, headers=headers, json=payload)
         if resp.status_code != 200:
@@ -198,7 +203,15 @@ async def cloudflare_render_page(
         payload["waitForTimeout"] = wait_ms
 
     try:
-        async with httpx.AsyncClient(timeout=timeout_ms / 1000 + 10) as client:
+        # Configure connection pooling with httpx limits
+        limits = httpx.Limits(
+            max_connections=10,
+            max_keepalive_connections=5,
+        )
+        async with httpx.AsyncClient(
+            timeout=timeout_ms / 1000 + 10,
+            limits=limits,
+        ) as client:
             resp = await client.post(cf_url, headers=headers, json=payload)
 
         if resp.status_code != 200:

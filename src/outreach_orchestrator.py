@@ -102,7 +102,7 @@ class OutreachOrchestrator:
     def __init__(
         self,
         dry_run:                bool = False,
-        global_daily_limit:     int  = 50,
+        global_daily_limit:     Optional[int] = None,  # None = auto (50 SMTP, 2000 SG/SES)
         domain_weekly_limit:    int  = 3,
         ab_db_path:             Optional[str] = "ab_stats.db",
         followup_poll_interval: int  = 1800,
@@ -111,23 +111,22 @@ class OutreachOrchestrator:
     ):
         self._dry_run = dry_run
 
+        # EmailOutreach config (needed for provider-aware daily limit)
+        config = OutreachConfig()
+        self._email_outreach = EmailOutreach(cfg=config)
+
+        # Auto daily limit: 50 for Gmail SMTP, 2000 for SendGrid/SES
+        resolved_daily_limit = global_daily_limit if global_daily_limit is not None \
+            else config.global_daily_limit
+
         # Sub-components
         self._rate_limiter  = DomainRateLimiter(
-            global_daily_limit  = global_daily_limit,
+            global_daily_limit  = resolved_daily_limit,
             domain_weekly_limit = domain_weekly_limit,
         )
         self._ab_manager    = ABTestManager(db_path=ab_db_path)
         self._smart_timer   = SmartSendTimer() if smart_timing else None
         self._sentiment     = SentimentClassifier(use_llm=True)
-
-        # EmailOutreach (existing, reused)
-        config = OutreachConfig(
-            sender_email = os.environ.get("GMAIL_ADDRESS", ""),
-            sender_name  = os.environ.get("SENDER_NAME", "Kushall Jain"),
-            app_password = os.environ.get("GMAIL_PASSWORD", ""),
-            resume_path  = str(Path("data/resume.pdf")),
-        )
-        self._email_outreach = EmailOutreach(config=config)
 
         # Background task components
         self._followup_scheduler = FollowUpScheduler(
@@ -399,6 +398,13 @@ class OutreachOrchestrator:
         name    = (contact.name or "").split()[0] if contact.name else "there"
         company = contact.company or "your company"
 
+        # Get sender name from config
+        try:
+            from src.config import settings as _s
+            sender_name = getattr(_s, "sender_name", "The Candidate") or "The Candidate"
+        except Exception:
+            sender_name = "The Candidate"
+
         if template_type == "engineering_manager":
             return (
                 f"Hi {name},\n\n"
@@ -409,7 +415,7 @@ class OutreachOrchestrator:
                 f"engineering team is doing.\n\n"
                 f"Would you be open to a 15-minute conversation? "
                 f"Happy to share more about my background and what I could bring to the team.\n\n"
-                f"Best,\nKushall Jain"
+                f"Best,\n{sender_name}"
             )
         else:
             return (
@@ -419,7 +425,7 @@ class OutreachOrchestrator:
                 f"I'm a software engineer with hands-on experience in backend development, "
                 f"APIs, and data systems. I've attached my resume for your reference.\n\n"
                 f"Would it be possible to connect briefly this week?\n\n"
-                f"Thank you for your time,\nKushall Jain"
+                f"Thank you for your time,\n{sender_name}"
             )
 
     # ── Stats ─────────────────────────────────────────────────────────────────

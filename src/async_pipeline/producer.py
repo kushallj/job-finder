@@ -199,6 +199,8 @@ class AsyncJobProducer:
         """
         Get total count of matching jobs without loading them into memory.
         
+        Uses efficient COUNT(*) query without loading job data into memory.
+        
         Args:
             query: Search query.
             filters: Additional filters.
@@ -206,11 +208,13 @@ class AsyncJobProducer:
         Returns:
             Total number of matching jobs.
         """
+        from sqlalchemy import func
+        
         filters = filters or {}
         
         async with self._db_session_factory() as session:
-            # Build count query
-            stmt = select(Job)
+            # Build count query using COUNT(*)
+            stmt = select(func.count(Job.id))
             
             if query:
                 stmt = stmt.where(
@@ -225,12 +229,15 @@ class AsyncJobProducer:
             if filters.get("company"):
                 stmt = stmt.where(Job.company == filters["company"])
             
+            if filters.get("location"):
+                stmt = stmt.where(Job.location.ilike(f"%{filters['location']}%"))
+            
             if not filters.get("include_processed", False):
                 stmt = stmt.outerjoin(Application).where(Application.id == None)
             
-            # Execute count
+            # Execute count query - returns a single integer
             result = await session.execute(stmt)
-            count = len(result.scalars().all())
+            count = result.scalar_one()
             
             logger.info(f"Total matching jobs: {count}")
             return count

@@ -135,3 +135,72 @@ class NEXUSState:
         )
         lines.append(timing_str)
         return "\n".join(lines)
+
+    # ── Checkpoint / Resume ────────────────────────────────────────────────────
+
+    def checkpoint(self, path: str = "data/pipeline_checkpoint.json") -> None:
+        """Persist current state to disk for crash recovery."""
+        import json
+        from pathlib import Path
+        from dataclasses import asdict
+
+        checkpoint_data = {
+            "search_queries": self.search_queries,
+            "resume_path": self.resume_path,
+            "dry_run": self.dry_run,
+            "max_jobs_per_query": self.max_jobs_per_query,
+            "max_jobs_to_tailor": self.max_jobs_to_tailor,
+            "max_companies": self.max_companies,
+            "jobs_new_count": self.jobs_new_count,
+            "avg_ats_score": self.avg_ats_score,
+            "avg_personalization_score": self.avg_personalization_score,
+            "emails_sent": self.emails_sent,
+            "emails_skipped": self.emails_skipped,
+            "node_status": {k: v.value for k, v in self.node_status.items()},
+            "node_timings_ms": self.node_timings_ms,
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "started_at": self.started_at,
+        }
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_text(json.dumps(checkpoint_data, indent=2, default=str))
+
+    @classmethod
+    def resume_from(cls, path: str = "data/pipeline_checkpoint.json") -> Optional["NEXUSState"]:
+        """Load state from a checkpoint file. Returns None if no checkpoint exists."""
+        import json
+        from pathlib import Path
+
+        p = Path(path)
+        if not p.exists():
+            return None
+        try:
+            data = json.loads(p.read_text())
+            state = cls(
+                search_queries=data.get("search_queries", []),
+                resume_path=data.get("resume_path", "data/resume.txt"),
+                dry_run=data.get("dry_run", False),
+                max_jobs_per_query=data.get("max_jobs_per_query", 5),
+                max_jobs_to_tailor=data.get("max_jobs_to_tailor", 5),
+                max_companies=data.get("max_companies", 10),
+            )
+            state.jobs_new_count = data.get("jobs_new_count", 0)
+            state.emails_sent = data.get("emails_sent", 0)
+            state.emails_skipped = data.get("emails_skipped", 0)
+            state.node_timings_ms = data.get("node_timings_ms", {})
+            state.errors = data.get("errors", [])
+            state.warnings = data.get("warnings", [])
+            # Restore node statuses
+            for k, v in data.get("node_status", {}).items():
+                state.node_status[k] = NodeStatus(v)
+            return state
+        except (json.JSONDecodeError, KeyError, ValueError):
+            return None
+
+    @staticmethod
+    def clear_checkpoint(path: str = "data/pipeline_checkpoint.json") -> None:
+        """Remove checkpoint file after successful completion."""
+        from pathlib import Path
+        p = Path(path)
+        if p.exists():
+            p.unlink()

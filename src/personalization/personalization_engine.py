@@ -143,7 +143,7 @@ class PersonalizationEngine:
         )
 
         # ── Compose email ──────────────────────────────────────────────────────
-        email = self._email_composer.compose(
+        email = await self._email_composer.compose(
             hooks, company_profile, contact_profile, jd, resume
         )
 
@@ -160,6 +160,7 @@ class PersonalizationEngine:
 
         return PersonalizedOutreach(
             contact_name          = contact_name,
+            contact_email         = contact_email,
             company               = company_name,
             email                 = email,
             cover_letter          = cover_letter,
@@ -191,8 +192,8 @@ class PersonalizationEngine:
                     github_hint   = contact.get("github", ""),
                     company_name  = contact.get("company", ""),
                     domain        = contact.get("domain", ""),
-                    jd_text       = jd_text,
-                    job_title     = job_title,
+                    jd_text       = contact.get("jd_text", "") or jd_text,
+                    job_title     = contact.get("job_title", "") or job_title,
                 )
 
         results = await asyncio.gather(*[_one(c) for c in contacts], return_exceptions=True)
