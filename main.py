@@ -111,6 +111,13 @@ except Exception as _e:
     logging.warning("outreach_processor not available: %s", _e)
 
 try:
+    from src.outreach_orchestrator import OutreachOrchestrator
+    _REPLY_DETECTION_OK = True
+except Exception as _e:
+    _REPLY_DETECTION_OK = False
+    logging.warning("outreach_orchestrator not available: %s", _e)
+
+try:
     from src.contact_finder import ContactFinder, Contact as ContactDataClass
     _CONTACT_OK = True
 except Exception as _e:
@@ -272,6 +279,7 @@ class AppState:
     outreach_proc:  Optional[Any]           = None
     email_outreach: Optional[Any]           = None
     async_pipeline: Optional[Any]           = None
+    outreach_orchestrator: Optional[Any]    = None
     resume_router:  ResumeTrie              = field(default_factory=ResumeTrie)
     _cb_path:       Path = field(default_factory=lambda: Path("logs/sh_callbacks.json"))
     _callbacks:     Dict[str, Any] = field(default_factory=dict)
@@ -397,6 +405,31 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             log.warning("⚠️  OutreachProcessor unavailable: %s", exc)
 
+    # OutreachOrchestrator — reply detection + follow-up scheduling.
+    #
+    # These run as background asyncio tasks (IMAP polling for replies,
+    # periodic scan for due follow-ups) that need a long-lived process to
+    # live in — this is that process. Previously OutreachOrchestrator was
+    # only ever instantiated per-Celery-task inside src/dag/nodes.py, whose
+    # scheduled invocation is always dry_run=True, so start_background_tasks()
+    # was never actually called anywhere and reply detection never ran.
+    #
+    # NOTE: this only turns on *detection* of replies to whatever's already
+    # been sent. It does not change which pipeline sends outreach — that's
+    # still job_processor.py via the Celery beat schedule (src/tasks.py).
+    if _REPLY_DETECTION_OK:
+        try:
+            dry_run = os.getenv("OUTREACH_DRY_RUN", "false").lower() == "true"
+            state.outreach_orchestrator = OutreachOrchestrator(dry_run=dry_run)
+            await state.outreach_orchestrator.start_background_tasks()
+            log.info(
+                "✅ OutreachOrchestrator background tasks started "
+                "(reply detection + follow-up scheduling, dry_run=%s)", dry_run
+            )
+        except Exception as exc:
+            log.warning("⚠️  OutreachOrchestrator background tasks unavailable: %s", exc)
+            state.outreach_orchestrator = None
+
     # AsyncJobPipeline — optional (has worker pool and database connections)
     if _ASYNC_PIPELINE_OK:
         try:
@@ -468,6 +501,16 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             shutdown_errors.append(f"outreach_proc: {exc}")
             log.error("⚠️  Error closing outreach_proc: %s", exc)
+
+    # ── Stop OutreachOrchestrator background tasks (reply detector, follow-ups) ──
+    if state.outreach_orchestrator:
+        try:
+            log.info("📬 Stopping reply detector + follow-up scheduler…")
+            await state.outreach_orchestrator.stop_background_tasks()
+            log.info("✅ OutreachOrchestrator background tasks stopped")
+        except Exception as exc:
+            shutdown_errors.append(f"outreach_orchestrator: {exc}")
+            log.error("⚠️  Error stopping outreach_orchestrator: %s", exc)
     
     # ── Close EmailOutreach (closes HTTP client sessions - Requirement 34.1) ──
     if state.email_outreach:
