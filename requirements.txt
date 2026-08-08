@@ -64,4 +64,5 @@ python-multipart==0.0.6
 pandas==2.1.4
 structlog==24.1.0
 tenacity==8.2.3
-rich==13.7.0prometheus_client==0.26.0
+rich==13.7.0
+prometheus_client==0.26.0
