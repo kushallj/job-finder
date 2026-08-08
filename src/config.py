@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     cloudflare_account_id: Optional[str] = None
     cloudflare_api_token: Optional[str] = None
 
+    # Firecrawl — used by src/scrapers/firecrawl_scraper.py to crawl
+    # startup career pages directly (get key: https://www.firecrawl.dev/app/api-keys)
+    firecrawl_api_key: Optional[str] = None
+
     # GitHub
     github_token: Optional[str] = None
 
