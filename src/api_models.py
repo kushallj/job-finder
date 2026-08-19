@@ -151,6 +151,21 @@ class ContactSearchRequest(BaseModel):
         return v.strip()
 
 
+class OutreachStatusUpdateRequest(BaseModel):
+    """
+    Request model for updating an outreach record's status.
+
+    Backs PUT /api/outreach/{outreach_id}/status, which the frontend
+    (outreachApi.updateStatus) already called but the backend didn't expose.
+    """
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    status: OutreachStatus = Field(
+        ...,
+        description="New status for the outreach record",
+    )
+
+
 class OutreachRequest(BaseModel):
     """
     Request model for sending outreach emails.

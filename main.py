@@ -50,6 +50,8 @@ from src.api_models import (
     QueryRequest,
     ContactSearchRequest,
     OutreachRequest,
+    OutreachStatusUpdateRequest,
+    OutreachStatus,
     FollowUpRequest,
     CrawlRequest as CrawlRequestModel,
     QueryResponse,
@@ -1801,8 +1803,6 @@ async def get_jobs(
         raise DatabaseError(f"Failed to retrieve jobs: {str(exc)}")
 
 
-# ── Stats ─────────────────────────────────────────────────────────────────────
-
 @app.get("/api/jobs/pending-outreach", tags=["jobs"], response_model=PendingOutreachResponse)
 async def pending_outreach(
     min_score: int = Query(default=50, ge=0, le=100, description="Minimum match score threshold"),
@@ -1848,6 +1848,41 @@ async def pending_outreach(
     except Exception as exc:
         log.error("Failed to retrieve pending outreach jobs: %s", exc, exc_info=True)
         raise DatabaseError(f"Failed to retrieve pending outreach jobs: {str(exc)}")
+
+
+@app.get("/api/jobs/{job_id}", tags=["jobs"], response_model=JobData)
+async def get_job_by_id(job_id: int):
+    """
+    Get a single job by ID.
+
+    Wired for frontend's jobsApi.getJob (frontend/src/api/endpoints/jobs.ts),
+    which was calling this route even though it didn't exist on the backend.
+    Registered after the more specific /api/jobs/pending-outreach route so
+    that literal path doesn't get swallowed by this int-typed path param.
+    """
+    try:
+        async with db_session() as db:
+            j = db.query(Job).filter(Job.id == job_id).first()
+            if not j:
+                raise ResourceNotFoundError("Job", job_id)
+
+            return JobData(
+                id=j.id,
+                job_id=j.job_id,
+                title=j.title,
+                company=j.company,
+                location=j.location,
+                description=j.description,
+                url=j.url,
+                source=j.source,
+                posted_date=j.posted_date,
+                fetched_at=j.fetched_at,
+            )
+    except ResourceNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("Failed to retrieve job %s: %s", job_id, exc, exc_info=True)
+        raise DatabaseError(f"Failed to retrieve job: {str(exc)}")
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
@@ -2011,6 +2046,70 @@ async def get_contacts(
     except Exception as exc:
         log.error("Failed to retrieve contacts: %s", exc, exc_info=True)
         raise DatabaseError(f"Failed to retrieve contacts: {str(exc)}")
+
+
+@app.get("/api/contacts/{contact_id}", tags=["contacts"], response_model=ContactData)
+async def get_contact_by_id(contact_id: int):
+    """
+    Get a single contact by ID.
+
+    Wired for frontend's contactsApi.getById (frontend/src/api/endpoints/contacts.ts),
+    which was calling this route even though it didn't exist on the backend.
+    """
+    try:
+        async with db_session() as db:
+            c = db.query(Contact).filter(Contact.id == contact_id).first()
+            if not c:
+                raise ResourceNotFoundError("Contact", contact_id)
+
+            return ContactData(
+                id=c.id,
+                name=c.name,
+                title=getattr(c, 'title', None),
+                email=getattr(c, 'email', ''),
+                linkedin_url=getattr(c, 'linkedin_url', None),
+                company=c.company,
+                department=getattr(c, 'department', None),
+                confidence_score=getattr(c, 'confidence_score', 0),
+                source=getattr(c, 'source', 'unknown'),
+                found_at=c.found_at,
+            )
+    except ResourceNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("Failed to retrieve contact %s: %s", contact_id, exc, exc_info=True)
+        raise DatabaseError(f"Failed to retrieve contact: {str(exc)}")
+
+
+@app.put("/api/outreach/{outreach_id}/status", tags=["outreach"])
+async def update_outreach_status(outreach_id: int, request: OutreachStatusUpdateRequest):
+    """
+    Update the status of an existing outreach record.
+
+    Wired for frontend's outreachApi.updateStatus (frontend/src/api/endpoints/outreach.ts),
+    which was calling this route even though it didn't exist on the backend.
+    """
+    try:
+        async with db_session() as db:
+            rec = db.query(OutreachRecord).filter(OutreachRecord.id == outreach_id).first()
+            if not rec:
+                raise ResourceNotFoundError("OutreachRecord", outreach_id)
+
+            rec.status = request.status.value if isinstance(request.status, OutreachStatus) else request.status
+            if request.status == OutreachStatus.REPLIED and not rec.replied_at:
+                rec.replied_at = datetime.utcnow()
+            db.commit()
+
+            return {
+                "status": "success",
+                "outreach_id": outreach_id,
+                "new_status": rec.status,
+            }
+    except ResourceNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("Failed to update outreach status %s: %s", outreach_id, exc, exc_info=True)
+        raise DatabaseError(f"Failed to update outreach status: {str(exc)}")
 
 
 # ── SignalHire webhook ────────────────────────────────────────────────────────
