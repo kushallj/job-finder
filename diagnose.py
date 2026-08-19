@@ -14,6 +14,11 @@ import os
 import sys
 import traceback
 
+try:
+    import httpx
+except ImportError:
+    httpx = None
+
 # ── Load .env ─────────────────────────────────────────────────────────────────
 try:
     from dotenv import load_dotenv
@@ -111,6 +116,11 @@ async def test_ollama_mistral():
     print("\n" + "═"*62)
     print("  4. LOCAL LLM TEST (Ollama + Mistral)")
     print("═"*62)
+
+    if httpx is None:
+        print("  ❌ httpx not installed")
+        print("  → Install: pip install httpx")
+        return
 
     base_url = "http://localhost:11434"
     try:

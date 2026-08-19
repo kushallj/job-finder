@@ -50,13 +50,28 @@ class BoundedQueue:
         if maxsize < 0:
             raise ValueError("maxsize must be non-negative")
         
-        self._queue: asyncio.Queue[Optional[Any]] = asyncio.Queue(maxsize=maxsize)
+        # Defer queue creation to avoid event loop binding issues
+        # The queue will be created lazily in the correct event loop
+        self._queue: Optional[asyncio.Queue[Optional[Any]]] = None
         self._maxsize = maxsize
         self._stats = stats or QueueStats()
         self._get_wait_times: list = []
         self._put_wait_times: list = []
         
         logger.debug(f"BoundedQueue initialized with maxsize={maxsize}")
+    
+    def _ensure_queue(self) -> None:
+        """Ensure the queue is created in the current event loop."""
+        if self._queue is None:
+            try:
+                # Get the current event loop
+                loop = asyncio.get_running_loop()
+                self._queue = asyncio.Queue(maxsize=self._maxsize)
+                logger.debug(f"BoundedQueue created in event loop {id(loop)}")
+            except RuntimeError:
+                # No running loop, create queue anyway (will fail later if used incorrectly)
+                self._queue = asyncio.Queue(maxsize=self._maxsize)
+                logger.warning("BoundedQueue created outside of event loop")
     
     @property
     def maxsize(self) -> int:
@@ -84,6 +99,7 @@ class BoundedQueue:
         Raises:
             asyncio.TimeoutError: If timeout is exceeded.
         """
+        self._ensure_queue()  # Ensure queue exists in current event loop
         start_time = time.perf_counter()
         
         try:
@@ -123,6 +139,7 @@ class BoundedQueue:
         Raises:
             asyncio.TimeoutError: If timeout is exceeded.
         """
+        self._ensure_queue()  # Ensure queue exists in current event loop
         start_time = time.perf_counter()
         
         try:
@@ -163,6 +180,7 @@ class BoundedQueue:
         Returns:
             Number of items currently in the queue.
         """
+        self._ensure_queue()
         return self._queue.qsize()
     
     def empty(self) -> bool:
@@ -175,6 +193,7 @@ class BoundedQueue:
         Returns:
             True if the queue is empty.
         """
+        self._ensure_queue()
         return self._queue.empty()
     
     def full(self) -> bool:
@@ -187,6 +206,7 @@ class BoundedQueue:
         Returns:
             True if the queue is full.
         """
+        self._ensure_queue()
         return self._queue.full()
     
     def get_wait_time_stats(self) -> dict:
