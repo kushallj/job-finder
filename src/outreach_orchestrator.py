@@ -384,7 +384,7 @@ class OutreachOrchestrator:
                 )
 
             try:
-                await self._email_outreach.send_email(
+                delivered = await self._email_outreach.send_email(
                     contact=contact,
                     subject=subject,
                     body=body,
@@ -393,6 +393,28 @@ class OutreachOrchestrator:
                     template_type=template_type,
                     attach_resume=True,
                 )
+
+                if not delivered:
+                    # send_email() returns False (rather than raising) on
+                    # preflight-validation rejection and on exhausted retries
+                    # (dead-lettered). Treating that as "sent" would consume a
+                    # rate-limit token for nothing and — worse — persist an
+                    # OutreachRecord that _already_sent() would then use to
+                    # permanently block any real retry to this contact/job.
+                    log.warning(
+                        "send_email() reported failure for %s (no exception raised) — "
+                        "treating as failed, not persisting a sent record", email,
+                    )
+                    return OutreachResult(
+                        contact_email=email,
+                        contact_name=name,
+                        company=contact.company,
+                        job_title=job_title,
+                        status="failed",
+                        reason="delivery_failed",
+                        subject=subject,
+                        ab_variant=variant_idx,
+                    )
 
                 # Consume rate limit token
                 await self._rate_limiter.consume(email)
