@@ -112,3 +112,11 @@ class PersonalizedOutreach:
     company_profile:       Optional[CompanyProfile] = None
     contact_profile:       Optional[ContactProfile] = None
     research_time_ms:      int                      = 0   # wall-clock research duration
+    # Job linkage — needed downstream by OutreachOrchestrator for DB dedup
+    # (_already_sent) and follow-up scheduling, and by any caller that wants
+    # to avoid re-deriving "which job was this for" by matching on company
+    # name after the fact. 0/"" mean "not linked to a specific job" (e.g. a
+    # cold-outreach flow with no job posting behind it).
+    job_id:                Optional[int]            = None
+    job_title:              str                     = ""
+    job_url:                str                     = ""

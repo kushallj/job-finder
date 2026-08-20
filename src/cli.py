@@ -576,14 +576,24 @@ def cmd_send(args):
         print("Cancelled.")
         return
 
-    # Send via email outreach
+    # Send via OutreachOrchestrator — the single send path shared with the
+    # cron job, the API's frontend button, and the async pipeline's own
+    # non-dry-run path. Uses subject_override/body_override so the
+    # human-approved draft content is sent verbatim instead of being
+    # regenerated.
+    #
+    # Draft job_id/job_title/job_url (see PersonalizedOutreach in
+    # src/personalization/models.py) let orchestrator.orchestrate()'s DB
+    # dedup check (_already_sent) actually do something for this path now,
+    # same as the other callers. Drafts saved before this field existed
+    # simply won't have it and fall back to rate-limiting only.
     async def _send():
         try:
-            from src.email_outreach import EmailOutreach
+            from src.outreach_orchestrator import OutreachOrchestrator
             from src.contact_finder import Contact
 
-            outreach = EmailOutreach()
-            contact  = Contact(
+            orchestrator = OutreachOrchestrator(dry_run=False)
+            contact = Contact(
                 name             = draft["contact_name"],
                 email            = draft["contact_email"],
                 title            = "",
@@ -591,14 +601,31 @@ def cmd_send(args):
                 confidence_score = int(draft["personalization_score"]),
             )
 
-            class _JobStub:
-                title   = draft.get("subject", "")
-                company = draft["company"]
-                url     = ""
-                id      = 0
+            try:
+                results = await orchestrator.orchestrate(
+                    contacts=[contact],
+                    # Newer drafts carry real job linkage from
+                    # PersonalizedOutreach (see src/personalization/models.py);
+                    # older queue entries written before that field existed
+                    # won't have it, so this degrades gracefully to no DB
+                    # dedup for those (rate limiting still applies).
+                    job_title=draft.get("job_title", ""),
+                    job_url=draft.get("job_url", ""),
+                    job_id=draft.get("job_id"),
+                    subject_override=draft["subject"],
+                    body_override=draft["body"],
+                )
+            finally:
+                await orchestrator.stop_background_tasks()
 
-            success = await outreach.send_outreach_email(contact, _JobStub())
-            return success
+            result = results[0] if results else None
+            if result is None:
+                print("Send error: orchestrator returned no result", file=sys.stderr)
+                return False
+            if result.status != "sent":
+                print(f"Send not completed: {result.status} ({result.reason})", file=sys.stderr)
+                return False
+            return True
         except Exception as e:
             print(f"Send error: {e}", file=sys.stderr)
             return False

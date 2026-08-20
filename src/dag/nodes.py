@@ -296,6 +296,8 @@ async def personalize_node(state: NEXUSState) -> None:
                 "domain":  domain,
                 "jd_text": jd_text,
                 "job_title": rc.title or (job.title if job else ""),
+                "job_id":  job.id if job else None,
+                "job_url": getattr(job, "url", "") if job else "",
             })
 
         outreaches = await engine.batch_personalize(
@@ -344,24 +346,63 @@ async def outreach_node(state: NEXUSState) -> None:
             state.mark_node_done("outreach", t0)
             return
 
-        # NOTE: real (non-dry-run) sending through OutreachOrchestrator is not
-        # wired up yet. OutreachOrchestrator.orchestrate()/_send_one() build
-        # their own subject line via A/B testing and don't accept the
-        # already-personalized outreach.email.subject/body/cover_letter this
-        # node has — routing through them as-is would silently discard the
-        # personalization that personalize_node just produced. This used to
-        # call a nonexistent `orchestrator.send_one(...)` method, which threw
-        # AttributeError on every contact and was swallowed by the broad
-        # except block below (logged at .debug, so effectively invisible).
-        # Failing loudly here instead of pretending to work until
-        # OutreachOrchestrator supports sending pre-built content directly.
-        raise NotImplementedError(
-            "outreach_node non-dry-run sending is not implemented — "
-            "OutreachOrchestrator needs a send method that accepts pre-built "
-            "subject/body/cover_letter instead of generating its own via A/B "
-            "testing. See comment above. Real outreach sending currently "
-            "happens via job_processor.py through the Celery beat schedule."
-        )
+        # Real (non-dry-run) sending goes through OutreachOrchestrator using
+        # subject_override/body_override, so the personalized subject/body
+        # this node built via personalize_node is sent as-is — rather than
+        # being silently discarded by orchestrate()'s own A/B subject
+        # selection and EmailBuilder body generation, which is what a naive
+        # call to orchestrate() would otherwise do. job_id/job_title/job_url
+        # now travel with PersonalizedOutreach from personalize_node (see
+        # src/personalization/models.py), so no need to re-derive the job
+        # here by matching on company.
+        from src.contact_finder import Contact as ContactDC
+        from src.outreach_orchestrator import OutreachOrchestrator
+
+        orchestrator = OutreachOrchestrator(dry_run=False)
+        sent, skipped = 0, 0
+        try:
+            for outreach in state.personalized_outreaches:
+                if not outreach.contact_email:
+                    skipped += 1
+                    continue
+
+                contact = ContactDC(
+                    name=outreach.contact_name,
+                    email=outreach.contact_email,
+                    title="",
+                    company=outreach.company,
+                    confidence_score=outreach.personalization_score,
+                )
+
+                results = await orchestrator.orchestrate(
+                    contacts=[contact],
+                    job_title=outreach.job_title,
+                    job_url=outreach.job_url,
+                    job_id=outreach.job_id,
+                    subject_override=outreach.email.subject,
+                    body_override=outreach.email.body,
+                )
+                result = results[0] if results else None
+                state.outreach_results.append(result)
+
+                if result and result.status == "sent":
+                    sent += 1
+                else:
+                    skipped += 1
+                    log.info(
+                        "outreach_node: %s for %s (%s)",
+                        result.status if result else "no_result",
+                        outreach.contact_email,
+                        result.reason if result else "-",
+                    )
+        finally:
+            await orchestrator.stop_background_tasks()
+
+        state.emails_sent    = sent
+        state.emails_skipped = skipped
+        log.info("outreach_node: sent=%d skipped=%d", sent, skipped)
+        state.route_decision = "skip_feedback"
+        state.mark_node_done("outreach", t0)
 
     except Exception as exc:
         state.mark_node_failed("outreach", str(exc), t0)
@@ -446,6 +487,9 @@ def _save_drafts(outreaches: list) -> None:
             "body":                 o.email.body,
             "subject_variants":     getattr(o.email, "subject_variants", []),
             "cover_letter":         getattr(o, "cover_letter", ""),
+            "job_id":               getattr(o, "job_id", None),
+            "job_title":            getattr(o, "job_title", ""),
+            "job_url":              getattr(o, "job_url", ""),
         }
         new_drafts.append(draft)
 
