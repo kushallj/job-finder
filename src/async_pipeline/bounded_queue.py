@@ -166,6 +166,7 @@ class BoundedQueue:
         Args:
             count: Number of poison pills to put (typically equal to worker count).
         """
+        self._ensure_queue()  # Ensure queue exists in current event loop
         logger.debug(f"Putting {count} poison pills in queue")
         
         for _ in range(count):
