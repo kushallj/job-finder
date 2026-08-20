@@ -61,6 +61,7 @@ from src.email_engine.discovery_engine import EmailDiscoveryEngine
 from src.database import SessionLocal
 from src.models import Job, Contact, OutreachRecord
 from src.email_outreach import EmailOutreach, OutreachConfig
+from src.outreach_orchestrator import OutreachOrchestrator
 
 # ── Import our new email_outreach enums ──────────────────────────────────────
 try:
@@ -744,6 +745,7 @@ class OutreachProcessor:
         cfg: Optional[ProcessorConfig] = None,
         email_outreach: Optional[EmailOutreach] = None,
         email_discovery: Optional[EmailDiscoveryEngine] = None,
+        orchestrator: Optional[OutreachOrchestrator] = None,
     ):
         self.cfg = cfg or ProcessorConfig()
         # Initialize discovery — EmailDiscoveryEngine wraps EmailDiscoveryService
@@ -761,7 +763,17 @@ class OutreachProcessor:
                 inner_svc = EmailDiscoveryService()
             self.email_discovery = EmailDiscoveryEngine(discovery_service=inner_svc)
         
-        self.email_outreach = email_outreach  # injected or lazily created
+        self.email_outreach = email_outreach  # kept for the raw-SMTP fallback strategy only
+
+        # OutreachOrchestrator is the single send path (rate limiting, A/B
+        # subject testing, smart timing, cross-caller dedup). This class's
+        # own Trie/Graph stay in place as a fast in-process pre-filter for
+        # a single `run()`, but the orchestrator's DB-backed dedup check is
+        # the authoritative one shared across the cron job, this CLI, and
+        # the frontend send button.
+        self._owns_orchestrator = orchestrator is None
+        self.orchestrator = orchestrator or OutreachOrchestrator(dry_run=False)
+
         self.stats = StatsIndex()
 
         # Memory layer
@@ -999,37 +1011,70 @@ class OutreachProcessor:
             log.debug("send_emails=False — skipping email for %s", contact_data.email)
             return
 
-        # Send email (strategy chain: primary send → retry with shorter body → plain text)
         job_stub = _JobStub(**job_data)
 
+        # Primary path: OutreachOrchestrator (rate limiting, A/B subject,
+        # smart timing, dedup, persistence — all handled internally, and
+        # it writes the OutreachRecord itself on success).
+        results = await self.orchestrator.orchestrate(
+            contacts=[contact_data],
+            job_title=job_data["title"],
+            job_url=job_data.get("url", ""),
+            job_id=job_id,
+            job_description=job_data.get("description", ""),
+            resume_text=resume_text,
+        )
+        result = results[0] if results else None
+
+        if result and result.status == "sent":
+            self.stats.emails_sent += 1
+            self.graph.add_edge(job_id, contact_id)
+            log.info("✅ Outreach complete: %s → %s", contact_data.email, job_data["company"])
+            return
+
+        if result and result.status == "skipped" and result.reason == "already_sent":
+            # Orchestrator's DB dedup caught what our in-process Trie/Graph missed
+            # (e.g. another caller sent it between our filter pass and now).
+            self.graph.add_edge(job_id, contact_id)
+            log.info("⏭️  Already outreached (orchestrator dedup): %s", contact_data.email)
+            return
+
+        if result and result.status == "rate_limited":
+            # Do NOT fall through to the raw-SMTP fallback here — that would
+            # defeat the rate limiter we just wired in.
+            log.info("⏭️  Rate limited: %s — %s", contact_data.email, result.reason)
+            return
+
+        # Orchestrator send genuinely failed (SMTP/API error) — fall back to a
+        # bare-bones send, then to a dead-letter record for manual follow-up.
+        log.warning(
+            "Orchestrator send failed for %s (%s) — trying fallback strategies",
+            contact_data.email, result.reason if result else "no result",
+        )
         send_result = await run_strategy_chain(
             [
-                lambda cd=contact_data, j=job_stub: self.email_outreach.send_outreach_email(cd, j),
                 lambda cd=contact_data, j=job_stub: self._send_plain_fallback(cd, j, log),
                 lambda cd=contact_data, j=job_stub: self._send_minimal_fallback(cd, j, log),
             ],
             log=log,
-            label=f"send_email({contact_data.email})",
+            label=f"send_email_fallback({contact_data.email})",
         )
 
         if send_result.success:
             self.stats.emails_sent += 1
-            if send_result.strategy_used > 1:
-                self.stats.strategy_fallbacks += 1
+            self.stats.strategy_fallbacks += 1
 
-            # Record outreach in DB
             await worker_record_outreach(
                 contact_id=contact_id,
                 job_id=job_id,
                 subject=f"Application for {job_data['title']} at {job_data['company']}",
-                body="[sent via outreach engine]",
+                body="[sent via fallback path]",
                 template_type="auto",
                 log=log,
             )
 
-            # Update in-memory graph edge (O(1)) — prevents re-outreach
             self.graph.add_edge(job_id, contact_id)
-            log.info("✅ Outreach complete: %s → %s", contact_data.email, job_data["company"])
+            log.info("✅ Outreach complete via fallback: %s → %s", contact_data.email, job_data["company"])
         else:
             self.stats.emails_failed += 1
             log.error("❌ All send strategies failed for %s", contact_data.email)
@@ -1143,6 +1188,8 @@ class OutreachProcessor:
         await self.email_discovery.close()
         if self.email_outreach:
             await self.email_outreach.close()
+        if self.orchestrator and self._owns_orchestrator:
+            await self.orchestrator.stop_background_tasks()
         self._log.info("OutreachProcessor shut down cleanly")
 
 

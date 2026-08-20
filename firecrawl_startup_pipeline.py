@@ -38,22 +38,13 @@ from src.config import settings
 from src.contact_finder import Contact
 from src.database import SessionLocal, init_db
 from src.email_discovery import EmailDiscoveryService
-from src.email_outreach import EmailOutreach
-from src.models import Contact as ContactModel, Job, OutreachRecord
+from src.models import Contact as ContactModel, Job
+from src.outreach_orchestrator import OutreachOrchestrator
 from src.scrapers.firecrawl_scraper import TOP_INDIAN_STARTUPS, FirecrawlCareerScraper
 from src.utils.sheets import GoogleSheetsClient
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 log = logging.getLogger("firecrawl_pipeline")
-
-
-class _JobStub:
-    """Duck-typed Job object for EmailOutreach.send_outreach_email(), which
-    expects attribute access (job.title, job.company, ...) not a dict."""
-
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            setattr(self, k, v)
 
 
 async def store_jobs(jobs: List[Dict]) -> int:
@@ -165,7 +156,7 @@ async def find_and_store_contacts(
 
 
 async def send_outreach_for_company(
-    outreach: EmailOutreach,
+    orchestrator: OutreachOrchestrator,
     company: str,
     contacts: List[Dict],
     jobs_for_company: List[Dict],
@@ -176,56 +167,56 @@ async def send_outreach_for_company(
     if not contacts or not jobs_for_company:
         return stats
 
-    job_stub = _JobStub(**jobs_for_company[0])
+    job_data = jobs_for_company[0]
+
+    # Look up the real DB job id — job_data here is the raw scraper dict, which
+    # only carries the external `job_id` string. OutreachOrchestrator's dedup
+    # check needs the DB primary key. (The old code passed job_id=None to every
+    # OutreachRecord it wrote, which meant its own "already contacted" dedup
+    # query — filter_by(contact_email=email, job_id=None) — matched *any*
+    # company's dead record with a null job_id, not this job's.)
     db = SessionLocal()
     try:
-        for c in contacts:
-            email = c.get("email")
-            if not email:
-                stats["skipped"] += 1
-                continue
-
-            existing = (
-                db.query(OutreachRecord)
-                .filter_by(contact_email=email, job_id=None)
-                .first()
-            )
-            if existing:
-                stats["skipped"] += 1
-                continue
-
-            if dry_run:
-                log.info("[DRY RUN] Would email %s <%s> re: %s", c.get("name"), email, job_stub.title)
-                stats["skipped"] += 1
-                continue
-
-            contact_obj = Contact(
-                name=c.get("name", "Hiring Manager"),
-                email=email,
-                title=c.get("title", "Recruiter"),
-                company=company,
-                confidence_score=c.get("confidence", 50),
-            )
-            try:
-                success = await outreach.send_outreach_email(contact_obj, job_stub)
-            except Exception as exc:
-                log.error("Outreach failed for %s: %s", email, exc)
-                success = False
-
-            db.add(OutreachRecord(
-                contact_email=email,
-                contact_name=c.get("name", "Unknown"),
-                subject=f"Re: {job_stub.title} at {company}",
-                template_type="firecrawl_pipeline",
-                email_sent=success,
-                sent_at=datetime.utcnow() if success else None,
-                status="sent" if success else "failed",
-            ))
-            db.commit()
-
-            stats["sent" if success else "failed"] += 1
+        job_row = db.query(Job).filter_by(job_id=job_data.get("job_id")).first()
+        db_job_id = job_row.id if job_row else None
     finally:
         db.close()
+
+    contact_objs = [
+        Contact(
+            name=c.get("name", "Hiring Manager"),
+            email=c.get("email") or "",
+            title=c.get("title", "Recruiter"),
+            company=company,
+            confidence_score=c.get("confidence", 50),
+        )
+        for c in contacts
+        if c.get("email")
+    ]
+    stats["skipped"] += len(contacts) - len(contact_objs)  # contacts with no email
+
+    if not contact_objs:
+        return stats
+
+    results = await orchestrator.orchestrate(
+        contacts=contact_objs,
+        job_title=job_data.get("title", ""),
+        job_url=job_data.get("url", ""),
+        job_id=db_job_id,
+        job_description=job_data.get("description", ""),
+        dry_run=dry_run,
+    )
+
+    for r in results:
+        if r.status == "sent" and r.reason == "dry_run":
+            log.info("[DRY RUN] Would email %s <%s> re: %s", r.contact_name, r.contact_email, r.job_title)
+            stats["skipped"] += 1
+        elif r.status == "sent":
+            stats["sent"] += 1
+        elif r.status in ("skipped", "rate_limited"):
+            stats["skipped"] += 1
+        else:
+            stats["failed"] += 1
 
     return stats
 
@@ -272,7 +263,9 @@ async def run(args: argparse.Namespace) -> None:
             jobs_by_company.setdefault(j["company"], []).append(j)
 
         discovery = EmailDiscoveryService(settings=settings)
-        outreach = EmailOutreach()
+        # dry_run is passed per-call to orchestrate() below (so the log lines
+        # above stay accurate), not baked into the instance.
+        orchestrator = OutreachOrchestrator(dry_run=False)
 
         total_contacts = 0
         total_outreach = {"sent": 0, "failed": 0, "skipped": 0}
@@ -283,12 +276,13 @@ async def run(args: argparse.Namespace) -> None:
             total_contacts += len(contacts)
 
             outcome = await send_outreach_for_company(
-                outreach, company, contacts, company_jobs, dry_run=not args.send
+                orchestrator, company, contacts, company_jobs, dry_run=not args.send
             )
             for k in total_outreach:
                 total_outreach[k] += outcome[k]
 
         await discovery.close()
+        await orchestrator.stop_background_tasks()  # no-op here since we never started them; closes the smart-timer's HTTP session
 
         log.info(
             "🎯 Done — %d jobs, %d contacts found, outreach: sent=%d failed=%d skipped=%d",

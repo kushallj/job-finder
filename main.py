@@ -382,15 +382,44 @@ async def lifespan(app: FastAPI):
     state = AppState()
     state.load_callbacks()
 
+    # OutreachOrchestrator — the single send path for all outreach in this
+    # process (rate limiting, A/B subject testing, smart timing, cross-caller
+    # dedup), plus reply detection + follow-up scheduling as background tasks.
+    #
+    # Created first and injected into JobProcessor and OutreachProcessor below
+    # so the whole API process shares exactly one rate limiter / A-B stats
+    # store / dedup check, instead of each owning its own orchestrator with
+    # its own independent bookkeeping.
+    #
+    # Previously OutreachOrchestrator was only ever instantiated per-Celery-task
+    # inside src/dag/nodes.py, whose scheduled invocation is always dry_run=True,
+    # so start_background_tasks() was never actually called anywhere and reply
+    # detection never ran — and orchestrate()/_send_one() was never called by
+    # any sender at all (see src/job_processor.py, src/outreach_processor.py,
+    # and /api/outreach/send below, which now all route sends through it).
+    if _REPLY_DETECTION_OK:
+        try:
+            dry_run = os.getenv("OUTREACH_DRY_RUN", "false").lower() == "true"
+            state.outreach_orchestrator = OutreachOrchestrator(dry_run=dry_run)
+            await state.outreach_orchestrator.start_background_tasks()
+            log.info(
+                "✅ OutreachOrchestrator ready — single send path + "
+                "reply detection + follow-up scheduling (dry_run=%s)", dry_run
+            )
+        except Exception as exc:
+            log.warning("⚠️  OutreachOrchestrator unavailable: %s", exc)
+            state.outreach_orchestrator = None
+
     # JobProcessor — always needed
     try:
-        state.job_processor = JobProcessor()
+        state.job_processor = JobProcessor(orchestrator=state.outreach_orchestrator)
         sig_params = set(inspect.signature(state.job_processor.process_all_jobs).parameters)
         log.info("✅ JobProcessor ready | process_all_jobs params: %s", sig_params)
     except Exception as exc:
         log.error("❌ JobProcessor failed: %s", exc)
 
-    # EmailOutreach — optional (has HTTP client pools)
+    # EmailOutreach — optional (has HTTP client pools). Still used directly by
+    # OutreachProcessor's raw-SMTP fallback strategy and by /api/health.
     if _EMAIL_OK:
         try:
             state.email_outreach = await EmailOutreach.create()
@@ -398,39 +427,19 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             log.warning("⚠️  EmailOutreach unavailable: %s", exc)
 
-    # OutreachProcessor — optional
+    # OutreachProcessor — optional. Contact discovery + in-process dedup
+    # (Trie/Graph) live here; actual sending is delegated to the shared
+    # OutreachOrchestrator above.
     if _OUTREACH_OK:
         try:
-            state.outreach_proc = OutreachProcessor(email_outreach=state.email_outreach)
+            state.outreach_proc = OutreachProcessor(
+                email_outreach=state.email_outreach,
+                orchestrator=state.outreach_orchestrator,
+            )
             await state.outreach_proc.initialise()
             log.info("✅ OutreachProcessor ready")
         except Exception as exc:
             log.warning("⚠️  OutreachProcessor unavailable: %s", exc)
-
-    # OutreachOrchestrator — reply detection + follow-up scheduling.
-    #
-    # These run as background asyncio tasks (IMAP polling for replies,
-    # periodic scan for due follow-ups) that need a long-lived process to
-    # live in — this is that process. Previously OutreachOrchestrator was
-    # only ever instantiated per-Celery-task inside src/dag/nodes.py, whose
-    # scheduled invocation is always dry_run=True, so start_background_tasks()
-    # was never actually called anywhere and reply detection never ran.
-    #
-    # NOTE: this only turns on *detection* of replies to whatever's already
-    # been sent. It does not change which pipeline sends outreach — that's
-    # still job_processor.py via the Celery beat schedule (src/tasks.py).
-    if _REPLY_DETECTION_OK:
-        try:
-            dry_run = os.getenv("OUTREACH_DRY_RUN", "false").lower() == "true"
-            state.outreach_orchestrator = OutreachOrchestrator(dry_run=dry_run)
-            await state.outreach_orchestrator.start_background_tasks()
-            log.info(
-                "✅ OutreachOrchestrator background tasks started "
-                "(reply detection + follow-up scheduling, dry_run=%s)", dry_run
-            )
-        except Exception as exc:
-            log.warning("⚠️  OutreachOrchestrator background tasks unavailable: %s", exc)
-            state.outreach_orchestrator = None
 
     # AsyncJobPipeline — optional (has worker pool and database connections)
     if _ASYNC_PIPELINE_OK:
@@ -1575,9 +1584,9 @@ async def send_outreach(
     Requirements: 23.2 (Validate request parameters), 23.3 (Return processing statistics)
     """
     trace = req.state.trace_id
-    
-    if not state.email_outreach:
-        raise ServiceUnavailableError("EmailOutreach", "Check SMTP configuration in startup logs")
+
+    if not state.outreach_orchestrator:
+        raise ServiceUnavailableError("OutreachOrchestrator", "Check startup logs")
 
     try:
         # Load job with proper error handling
@@ -1618,37 +1627,80 @@ async def send_outreach(
         else:
             contact = type("Contact", (), contact_kwargs)()
 
-        class _Stub:
-            def __init__(self, **kw): [setattr(self, k, v) for k, v in kw.items()]
-
-        # Send outreach with timeout
-        success = await asyncio.wait_for(
-            state.email_outreach.send_outreach_email(contact, _Stub(**job_snap)),
-            timeout=30,  # 30 second timeout for email send
-        )
-
-        # Record result
+        # Send via the same OutreachOrchestrator instance the cron job and CLI
+        # use — this is what gives the cross-caller dedup check, per-domain
+        # rate limiting, A/B subject testing, and smart send timing any
+        # actual effect on a send triggered by this button. Orchestrator
+        # persists the OutreachRecord itself on a real send, so we don't
+        # write a second one here.
+        # Load a resume + pass the job description so the orchestrator's
+        # EmailBuilder can personalize the body via AI (same as this endpoint
+        # did before, through the old send_outreach_email → EmailBuilder path)
+        # rather than silently falling back to the static template.
+        resume_text = ""
         try:
-            async with db_session() as db:
-                rec = OutreachRecord(
-                    job_id=job_snap["id"],
-                    contact_email=request.contact_email,
-                    contact_name=request.contact_name,
-                    email_sent=success,
-                    sent_at=datetime.utcnow() if success else None,
-                    status="sent" if success else "failed",
-                )
-                db.add(rec)
-                db.commit()
-                db.refresh(rec)
-                record_id = rec.id
-        except Exception as db_exc:
-            log.error("[%s] Failed to record outreach: %s", trace, db_exc)
-            raise DatabaseError(f"Failed to save outreach record: {str(db_exc)}")
+            resume_path = state.resume_router.route(job_snap["title"])
+            resume_text = _read_resume(resume_path)
+        except Exception as exc:
+            log.warning("[%s] Could not load resume for outreach personalization: %s", trace, exc)
+
+        results = await asyncio.wait_for(
+            state.outreach_orchestrator.orchestrate(
+                contacts=[contact],
+                job_title=job_snap["title"],
+                job_url=job_snap["url"],
+                job_id=job_snap["id"],
+                job_description=job_snap["description"],
+                resume_text=resume_text,
+            ),
+            timeout=30,
+        )
+        result = results[0] if results else None
+
+        if result is None:
+            raise APIError("Outreach send failed: orchestrator returned no result")
+
+        success = result.status == "sent"
+        record_id = result.outreach_record_id  # set by the orchestrator on a real "sent"
+
+        if result.status in ("skipped", "rate_limited"):
+            # No new send happened (already sent, or rate-limited) — surface
+            # that distinctly rather than reporting it as a failure.
+            log.info("[%s] Outreach %s for %s: %s", trace, result.status,
+                     request.contact_email, result.reason)
+            return OutreachResponse(
+                status=result.status,
+                trace_id=trace,
+                job_id=request.job_id,
+                contact_email=request.contact_email,
+                email_sent=False,
+                outreach_id=None,
+            )
+
+        if not success:
+            # Orchestrator send failed (SMTP/API error) — this endpoint has no
+            # fallback chain of its own, so record the failure for visibility.
+            try:
+                async with db_session() as db:
+                    rec = OutreachRecord(
+                        job_id=job_snap["id"],
+                        contact_email=request.contact_email,
+                        contact_name=request.contact_name,
+                        email_sent=False,
+                        sent_at=None,
+                        status="failed",
+                    )
+                    db.add(rec)
+                    db.commit()
+                    db.refresh(rec)
+                    record_id = rec.id
+            except Exception as db_exc:
+                log.error("[%s] Failed to record outreach failure: %s", trace, db_exc)
+                raise DatabaseError(f"Failed to save outreach record: {str(db_exc)}")
 
         log.info("[%s] Outreach %s → %s", trace, "sent" if success else "FAILED",
                  request.contact_email)
-        
+
         return OutreachResponse(
             status="success" if success else "failed",
             trace_id=trace,
@@ -1657,7 +1709,7 @@ async def send_outreach(
             email_sent=success,
             outreach_id=record_id,
         )
-    
+
     except asyncio.TimeoutError:
         raise APITimeoutError("outreach email send", 30)
     except (ResourceNotFoundError, ServiceUnavailableError, DatabaseError):

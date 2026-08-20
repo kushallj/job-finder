@@ -937,6 +937,52 @@ class EmailOutreach:
             self._records.append(record)
         return success
 
+    async def send_email(
+        self,
+        contact: Contact,
+        subject: str,
+        body: str,
+        job_title: str,
+        job_url: str = "",
+        template_type: str = "hr_outreach",
+        attach_resume: bool = True,
+    ) -> bool:
+        """
+        Low-level send with caller-supplied subject/body — bypasses EmailBuilder's
+        AI generation entirely. Used by OutreachOrchestrator, which does its own
+        subject selection (A/B testing) and body templating upstream and just
+        needs this class to run preflight validation + the actual SMTP/API send.
+
+        NOTE: `attach_resume` isn't yet wired into `_build_mime` (which always
+        attaches the resume PDF if it exists on disk) — kept as an explicit
+        param for forward compatibility and to make caller intent visible.
+        """
+        trace_id = str(uuid.uuid4())[:8]
+        log = TraceLogger("send_email", trace_id=trace_id)
+
+        result = self.validator.run(contact)
+        if not result.passed:
+            log.warning("Skipping %s — preflight failed:\n%s", contact.email, result.summary())
+            return False
+
+        record = EmailRecord(
+            trace_id=trace_id,
+            contact_email=contact.email,
+            contact_name=contact.name,
+            company=contact.company or "",
+            job_title=job_title,
+            job_url=job_url,
+            subject=subject,
+            body=body,
+            template_type=template_type,
+        )
+
+        success = await self._send_with_retry(record)
+        self.sheets.log(record)
+        async with self._lock:
+            self._records.append(record)
+        return success
+
     # ── Bulk send ─────────────────────────────────────────────────────────────
 
     async def send_bulk_outreach(

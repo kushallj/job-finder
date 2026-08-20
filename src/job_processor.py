@@ -30,8 +30,8 @@ from src.config import settings
 from src.contact_finder import Contact
 from src.database import SessionLocal
 from src.email_discovery import EmailDiscoveryService
-from src.email_outreach import EmailOutreach
-from src.models import Application, Job, OutreachRecord, Resume
+from src.outreach_orchestrator import OutreachOrchestrator
+from src.models import Application, Job, Resume
 from src.scrapers.api_scraper import APIJobScraper
 from src.utils.sheets import DEFAULT_WORKSHEET, GoogleSheetsClient
 
@@ -53,6 +53,10 @@ class ProcessorConfig:
     min_score: int = getattr(settings, "min_score", 50)
 
     # Seconds to wait between email sends (rate limiting)
+    # NOTE: no longer consumed — superseded by OutreachOrchestrator's
+    # DomainRateLimiter, which is shared across all three send paths.
+    # Kept only so existing settings.email_delay_seconds config doesn't
+    # error out; safe to remove once nothing else reads it.
     email_delay_seconds: float = float(getattr(settings, "email_delay_seconds", 30.0))
 
     # Max contacts to look up per company
@@ -126,7 +130,15 @@ async def with_retry(
 
 
 class TokenBucket:
-    """Simple async token-bucket rate limiter."""
+    """
+    Simple async token-bucket rate limiter.
+
+    NOTE: no longer used for outreach — sending now goes through
+    OutreachOrchestrator's DomainRateLimiter (src/outreach/domain_rate_limiter.py),
+    which does per-domain + global daily limiting shared across all three
+    callers, not just this process. Left in place only in case something else
+    in this module grows a need for a local rate limiter; safe to delete if not.
+    """
 
     def __init__(self, rate: float):
         """rate = tokens per second (e.g. 1/30 means one email per 30 s)."""
@@ -173,7 +185,11 @@ class JobProcessor:
       fetch → store → AI analysis → cover letter/resume → sheet → email
     """
 
-    def __init__(self, config: Optional[ProcessorConfig] = None):
+    def __init__(
+        self,
+        config: Optional[ProcessorConfig] = None,
+        orchestrator: Optional[OutreachOrchestrator] = None,
+    ):
         self.cfg = config or ProcessorConfig()
         self.scraper = APIJobScraper()
         self.ai = UnifiedAIService()
@@ -182,11 +198,17 @@ class JobProcessor:
         # Semaphore caps concurrent job processing
         self._sem = asyncio.Semaphore(self.cfg.job_concurrency)
 
-        # Email rate limiter (one per N seconds)
-        self._email_bucket = TokenBucket(rate=1.0 / max(self.cfg.email_delay_seconds, 1))
-
         self.sheets = self._init_sheets()
-        self.email_discovery, self.email_outreach = self._init_email()
+
+        # OutreachOrchestrator is the single send path — it owns its own
+        # EmailOutreach instance, plus rate limiting / A-B testing / smart
+        # timing / cross-caller dedup. Accept an injected instance (e.g. the
+        # one FastAPI's lifespan already keeps alive) so we don't spin up a
+        # second SMTP pool + rate-limiter state per JobProcessor; only build
+        # our own as a fallback for standalone/CLI/Celery use.
+        self.email_discovery = self._init_email_discovery()
+        self._owns_orchestrator = orchestrator is None
+        self.orchestrator = orchestrator if orchestrator is not None else self._init_orchestrator()
 
     # ------------------------------------------------------------------
     # Initialisation helpers
@@ -216,17 +238,27 @@ class JobProcessor:
             log.warning("⚠️  Google Sheets disabled: %s%s", exc, hint)
             return None
 
-    def _init_email(self):
+    def _init_email_discovery(self) -> Optional[EmailDiscoveryService]:
         if not self.cfg.auto_send_emails:
-            return None, None
+            return None
         try:
             discovery = EmailDiscoveryService(settings=settings)
-            outreach = EmailOutreach()
-            log.info("📧 Email outreach enabled")
-            return discovery, outreach
+            log.info("📧 Email discovery enabled")
+            return discovery
         except Exception as exc:
-            log.warning("⚠️  Email outreach disabled: %s", exc)
-            return None, None
+            log.warning("⚠️  Email discovery disabled: %s", exc)
+            return None
+
+    def _init_orchestrator(self) -> Optional[OutreachOrchestrator]:
+        if not self.cfg.auto_send_emails:
+            return None
+        try:
+            orchestrator = OutreachOrchestrator(dry_run=False)
+            log.info("📧 OutreachOrchestrator ready (owned by this JobProcessor)")
+            return orchestrator
+        except Exception as exc:
+            log.warning("⚠️  OutreachOrchestrator unavailable: %s", exc)
+            return None
 
     # ------------------------------------------------------------------
     # Public API
@@ -431,14 +463,14 @@ class JobProcessor:
         log.info("✅ Application ready: %s at %s", title, company)
 
         # --- Email outreach ---
-        if self.cfg.auto_send_emails and self.email_discovery and self.email_outreach:
-            await self._auto_send_outreach(job_data)
+        if self.cfg.auto_send_emails and self.email_discovery and self.orchestrator:
+            await self._auto_send_outreach(job_data, resume_text)
 
     # ------------------------------------------------------------------
     # Email outreach (rate-limited via token bucket)
     # ------------------------------------------------------------------
 
-    async def _auto_send_outreach(self, job_data: Dict):
+    async def _auto_send_outreach(self, job_data: Dict, resume_text: str = ""):
         company, title = job_data["company"], job_data["title"]
         job_id = job_data["id"]
         try:
@@ -459,16 +491,6 @@ class JobProcessor:
 
             best = contacts[0]
 
-            async with db_session() as db:
-                existing = (
-                    db.query(OutreachRecord)
-                    .filter_by(job_id=job_id, contact_email=best["email"])
-                    .first()
-                )
-                if existing:
-                    log.info("⏭️  Already sent to %s for job %s", best["email"], job_id)
-                    return
-
             contact = Contact(
                 name=best.get("name", "Hiring Manager"),
                 email=best["email"],
@@ -477,35 +499,37 @@ class JobProcessor:
                 confidence_score=best.get("confidence", 50),
             )
 
-            # Respect rate limit (blocks only this coroutine, not others)
-            await self._email_bucket.acquire()
-
-            # Create a lightweight Job-like object for the outreach API
-            job_stub = _JobStub(**job_data)
-            success = await with_retry(
-                self.email_outreach.send_outreach_email, contact, job_stub,
+            # OutreachOrchestrator owns dedup (has-this-contact-already-been-
+            # emailed-for-this-job), rate limiting, A/B subject selection, and
+            # smart send timing, and it persists the OutreachRecord itself —
+            # so we don't write one here too (that would be exactly the kind
+            # of parallel bookkeeping that let contacts get double-emailed).
+            results = await with_retry(
+                self.orchestrator.orchestrate,
+                contacts=[contact],
+                job_title=title,
+                job_url=job_data.get("url", ""),
+                job_id=job_id,
+                job_description=job_data.get("description", ""),
+                resume_text=resume_text,
                 max_retries=2, base_delay=2.0,
-                label=f"send_email({contact.email})",
+                label=f"orchestrate({contact.email})",
             )
+            result = results[0] if results else None
 
-            async with db_session() as db:
-                record = OutreachRecord(
-                    job_id=job_id,
-                    contact_email=contact.email,
-                    contact_name=contact.name,
-                    email_sent=success,
-                    sent_at=datetime.utcnow() if success else None,
-                    status="sent" if success else "failed",
-                )
-                db.add(record)
-                db.commit()
-
-            if success:
+            if result and result.status == "sent":
                 self.metrics.emails_sent += 1
                 log.info("✅ Email sent to %s for %s", contact.email, title)
+            elif result and result.status == "skipped" and result.reason == "already_sent":
+                log.info("⏭️  Already sent to %s for job %s", contact.email, job_id)
+            elif result and result.status == "rate_limited":
+                log.info("⏭️  Rate limited: %s (%s)", contact.email, result.reason)
             else:
                 self.metrics.emails_failed += 1
-                log.warning("❌ Email failed for %s", contact.email)
+                log.warning(
+                    "❌ Email failed for %s: %s",
+                    contact.email, result.reason if result else "no result",
+                )
 
         except Exception as exc:
             self.metrics.emails_failed += 1
@@ -522,6 +546,14 @@ class JobProcessor:
                 await self.email_discovery.close()
             except Exception as exc:
                 log.warning("⚠️  email_discovery.close() error: %s", exc)
+        # Only tear down the orchestrator if this JobProcessor created it —
+        # an injected (externally-owned) orchestrator, e.g. FastAPI's
+        # long-lived instance, must keep running after this call returns.
+        if self.orchestrator and self._owns_orchestrator:
+            try:
+                await self.orchestrator.stop_background_tasks()
+            except Exception as exc:
+                log.warning("⚠️  orchestrator shutdown error: %s", exc)
         log.info("👋 JobProcessor shut down cleanly")
 
 

@@ -85,7 +85,8 @@ class PersonalizationEngine:
         domain:         str   = "",
         jd_text:        str   = "",
         job_title:      str   = "",
-        job_id:         int   = 0,
+        job_id:         Optional[int] = None,
+        job_url:        str   = "",
     ) -> PersonalizedOutreach:
         """
         Full personalization pipeline for one contact × one job.
@@ -168,6 +169,9 @@ class PersonalizationEngine:
             company_profile       = company_profile,
             contact_profile       = contact_profile,
             research_time_ms      = elapsed_ms,
+            job_id                = job_id,
+            job_title             = job_title,
+            job_url               = job_url,
         )
 
     async def batch_personalize(
@@ -194,6 +198,8 @@ class PersonalizationEngine:
                     domain        = contact.get("domain", ""),
                     jd_text       = contact.get("jd_text", "") or jd_text,
                     job_title     = contact.get("job_title", "") or job_title,
+                    job_id        = contact.get("job_id"),
+                    job_url       = contact.get("job_url", ""),
                 )
 
         results = await asyncio.gather(*[_one(c) for c in contacts], return_exceptions=True)
