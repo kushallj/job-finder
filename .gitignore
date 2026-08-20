@@ -106,6 +106,9 @@ docker-compose.override.yml
 # ===============================
 *.sqlite3
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 
 # ===============================
 # FastAPI / Uvicorn
@@ -119,6 +122,15 @@ tmp/
 temp/
 *.swp
 *.bak
+
+# ===============================
+# Documentation / Reports (temporary)
+# ===============================
+PIPELINE_STATUS_REPORT.md
+FIXES_COMPLETED.md
+FINAL_STATUS.md
+*_STATUS*.md
+*_REPORT*.md
 
 # ===============================
 # Generated / runtime files
