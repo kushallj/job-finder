@@ -500,8 +500,16 @@ class NodriverEngine:
 
     async def close(self):
         if self._browser:
-            with suppress(Exception):
-                self._browser.stop()
+            try:
+                # FIX: Check if browser is initialized before calling stop()
+                # Nodriver's start() returns a Browser instance that has a .stop() method.
+                # However, if start() failed partially or was never called, it might cause issues.
+                if hasattr(self._browser, "stop"):
+                    self._browser.stop()
+            except Exception:
+                pass
+            finally:
+                self._browser = None
 
 
 # =============================================================================

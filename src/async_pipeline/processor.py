@@ -29,6 +29,8 @@ from src.async_pipeline.config import ProcessorConfig
 from src.async_pipeline.retry import retry_on_api_error, retry_on_db_error
 from src.async_pipeline.types import JobContext, JobStatus, ProcessingResult
 from src.models import Job, Application
+from src.utils.sheets import GoogleSheetsClient, DEFAULT_WORKSHEET
+from src.config import settings
 
 # Use structured logger
 logger = get_logger(__name__)
@@ -83,6 +85,7 @@ class AsyncJobProcessor:
         self.email_service = email_service
         self.scraper_service = scraper_service
         self.db_session_factory = db_session_factory
+        self.sheets = self._init_sheets()
         
         # Load resume content for matching
         if resume_text:
@@ -90,6 +93,31 @@ class AsyncJobProcessor:
         else:
             self._resume_text = self._load_resume()
     
+    def _init_sheets(self) -> Optional[GoogleSheetsClient]:
+        """Initialize Google Sheets client if configuration is available."""
+        try:
+            client = GoogleSheetsClient()
+            sheet_id = getattr(settings, "google_sheet_id", None)
+            if sheet_id:
+                client.get_spreadsheet_by_id(sheet_id)
+            else:
+                client.get_or_create_spreadsheet(
+                    getattr(settings, "google_sheet_title", None)
+                )
+            worksheet = getattr(settings, "google_sheet_worksheet", None) or DEFAULT_WORKSHEET
+            client.ensure_worksheet(name=worksheet)
+            logger.info("google_sheets_ready", url=client.get_spreadsheet_url())
+            return client
+        except Exception as exc:
+            hint = ""
+            msg = str(exc)
+            if "PERMISSION_DENIED" in msg or "does not have permission" in msg:
+                hint = " — share the sheet with your service account and retry"
+            elif "storage quota" in msg.lower():
+                hint = " — free up Drive storage or set GOOGLE_SHEET_ID"
+            logger.warning("google_sheets_disabled", error=str(exc), hint=hint)
+            return None
+
     def _load_resume(self) -> str:
         """Load resume text from file for matching operations."""
         try:
@@ -206,6 +234,31 @@ class AsyncJobProcessor:
             
             # Step 3: Store result in database
             await self.store_result(job, match_result, semaphore)
+            
+            # Step 4: Log to Google Sheets (optional)
+            if self.sheets:
+                try:
+                    # Run in thread pool to avoid blocking async loop if sheet append is slow
+                    await asyncio.to_thread(
+                        self.sheets.append_application_row,
+                        title=job.title,
+                        company=job.company or "",
+                        location=job.location or "",
+                        match_score=match_result.get("match_score", 0),
+                        matched_skills=match_result.get("matched_skills", []),
+                        missing_skills=match_result.get("missing_skills", []),
+                        recommendations=match_result.get("recommendations", ""),
+                        url=job.url or "",
+                        source=job.source or "",
+                    )
+                    logger.debug("logged_to_sheets", job_id=job.job_id, correlation_id=correlation_id)
+                except Exception as sheet_exc:
+                    logger.warning(
+                        "sheets_log_failed", 
+                        job_id=job.job_id, 
+                        error=str(sheet_exc), 
+                        correlation_id=correlation_id
+                    )
             
             processing_time_ms = (time.time() - start_time) * 1000
             
