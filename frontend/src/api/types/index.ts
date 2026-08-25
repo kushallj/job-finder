@@ -137,10 +137,25 @@ export interface PendingOutreachJob {
   fetched_at: string;
 }
 
+export interface PaginationData {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
+export interface JobsResponse {
+  status: string;
+  jobs: Job[];
+  pagination: PaginationData;
+  timestamp: string;
+}
+
 export interface PendingOutreachResponse {
   status: 'success' | 'error';
   total_jobs: number;
   jobs: PendingOutreachJob[];
+  pagination?: PaginationData;
 }
 
 export interface OutreachStats {
@@ -182,5 +197,21 @@ export interface RootResponse {
   status: string;
   service: string;
   version: string;
+}
+
+export interface StartupDiscoveryRequest {
+  provider: 'firecrawl' | 'newsapi';
+  target_count?: number;
+  duration_hours?: number;
+  location?: string;
+}
+
+export interface StartupDiscoveryResponse {
+  status: 'success' | 'error';
+  trace_id: string;
+  startups_found: number;
+  new_startups_added: number;
+  companies: string[];
+  timestamp: string;
 }
 

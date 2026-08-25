@@ -21,6 +21,7 @@ import {
   Send as OutreachIcon,
   BarChart as StatsIcon,
   Settings as SettingsIcon,
+  RocketLaunch as DiscoveryIcon,
 } from '@mui/icons-material';
 import { useUIStore } from '../../stores/useUIStore';
 
@@ -37,6 +38,7 @@ const menuItems = [
   { text: 'Contacts', icon: <ContactsIcon />, path: '/contacts' },
   { text: 'Outreach', icon: <OutreachIcon />, path: '/outreach' },
   { text: 'Stats', icon: <StatsIcon />, path: '/stats' },
+  { text: 'Discovery', icon: <DiscoveryIcon />, path: '/discovery' },
 ];
 
 const settingsItem = { text: 'Settings', icon: <SettingsIcon />, path: '/settings' };

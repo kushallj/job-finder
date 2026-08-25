@@ -9,6 +9,7 @@ import Jobs from './pages/Jobs';
 import Contacts from './pages/Contacts';
 import Outreach from './pages/Outreach';
 import Stats from './pages/Stats';
+import StartupDiscovery from './pages/StartupDiscovery';
 import Settings from './pages/Settings';
 
 // Create a client
@@ -35,6 +36,7 @@ const App: React.FC = () => {
               <Route path="contacts" element={<Contacts />} />
               <Route path="outreach" element={<Outreach />} />
               <Route path="stats" element={<Stats />} />
+              <Route path="discovery" element={<StartupDiscovery />} />
               <Route path="settings" element={<Settings />} />
             </Route>
           </Routes>
