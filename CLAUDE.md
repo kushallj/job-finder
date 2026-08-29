@@ -21,6 +21,10 @@ When the user types `/nexus <subcommand>`, route to the appropriate action:
 | `/nexus normalize` | Run `python -m src.cli normalize` — fix non-canonical status values |
 | `/nexus digest` | Run `python -m src.cli digest` — print weekly outreach digest |
 | `/nexus deep <company>` | WebSearch company AI/engineering strategy + open roles + culture |
+| `/nexus agents` | Run the 9-agent target-company pipeline: `python -m src.agents.orchestrator --stage daily`, then display `data/agent_run_report.md` |
+| `/nexus agents tier1` | Same, restricted to Tier 1 companies: `python -m src.agents.orchestrator --stage daily --tiers 1` |
+| `/nexus prep <company>` | Run `python -m src.agents.orchestrator --stage interview-prep --company "<company>"` |
+| `/nexus learn` | Run `python -m src.agents.orchestrator --stage weekly-learning` — recalibrate tier weights from real reply data |
 | `/nexus help` | Show this file |
 
 ### Status Values (canonical)
@@ -36,8 +40,10 @@ ALWAYS read these before evaluating or generating content:
 |------|---------|
 | `data/resume.txt` | Full resume — skills, experience, proof points |
 | `config/profile.yml` | Candidate identity, target roles, compensation, narrative |
+| `config/target_companies.yml` | Ranked target-company list with funding/hiring signals (labor-market research) |
 | `data/applications.md` | Application tracker — current pipeline state |
 | `data/pipeline.md` | Pending job URLs to process |
+| `docs/AGENT_STRATEGIES.md` | Rationale for each of the 9 target-company agents in `src/agents/` |
 
 ---
 
@@ -111,3 +117,25 @@ src/feedback/          — self-improving feedback loop
     ↓
 data/applications.md   — human-readable tracker
 ```
+
+## Target-Company Agent Layer (`src/agents/`)
+
+Nine strategy agents, purpose-built around `config/target_companies.yml`
+(the ranked, research-backed company list) rather than the generic job-board
+firehose above. They wrap the modules in the diagram above instead of
+replacing them. Full rationale in `docs/AGENT_STRATEGIES.md`.
+
+```
+1 SignalScoutAgent        — freshness-track funding/hiring signals per company
+2 ATSHunterAgent          — probe Greenhouse/Lever/Ashby boards directly
+3 FitScorerAgent          — CLAUDE.md rubric, deterministic, ≥65% = worth applying
+4 ResumeTailorAgent       — Python/Django-first bullet reordering per JD
+5 ContactMapperAgent      — wraps src/contact_intelligence, tier-gated + cached
+6 OutreachComposerAgent   — wraps src/personalization, signal-seeded hooks
+7 PriorityScheduleAgent   — fit + signal-freshness decay -> daily send queue (cap 8)
+8 InterviewPrepAgent      — per-company dossier, triggered on Interview status
+9 FeedbackStrategistAgent — learns whether Tier 1 really out-converts Tier 2/3
+```
+
+Run: `python -m src.agents.orchestrator --stage daily`. Never auto-sends —
+same hard rule as `/nexus pipeline` above.

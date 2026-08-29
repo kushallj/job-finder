@@ -1,0 +1,112 @@
+# NEXUS Candidate Profile — Single Source of Truth
+# All evaluations read this file. Edit here, not in scattered .env or config files.
+
+candidate:
+  full_name: "Kushall Jain"
+  email: "Kushall.jain07@gmail.com"
+  phone: "9990079764"
+  location: "Delhi, India"
+  timezone: "Asia/Kolkata"
+  linkedin: "https://linkedin.com/in/kushall-jain-263009261"
+  github: "https://github.com/kushallj"
+  portfolio: "https://kushall.in"
+  visa_status: "Indian citizen — open to remote-first roles worldwide"
+
+target_roles:
+  primary:
+    - "Senior Software Engineer"
+    - "Senior Backend Engineer"
+    - "Staff Python Engineer"
+    - "Full Stack Engineer"
+  secondary:
+    - "Senior Django/FastAPI Engineer"
+    - "Senior API Engineer"
+    - "Platform Engineer"
+  not_interested:
+    - "Junior"
+    - "Intern"
+    - "Support Engineer"
+    - "QA Engineer"
+
+archetypes:
+  - name: "Python Backend"
+    keywords: ["Django", "FastAPI", "Python", "REST API", "microservices", "PostgreSQL"]
+    fit: primary
+  - name: "Full Stack"
+    keywords: ["React", "TypeScript", "Node.js", "full stack", "frontend", "backend"]
+    fit: primary
+  - name: "Platform/Infrastructure"
+    keywords: ["platform", "infrastructure", "DevOps", "Docker", "AWS", "Kubernetes"]
+    fit: secondary
+  - name: "AI/ML Engineering"
+    keywords: ["LLM", "AI", "machine learning", "RAG", "agents", "embeddings"]
+    fit: secondary
+
+narrative:
+  headline: "Full Stack Python Developer — Django, FastAPI, React.js · 3+ years"
+  summary: >
+    Software Development Engineer with 3+ years designing, developing, and deploying
+    enterprise-grade web applications and RESTful APIs. Delivered mission-critical systems
+    processing 150+ Cr monthly transactions at 99.5% uptime serving 1000+ SMEs and 10,000+ DAU.
+
+  superpowers:
+    - "Python backend systems (Django/FastAPI)"
+    - "Database optimization — 70-75% query performance improvements"
+    - "Full-stack delivery (React 18/TypeScript + Python)"
+    - "NEXUS: AI-powered job acquisition system (this repo)"
+
+  proof_points:
+    - name: "FinTech Platform at Progfin"
+      metric: "150+ Cr monthly transactions, 99.5% uptime, 10,000+ DAU"
+      stack: "React 18/TypeScript, Django/FastAPI, PostgreSQL, AWS"
+    - name: "Query Optimization"
+      metric: "800ms → 200ms (75% reduction) via profiling + ORM tuning"
+    - name: "NEXUS Job Finder"
+      url: "https://github.com/kushallj/job-finder"
+      metric: "AI-powered job acquisition system with LangGraph DAG + email discovery"
+    - name: "Credit Scoring Engine"
+      metric: "85% process automation across real-time financial data pipelines"
+
+experience:
+  years_total: 3
+  current_role: "Full Stack Software Developer"
+  current_company: "Progfin Pvt Ltd (FinTech)"
+  current_since: "2023-12"
+
+compensation:
+  target_inr_lpa: 20        # target LPA (lakhs per annum) for India roles
+  minimum_inr_lpa: 14       # walk-away threshold
+  target_usd_annual: 60000  # for USD-denominated remote roles
+  minimum_usd_annual: 40000
+  open_to_equity: true
+  notes: "Prioritise remote-first + equity upside over base for startups"
+
+location_preferences:
+  remote: true              # strongly preferred
+  hybrid_ok: true           # if Delhi NCR
+  relocation: false         # not currently
+  on_site_cities: ["Delhi", "Noida", "Gurgaon"]
+
+tech_stack:
+  strong:
+    - Python
+    - Django
+    - FastAPI
+    - React.js
+    - TypeScript
+    - PostgreSQL
+    - REST API design
+    - Docker
+    - AWS (S3, ECS, IAM)
+    - Git / GitHub Actions
+  familiar:
+    - Node.js
+    - MongoDB
+    - Redis
+    - Celery
+    - LangGraph
+    - SQLAlchemy
+  learning:
+    - "C# / .NET Core"
+    - "Kubernetes"
+    - "LLM/agentic systems"

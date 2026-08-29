@@ -153,7 +153,9 @@ job311/
 # ===============================
 # Configuration Files
 # ===============================
-config/
+config/*
+!config/profile.yml
+!config/target_companies.yml
 .blackboxcli/
 .env
 .env
