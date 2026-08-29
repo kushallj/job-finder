@@ -49,6 +49,30 @@ python outreach_cli.py outreach
 - **Outreach tracking** and duplicate prevention
 - **Google Sheets integration** for campaign monitoring
 
+## 🎯 Target-Company Agent Strategies (`src/agents/`)
+
+Nine purpose-built agents that run against a researched, ranked list of
+target companies (`config/target_companies.yml`) instead of the generic
+job-board firehose — for fit-scoring, signal-aware timing, and
+personalized outreach specifically tuned to *this* candidate's positioning
+(`config/profile.yml`).
+
+```bash
+# Run the full daily pipeline: signal check -> live ATS job discovery ->
+# fit scoring -> priority queue -> tailored resume framing -> contact
+# ranking -> signal-seeded outreach drafts. Nothing is auto-sent.
+python -m src.agents.orchestrator --stage daily
+
+# Once a target company replies and you land an interview
+python -m src.agents.orchestrator --stage interview-prep --company "Perfios"
+
+# Weekly: recalibrate which company tiers are actually converting
+python -m src.agents.orchestrator --stage weekly-learning
+```
+
+See `docs/AGENT_STRATEGIES.md` for the strategy behind each of the 9 agents,
+and `CLAUDE.md` for the `/nexus agents` slash-command routing.
+
 ## 📖 Documentation
 
 See `OUTREACH_SETUP.md` for detailed setup instructions and best practices.

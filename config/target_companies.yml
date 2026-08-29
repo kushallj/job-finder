@@ -1,0 +1,290 @@
+# config/target_companies.yml
+# Ranked target-company list from labor-market research (compiled Aug 29, 2026).
+# Consumed by every agent in src/agents/. Re-run agent_01_signal_scout.py
+# periodically to refresh `signals` and bump `last_verified`.
+#
+# Fields:
+#   tier               1 = highest hiring probability right now, 3 = watch-list
+#   hiring_probability High | Medium-High | Medium | Low-Medium | Low
+#   ats_hint           best-guess ATS for agent_02_ats_hunter.py (greenhouse|lever|ashby|workday|unknown)
+#   signals            list of {type, detail, source, date}
+#   last_verified      date this row's data was last checked against a live source
+
+companies:
+  - name: "Yubi"
+    aka: ["CredAvenue"]
+    domain: "go-yubi.com"
+    industry: "credit-infra-saas"
+    hq: "Chennai / Bangalore"
+    tier: 1
+    hiring_probability: "High"
+    ats_hint: "unknown"
+    signals:
+      - type: funding
+        detail: "INR 411 Cr (~$48.4M) led by EvolutionX for overseas expansion"
+        source: "go-yubi.com company news"
+        date: "2026"
+      - type: expansion
+        detail: "Partnership Lending Report 2026: 88% of credit demand from non-metro India"
+        source: "go-yubi.com"
+        date: "2026"
+    comp_benchmark_inr_lpa: {min: 12, median: 26.5, max: 40, source: "Levels.fyi", as_of: "2025-12-18"}
+    why_target_now: "Overseas-expansion capital typically funds platform/security engineering hires; direct fit for access-control niche."
+
+  - name: "Fibe"
+    aka: ["EarlySalary"]
+    domain: "fibe.in"
+    industry: "fintech-lending"
+    hq: "Pune"
+    tier: 1
+    hiring_probability: "High"
+    ats_hint: "unknown"
+    signals:
+      - type: ipo_filing
+        detail: "DRHP filed: INR 750 Cr fresh issue + 40M share OFS"
+        source: "Business Standard"
+        date: "2026-06-30"
+      - type: funding
+        detail: "$35M Series F from IFC, Dec 2025; total raised $250M+"
+        source: "IndiaFintech Substack / Tracxn"
+        date: "2025-12"
+      - type: differentiator
+        detail: "Impact lending in healthcare, education, renewable energy; profitable 4 consecutive years"
+        source: "IndiaFintech Substack"
+        date: "2026-03"
+    comp_benchmark_inr_lpa: {min: 15, median: 22, max: 30, source: "estimate", as_of: "2026-08"}
+    why_target_now: "IPO-track fintech with a renewable-energy lending book — matches both your fintech and cleantech experience."
+
+  - name: "Moneyview"
+    domain: "moneyview.in"
+    industry: "fintech-lending"
+    hq: "Bangalore"
+    tier: 1
+    hiring_probability: "High"
+    ats_hint: "unknown"
+    signals:
+      - type: funding
+        detail: "$35M Series F from IFC (Dec 2025); pursuing $120M pre-IPO round at ~$1.2B valuation"
+        source: "IndiaFintech Substack"
+        date: "2025-12"
+      - type: financials
+        detail: "Net profit INR 473 Cr FY2025 on revenue INR 2,712 Cr, +40% YoY"
+        source: "IndiaFintech Substack"
+        date: "2026-03"
+    comp_benchmark_inr_lpa: {min: 15, median: 24, max: 35, source: "estimate", as_of: "2026-08"}
+    why_target_now: "Pre-IPO capital raise underway; IPO expected within 1-2 years — platform-hardening hiring window is now."
+
+  - name: "KreditBee"
+    domain: "kreditbee.in"
+    industry: "fintech-lending"
+    hq: "Bangalore"
+    tier: 1
+    hiring_probability: "High"
+    ats_hint: "unknown"
+    signals:
+      - type: funding
+        detail: "$280M raised ahead of planned IPO; domicile shifted Singapore -> India"
+        source: "MediaNama"
+        date: "2026-04-08"
+      - type: scale
+        detail: "230M+ app downloads, 18M unique borrowers, ~$1.5B AUM (Mar 2026)"
+        source: "MediaNama"
+        date: "2026-04"
+    comp_benchmark_inr_lpa: {min: 14, median: 22, max: 32, source: "estimate", as_of: "2026-08"}
+    why_target_now: "Large pre-IPO raise explicitly for balance-sheet + tech strengthening."
+
+  - name: "Perfios"
+    domain: "perfios.ai"
+    industry: "credit-infra-saas"
+    hq: "Bangalore"
+    tier: 1
+    hiring_probability: "High"
+    ats_hint: "unknown"
+    signals:
+      - type: funding
+        detail: "$229M Series D from Kedaara Capital for NA/Europe expansion"
+        source: "Business Standard"
+        date: "2026-01-07"
+      - type: product
+        detail: "Launched 'KScan AI' for BFSI, assessing 30M Indian MSMEs"
+        source: "The Tribune"
+        date: "2026-02-20"
+      - type: acquisition
+        detail: "Merger/acquisition with IHX"
+        source: "PitchBook"
+        date: "2025-04-28"
+    comp_benchmark_inr_lpa: {min: 12, median: 14.8, max: 33, source: "Levels.fyi", as_of: "2026-02-26"}
+    why_target_now: "Largest BFSI SaaS platform in India; security/compliance-heavy roles suit the access-control differentiator directly."
+
+  - name: "SolarSquare"
+    domain: "solarsquare.in"
+    industry: "cleantech-solar"
+    hq: "Mumbai"
+    tier: 1
+    hiring_probability: "High"
+    ats_hint: "unknown"
+    signals:
+      - type: funding
+        detail: "Rs 510 Cr (~$53M) Series C led by Lightspeed; fresh capital explicitly earmarked for hiring"
+        source: "StartupTalky / OneStopESG"
+        date: "2026-06-16"
+      - type: valuation
+        detail: "Valuation doubled to $450-500M range in ~18 months"
+        source: "TechCrunch"
+        date: "2026-05-23"
+    comp_benchmark_inr_lpa: {min: 12, median: 18, max: 28, source: "estimate", as_of: "2026-08"}
+    why_target_now: "Only company on this list with hiring named explicitly as a fund-use line item."
+
+  - name: "Setu"
+    aka: ["Pine Labs / Setu"]
+    domain: "setu.co"
+    industry: "credit-infra-saas"
+    hq: "Bangalore"
+    tier: 1
+    hiring_probability: "High"
+    ats_hint: "unknown"
+    signals:
+      - type: leadership
+        detail: "New CEO Anand Raisinghani + Director of Product (Nikhil Ratanpal) + Head of Finance appointed"
+        source: "FFNews"
+        date: "2026-06-23"
+    comp_benchmark_inr_lpa: {min: 14, median: 24, max: 34, source: "estimate", as_of: "2026-08"}
+    why_target_now: "Leadership-refresh cluster (3 senior hires in one quarter) typically precedes a scaling phase."
+
+  - name: "Kissht"
+    aka: ["Si Creva Capital"]
+    domain: "kissht.com"
+    industry: "fintech-lending"
+    hq: "Mumbai"
+    tier: 2
+    hiring_probability: "Medium-High"
+    ats_hint: "unknown"
+    signals:
+      - type: ipo_filing
+        detail: "DRHP filed Aug 2025 to raise INR 1,000 Cr fresh issue"
+        source: "IndiaFintech Substack"
+        date: "2025-08"
+    comp_benchmark_inr_lpa: {min: 10, median: 18, max: 26, source: "estimate", as_of: "2026-08"}
+    why_target_now: "Earliest mover to IPO in its lending cohort — de-risked funding runway."
+
+  - name: "Recur Club"
+    domain: "recurclub.com"
+    industry: "credit-infra-saas"
+    hq: "New Delhi"
+    tier: 2
+    hiring_probability: "Medium-High"
+    ats_hint: "unknown"
+    signals:
+      - type: funding
+        detail: "$110M total raised; 124 employees (lean team)"
+        source: "PitchBook"
+        date: "2026-02-08"
+    comp_benchmark_inr_lpa: {min: 10, median: 16, max: 24, source: "estimate", as_of: "2026-08"}
+    why_target_now: "Same city as candidate; small enough team that a mid-level hire gets real ownership scope."
+
+  - name: "Turtlemint"
+    domain: "turtlemint.com"
+    industry: "fintech-lending"
+    hq: "Mumbai"
+    tier: 2
+    hiring_probability: "Medium"
+    ats_hint: "unknown"
+    signals:
+      - type: ipo
+        detail: "IPO'd June 29, 2026; listed at 11% discount to issue price"
+        source: "Moneycontrol / Tracxn"
+        date: "2026-06-29"
+      - type: financials
+        detail: "Revenue +57% YoY to Rs 1,098 Cr FY26, but still loss-making"
+        source: "Entrackr / Acumen Capital"
+        date: "2026-07-18"
+    comp_benchmark_inr_lpa: {min: 10, median: 16, max: 24, source: "estimate", as_of: "2026-08"}
+    why_target_now: "IPO proceeds tagged for 'technology enhancement, cloud infrastructure' — but weak listing-day reception is a caution flag."
+
+  - name: "Ecozen Solutions"
+    domain: "ecozensolutions.com"
+    industry: "industrial-iot"
+    hq: "Pune"
+    tier: 2
+    hiring_probability: "Medium"
+    ats_hint: "unknown"
+    signals:
+      - type: financials
+        detail: "Revenue +149.7% YoY (Rs 1,159.5 Cr FY25); headcount +60.2% (2023->2026, per Revelio Labs)"
+        source: "Inc42 / Revelio Labs"
+        date: "2026-05-28"
+      - type: caution
+        detail: "Active job postings fell in 2026 (12/mo in 2023 -> 2/mo in 2026) — verify live openings before applying"
+        source: "Revelio Labs"
+        date: "2026-08"
+    comp_benchmark_inr_lpa: {min: 8, median: 14, max: 20, source: "estimate", as_of: "2026-08"}
+    why_target_now: "Strong trailing growth in solar+IoT agritech, but confirm current req volume directly — signal is cooling."
+
+  - name: "GPS Renewables"
+    domain: "gpsrenewables.com"
+    industry: "cleantech-solar"
+    hq: "Bangalore"
+    tier: 3
+    hiring_probability: "Medium"
+    ats_hint: "unknown"
+    signals:
+      - type: funding
+        detail: "Rs 635 Cr Series C led by Sojitz Corporation, for compressed biogas projects"
+        source: "Drudhh / Tracxn"
+        date: "2026"
+    comp_benchmark_inr_lpa: {}
+    why_target_now: "Large raise, but public data on engineering-team hiring pace is thin — verify directly."
+
+  - name: "Infinite Uptime"
+    domain: "infinite-uptime.com"
+    industry: "industrial-iot"
+    hq: "Mumbai"
+    tier: 3
+    hiring_probability: "Medium"
+    ats_hint: "unknown"
+    signals:
+      - type: funding
+        detail: "$18.85M Series B3 led by Tiger Global; 300+ enterprise clients (JSW, Vedanta, Adani)"
+        source: "TechCrunch"
+        date: "2023-05-22"
+    comp_benchmark_inr_lpa: {}
+    why_target_now: "Signal is dated (2023) — confirm current 2026 hiring activity before prioritizing."
+
+  - name: "Freyr Energy"
+    domain: "freyrenergy.com"
+    industry: "cleantech-solar"
+    hq: "Hyderabad"
+    tier: 3
+    hiring_probability: "Low-Medium"
+    ats_hint: "unknown"
+    signals:
+      - type: financials
+        detail: "Revenue +57.2% YoY (Rs 102.2 Cr FY24); total funding only $13.8M"
+        source: "Inc42 / Tracxn"
+        date: "2026"
+    comp_benchmark_inr_lpa: {}
+    why_target_now: "Growing but thinly capitalized relative to peers — lower ceiling for team scale."
+
+  - name: "Zenatix"
+    domain: "zenatix.com"
+    industry: "industrial-iot"
+    hq: "Gurugram"
+    tier: 3
+    hiring_probability: "Low"
+    ats_hint: "unknown"
+    signals:
+      - type: caution
+        detail: "No major funding round since 2017; public signals are stale"
+        source: "Inc42"
+        date: "2026"
+    comp_benchmark_inr_lpa: {}
+    why_target_now: "Include only on a personal/referral lead — signal quality is weak."
+
+# Sector-level tailwinds (context for agent_01_signal_scout.py re-scan priorities)
+sector_context:
+  fintech_lending:
+    note: "4 India digital lenders (Fibe, KreditBee, Moneyview, Kissht) simultaneously racing toward IPO in 2026 — sector-wide pre-IPO hiring wave."
+  cleantech:
+    note: "India Renewable Energy Tech funding +474.5% YoY in 2026 vs 2025 (Tracxn); climate tech funding grew $315M (2020) -> $2.6B (2025), 8x in 5 years."
+  industrial_iot:
+    note: "Weakest current signal density of the three sectors — verify per-company before prioritizing."
