@@ -1,73 +1,112 @@
-# config/profile.yml
-# Candidate identity, target roles, compensation, and narrative.
-# Read by every agent in src/agents/ and by CLAUDE.md's evaluation rubric.
-# NEVER let agents invent facts not present here or in data/resume.txt —
-# this file is the single source of truth for "who am I positioning as."
+# NEXUS Candidate Profile — Single Source of Truth
+# All evaluations read this file. Edit here, not in scattered .env or config files.
 
 candidate:
-  name: "Kushall Jain"
-  email: "kushall.jain07@gmail.com"
+  full_name: "Kushall Jain"
+  email: "Kushall.jain07@gmail.com"
   phone: "9990079764"
-  linkedin: "linkedin.com/in/kushall-jain-263009261"
-  github: "github.com/kushallj"
-  website: "kushall.in"
-  location: "New Delhi, India"
-  open_to_remote: true
+  location: "Delhi, India"
+  timezone: "Asia/Kolkata"
+  linkedin: "https://linkedin.com/in/kushall-jain-263009261"
+  github: "https://github.com/kushallj"
+  portfolio: "https://kushall.in"
+  visa_status: "Indian citizen — open to remote-first roles worldwide"
 
-# --- Positioning ------------------------------------------------------------
-# Derived from resume-evidence analysis (not job titles). Lead with this
-# framing in resumes/outreach for the target niche below.
-positioning:
-  headline: >
-    Backend-leaning Full Stack Engineer (Python/Django/FastAPI + React/TypeScript)
-    specializing in API access-control hardening and measurable performance
-    optimization, in fintech-lending and industrial-IoT/cleantech startups.
-  lead_with: ["Python", "Django REST Framework", "FastAPI", "React (TypeScript)"]
-  de_emphasize: ["Node.js (secondary, Lambda/MQTT plumbing only)"]
-  differentiators:
-    - "Token-based auth design; closed unauthenticated device-command paths (GameChange Energy)"
-    - "70% ORM query improvement; 800ms->200ms SQL response time (75% cut) (Progfin)"
-    - "10+ RESTful microservices with JWT + RBAC + Swagger/OpenAPI (Progfin)"
-    - "Credit-scoring rule engine + automated lending workflows, 85% automation (Progfin)"
-    - "Event-driven distributed pipeline debugging: Docker -> Lambda -> MQTT -> IoT devices (GameChange)"
-  seniority: "SDE II / mid-level, scope reads senior-adjacent at lean startups"
-  years_experience: 3.0
+target_roles:
+  primary:
+    - "Senior Software Engineer"
+    - "Senior Backend Engineer"
+    - "Staff Python Engineer"
+    - "Full Stack Engineer"
+  secondary:
+    - "Senior Django/FastAPI Engineer"
+    - "Senior API Engineer"
+    - "Platform Engineer"
+  not_interested:
+    - "Junior"
+    - "Intern"
+    - "Support Engineer"
+    - "QA Engineer"
 
-# --- Target niche (from labor-market research, Aug 2026) --------------------
-target:
-  roles:
-    - "Full Stack Software Engineer"
-    - "Backend Software Engineer (Python)"
-    - "Software Engineer II / SDE II"
-    - "API Engineer / Platform Engineer"
-    - "Backend Engineer, API Security"
-  industries: ["fintech-lending", "credit-infra-saas", "industrial-iot", "cleantech-solar"]
-  company_stage: ["Series A", "Series B", "Series C", "pre-IPO", "recently-listed"]
-  company_size_employees: [20, 800]
-  locations: ["Delhi NCR", "Bangalore", "Pune", "Mumbai", "Remote (India)"]
-  avoid:
-    - "Big Tech / FAANG-style hyperscale (no scale evidence to back it up yet)"
-    - "Titles: Staff Engineer, Tech Lead, Senior SWE at large enterprises (tenure won't clear bar)"
+archetypes:
+  - name: "Python Backend"
+    keywords: ["Django", "FastAPI", "Python", "REST API", "microservices", "PostgreSQL"]
+    fit: primary
+  - name: "Full Stack"
+    keywords: ["React", "TypeScript", "Node.js", "full stack", "frontend", "backend"]
+    fit: primary
+  - name: "Platform/Infrastructure"
+    keywords: ["platform", "infrastructure", "DevOps", "Docker", "AWS", "Kubernetes"]
+    fit: secondary
+  - name: "AI/ML Engineering"
+    keywords: ["LLM", "AI", "machine learning", "RAG", "agents", "embeddings"]
+    fit: secondary
 
-# --- Compensation -------------------------------------------------------------
-compensation:
-  currency: "INR"
-  current_ctc_lakhs: null          # fill in — used for negotiation-fit scoring, never guessed
-  target_ctc_lakhs_min: 18
-  target_ctc_lakhs_max: 32
-  notes: >
-    Levels.fyi/AmbitionBox benchmarks (Aug 2026) put mid-level SE comp at
-    target companies roughly in the 12-30L band; Yubi/Perfios/Fibe skew
-    higher given pre-IPO / Series D scale.
-
-# --- Outreach voice -----------------------------------------------------------
 narrative:
-  one_liner: >
-    Full stack engineer who hardens the access-control layer other people
-    forget about, and leaves a measurable performance number behind wherever
-    I touch a codebase.
-  proof_points_by_theme:
-    security: "Closed unauthenticated device-command paths across Postgres/Redis/OPC UA at GameChange Energy."
-    performance: "Cut SQL response time 800ms -> 200ms (75%) and improved Django ORM query performance by 70% at Progfin."
-    ownership: "Owned 10+ production microservices end-to-end, mentored 2 juniors, ran client-facing SDLC at Progfin."
-    scale: "Shipped systems serving 10,000+ DAU and 150+ Cr monthly transactions at 99.5% uptime."
+  headline: "Full Stack Python Developer — Django, FastAPI, React.js · 3+ years"
+  summary: >
+    Software Development Engineer with 3+ years designing, developing, and deploying
+    enterprise-grade web applications and RESTful APIs. Delivered mission-critical systems
+    processing 150+ Cr monthly transactions at 99.5% uptime serving 1000+ SMEs and 10,000+ DAU.
+
+  superpowers:
+    - "Python backend systems (Django/FastAPI)"
+    - "Database optimization — 70-75% query performance improvements"
+    - "Full-stack delivery (React 18/TypeScript + Python)"
+    - "NEXUS: AI-powered job acquisition system (this repo)"
+
+  proof_points:
+    - name: "FinTech Platform at Progfin"
+      metric: "150+ Cr monthly transactions, 99.5% uptime, 10,000+ DAU"
+      stack: "React 18/TypeScript, Django/FastAPI, PostgreSQL, AWS"
+    - name: "Query Optimization"
+      metric: "800ms → 200ms (75% reduction) via profiling + ORM tuning"
+    - name: "NEXUS Job Finder"
+      url: "https://github.com/kushallj/job-finder"
+      metric: "AI-powered job acquisition system with LangGraph DAG + email discovery"
+    - name: "Credit Scoring Engine"
+      metric: "85% process automation across real-time financial data pipelines"
+
+experience:
+  years_total: 3
+  current_role: "Full Stack Software Developer"
+  current_company: "Progfin Pvt Ltd (FinTech)"
+  current_since: "2023-12"
+
+compensation:
+  target_inr_lpa: 20        # target LPA (lakhs per annum) for India roles
+  minimum_inr_lpa: 14       # walk-away threshold
+  target_usd_annual: 60000  # for USD-denominated remote roles
+  minimum_usd_annual: 40000
+  open_to_equity: true
+  notes: "Prioritise remote-first + equity upside over base for startups"
+
+location_preferences:
+  remote: true              # strongly preferred
+  hybrid_ok: true           # if Delhi NCR
+  relocation: false         # not currently
+  on_site_cities: ["Delhi", "Noida", "Gurgaon"]
+
+tech_stack:
+  strong:
+    - Python
+    - Django
+    - FastAPI
+    - React.js
+    - TypeScript
+    - PostgreSQL
+    - REST API design
+    - Docker
+    - AWS (S3, ECS, IAM)
+    - Git / GitHub Actions
+  familiar:
+    - Node.js
+    - MongoDB
+    - Redis
+    - Celery
+    - LangGraph
+    - SQLAlchemy
+  learning:
+    - "C# / .NET Core"
+    - "Kubernetes"
+    - "LLM/agentic systems"
