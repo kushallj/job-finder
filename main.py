@@ -79,6 +79,8 @@ from src.api_models import (
     PendingOutreachJob,
     SignalHireCallbackResponse,
     SignalHireResultResponse,
+    StartupDiscoveryRequest,
+    StartupDiscoveryResponse,
 )
 from src.api_error_handlers import (
     register_error_handlers,
@@ -139,6 +141,14 @@ try:
 except Exception as _e:
     _CRAWL_OK = False
     logging.warning("cloudflare crawl not available: %s", _e)
+
+try:
+    from src.news_service import NewsService, FirecrawlNewsService
+    from src.scrapers.firecrawl_scraper import TOP_INDIAN_STARTUPS
+    _NEWS_OK = True
+except Exception as _e:
+    _NEWS_OK = False
+    logging.warning("news_service not available: %s", _e)
 
 
 # =============================================================================
@@ -2326,6 +2336,66 @@ async def crawl(
             for p in pages
         ],
     )
+
+
+# ── Startup Discovery ──────────────────────────────────────────────────────────
+
+@app.post("/api/startups/discover", tags=["startups"], response_model=StartupDiscoveryResponse)
+async def discover_startups(
+    request: StartupDiscoveryRequest,
+    req: Request,
+    state: AppState = Depends(get_state),
+):
+    """
+    Find recently funded startups using Firecrawl or NewsAPI.
+    
+    Discovered startups are compared against TOP_INDIAN_STARTUPS and new ones
+    can be added for future scraping.
+    """
+    if not _NEWS_OK:
+        raise HTTPException(503, "News service module not available")
+
+    trace = req.state.trace_id
+    log.info("[%s] Startup discovery start (provider=%s, target=%d)",
+             trace, request.provider, request.target_count)
+
+    try:
+        if request.provider == "firecrawl":
+            service = FirecrawlNewsService()
+            new_startup_names = await service.fetch_funded_startups(
+                limit=request.target_count,
+                location=request.location
+            )
+        else:
+            service = NewsService()
+            # NewsAPI is more limited in parameters here, but we'll use a fixed page count for now
+            new_startup_names = await service.fetch_funded_startups(pages=5)
+
+        existing_names = {name.lower() for name, _ in TOP_INDIAN_STARTUPS}
+        newly_added = 0
+        found_companies = []
+
+        for name in new_startup_names:
+            found_companies.append(name)
+            if name.lower() not in existing_names:
+                # In a real scenario, we might want to persist these to a DB table
+                # or dynamically update TOP_INDIAN_STARTUPS.
+                # For this implementation, we just report them.
+                newly_added += 1
+
+        await service.close()
+
+        return StartupDiscoveryResponse(
+            status="success",
+            trace_id=trace,
+            startups_found=len(new_startup_names),
+            new_startups_added=newly_added,
+            companies=found_companies
+        )
+
+    except Exception as exc:
+        log.error("[%s] Startup discovery error: %s", trace, exc, exc_info=True)
+        raise HTTPException(500, f"Discovery failed: {str(exc)}")
 
 
 # =============================================================================

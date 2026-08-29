@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # GitHub
     github_token: Optional[str] = None
 
+    # News API
+    news_api_key: Optional[str] = None
+
     # Email provider — "smtp" | "sendgrid" | "ses"
     email_provider: str = "smtp"
     sendgrid_api_key: Optional[str] = None

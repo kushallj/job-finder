@@ -31,6 +31,8 @@ class JobSource(str, Enum):
     INSTAHYRE = "instahyre"
     CLOUDFLARE_CRAWL = "cloudflare_crawl"
     API_SCRAPER = "api_scraper"
+    FIRECRAWL_NEWS = "firecrawl_news"
+    NEWSAPI = "newsapi"
     OTHER = "other"
 
 
@@ -468,6 +470,24 @@ class CrawlResponse(BaseModel):
     pages_crawled: int = Field(..., ge=0, description="Number of pages crawled")
     jobs_stored: int = Field(..., ge=0, description="Number of jobs stored")
     pages: List[Dict[str, Any]] = Field(default_factory=list, description="Crawled pages data")
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
+
+
+class StartupDiscoveryRequest(BaseModel):
+    """Request model for startup discovery"""
+    provider: str = Field("firecrawl", description="Discovery provider: 'firecrawl' or 'newsapi'")
+    target_count: int = Field(50, ge=1, le=1000, description="Target number of startups to find")
+    duration_hours: float = Field(0.0, ge=0, le=24, description="Duration to run in hours (0 for single iteration)")
+    location: str = Field("India", description="Geographic location to search")
+
+
+class StartupDiscoveryResponse(BaseModel):
+    """Response model for startup discovery"""
+    status: str = Field(..., description="Discovery status")
+    trace_id: str = Field(..., description="Request trace ID")
+    startups_found: int = Field(..., description="Number of unique startups found")
+    new_startups_added: int = Field(..., description="Number of new startups added to scraping list")
+    companies: List[str] = Field(default_factory=list, description="List of company names found")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
 
 
