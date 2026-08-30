@@ -1592,6 +1592,103 @@ class HiregramFinalizeResponse(BaseModel):
     scorecard: Dict[str, Any] = Field(...)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Personal Autonomous Google AI Fleet API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class AgentFleetConfigSchema(BaseModel):
+    """Configuration for personal Google Gemini agent fleet."""
+    google_gemini_api_key: Optional[str] = Field(default=None)
+    autonomous_mode: bool = Field(default=False)
+    execution_interval_hours: int = Field(default=6, ge=1, le=48)
+    enabled_agents: List[str] = Field(default_factory=lambda: ["signal_scout", "resume_tailor", "outreach_composer", "offer_guardian"])
+    target_roles: List[str] = Field(default_factory=lambda: ["Senior Software Engineer", "Backend Engineer"])
+    target_locations: List[str] = Field(default_factory=lambda: ["Remote Worldwide", "India (Bangalore / NCR)"])
+
+
+class FleetCycleResponseSchema(BaseModel):
+    """Response model for fleet cycle execution."""
+    status: str = Field(default="success")
+    cycle: Dict[str, Any] = Field(...)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Instagram & Threads Referral Automator API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class InstagramSearchRequestSchema(BaseModel):
+    """Request model for finding founders and leaders on Instagram/Threads."""
+    company: str = Field(..., min_length=1)
+    role_keyword: Optional[str] = Field(default="Engineering")
+    founder_only: bool = Field(default=False)
+
+
+class InstagramSearchResponseSchema(BaseModel):
+    """Response model with discovered Instagram/Threads profiles."""
+    status: str = Field(default="success")
+    company: str = Field(...)
+    total_found: int = Field(...)
+    profiles: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class InstagramMessageRequestSchema(BaseModel):
+    """Request model for generating casual high-conversion Instagram DMs."""
+    action_type: str = Field(default="dm")
+    target_username: str = Field(...)
+    company: str = Field(...)
+    name: str = Field(...)
+    role_title: str = Field(...)
+    portfolio_link: Optional[str] = Field(default=None)
+
+
+class InstagramMessageResponseSchema(BaseModel):
+    """Response model with generated Instagram DM and intent URL."""
+    status: str = Field(default="success")
+    target_username: str = Field(...)
+    action_type: str = Field(...)
+    message: str = Field(...)
+    intent_url: str = Field(...)
+    character_count: int = Field(...)
+    timestamp: str = Field(...)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# "Proof of Work" Skill-to-Job Bridge API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SkillBridgeProjectRequestSchema(BaseModel):
+    """Request model for synthesizing a 24h Proof-of-Work micro-project."""
+    company: str = Field(..., min_length=1)
+    role_title: str = Field(..., min_length=1)
+    job_description: Optional[str] = Field(default=None)
+    candidate_skills: Optional[List[str]] = Field(default=None)
+
+
+class SkillBridgeProjectResponseSchema(BaseModel):
+    """Response model with skill gap analysis, starter code, and demonstration note."""
+    status: str = Field(default="success")
+    company: str = Field(...)
+    role_title: str = Field(...)
+    gap_analysis: Dict[str, Any] = Field(...)
+    project_spec: Dict[str, Any] = Field(...)
+    timestamp: str = Field(...)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Global Remote USD/EUR Arbitrage & GCC Radar API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class MarketRadarResponseSchema(BaseModel):
+    """Response model for USD/EUR remote contracts and GCC hiring radar."""
+    status: str = Field(default="success")
+    usd_to_inr_rate: float = Field(...)
+    eur_to_inr_rate: float = Field(...)
+    remote_global_roles: List[Dict[str, Any]] = Field(default_factory=list)
+    top_gcc_hubs: List[Dict[str, Any]] = Field(default_factory=list)
+    timestamp: str = Field(...)
+
+
+
 
 
 

@@ -1,12 +1,20 @@
 import React from 'react';
 import { Box, Tab, Tabs, Typography } from '@mui/material';
+import PersonalFleetTab from './agents/PersonalFleetTab';
 import CompaniesOverviewTab from './agents/CompaniesOverviewTab';
 import LeadsTab from './agents/LeadsTab';
 import NetworkerPitchTab from './agents/NetworkerPitchTab';
 import InterviewSimulatorTab from './agents/InterviewSimulatorTab';
 import NegotiatorTab from './agents/NegotiatorTab';
 
-const TAB_LABELS = ['Overview & Daily Run', 'Leads (CRM)', 'Networker & Pitcher', 'Interview Simulator', 'Negotiator'];
+const TAB_LABELS = [
+  '🤖 Personal Google AI Fleet (BYOK)',
+  'Overview & Daily Run',
+  'Leads (CRM)',
+  'Networker & Pitcher',
+  'Interview Simulator',
+  'Negotiator',
+];
 
 const AgentsHub: React.FC = () => {
   const [tab, setTab] = React.useState(0);
@@ -19,9 +27,8 @@ const AgentsHub: React.FC = () => {
             AI Agents
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            15 target-company agents — signal-aware sourcing, evidenced-challenge networking, mock
-            interviews, and comp negotiation. Nothing here sends email, applies to a job, or posts to
-            any platform automatically — every action is a draft you review and act on yourself.
+            Autonomous target-company agents & personal Google Gemini fleet — signal-aware sourcing, evidenced-challenge networking, mock
+            interviews, and comp negotiation.
           </Typography>
         </Box>
       </Box>
@@ -34,17 +41,19 @@ const AgentsHub: React.FC = () => {
         scrollButtons="auto"
       >
         {TAB_LABELS.map((label) => (
-          <Tab key={label} label={label} sx={{ textTransform: 'none', fontWeight: 600 }} />
+          <Tab key={label} label={label} sx={{ textTransform: 'none', fontWeight: 700 }} />
         ))}
       </Tabs>
 
-      {tab === 0 && <CompaniesOverviewTab />}
-      {tab === 1 && <LeadsTab />}
-      {tab === 2 && <NetworkerPitchTab />}
-      {tab === 3 && <InterviewSimulatorTab />}
-      {tab === 4 && <NegotiatorTab />}
+      {tab === 0 && <PersonalFleetTab />}
+      {tab === 1 && <CompaniesOverviewTab />}
+      {tab === 2 && <LeadsTab />}
+      {tab === 3 && <NetworkerPitchTab />}
+      {tab === 4 && <InterviewSimulatorTab />}
+      {tab === 5 && <NegotiatorTab />}
     </Box>
   );
 };
 
 export default AgentsHub;
+

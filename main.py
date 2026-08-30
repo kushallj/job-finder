@@ -172,6 +172,15 @@ from src.api_models import (
     HiregramSubmitTurnRequest,
     HiregramSubmitTurnResponse,
     HiregramFinalizeResponse,
+    AgentFleetConfigSchema,
+    FleetCycleResponseSchema,
+    InstagramSearchRequestSchema,
+    InstagramSearchResponseSchema,
+    InstagramMessageRequestSchema,
+    InstagramMessageResponseSchema,
+    SkillBridgeProjectRequestSchema,
+    SkillBridgeProjectResponseSchema,
+    MarketRadarResponseSchema,
 )
 from src.referral import referral_service
 from src.x_referral import x_referral_service, x_oauth
@@ -190,7 +199,16 @@ from src.resume_generator import (
 from src.community_intel import community_intel_service
 from src.copilot import copilot_service, ChatTurnRequest, DorkGenerateRequest
 from src.hiregram import hiregram_service, InterviewerPersona
+from src.agent_fleet import agent_fleet_service, AgentFleetConfig
+from src.instagram_referral import (
+    instagram_referral_service,
+    InstagramSearchRequest,
+    InstagramMessageRequest,
+)
+from src.skill_bridge import skill_bridge_service, ProjectGenerateRequest
+from src.market_radar import market_radar_service
 from src.api_error_handlers import (
+
 
     register_error_handlers,
     APIError,
@@ -4074,7 +4092,128 @@ async def get_hiregram_session_scorecard(session_id: str, req: Request = None):
     )
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Personal Autonomous Google AI Fleet Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/fleet/config", tags=["fleet"], response_model=AgentFleetConfigSchema)
+async def get_agent_fleet_config(req: Request = None):
+    """Retrieves current user's personal Google AI fleet configuration."""
+    cfg = agent_fleet_service.get_config()
+    return AgentFleetConfigSchema(**cfg.model_dump())
+
+
+@app.post("/api/fleet/config", tags=["fleet"], response_model=AgentFleetConfigSchema)
+async def update_agent_fleet_config(config: AgentFleetConfigSchema, req: Request = None):
+    """Updates personal Google AI key and 24/7 autonomous fleet parameters."""
+    cfg_obj = AgentFleetConfig(**config.model_dump())
+    updated = agent_fleet_service.update_config(cfg_obj)
+    return AgentFleetConfigSchema(**updated.model_dump())
+
+
+@app.post("/api/fleet/run-cycle", tags=["fleet"], response_model=FleetCycleResponseSchema)
+async def run_personal_fleet_cycle(config: Optional[AgentFleetConfigSchema] = None, req: Request = None):
+    """Triggers an on-demand personal 4-agent autonomous cycle."""
+    try:
+        cfg_obj = AgentFleetConfig(**config.model_dump()) if config else None
+        result = await agent_fleet_service.run_cycle(cfg_obj)
+        return FleetCycleResponseSchema(
+            status="success",
+            cycle=result.model_dump(),
+        )
+    except Exception as exc:
+        log.error("Agent fleet cycle failed: %s", exc, exc_info=True)
+        raise APIError(f"Agent fleet cycle failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Instagram & Threads Referral Automator Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/instagram/search", tags=["instagram"], response_model=InstagramSearchResponseSchema)
+async def search_instagram_profiles(request: InstagramSearchRequestSchema, req: Request = None):
+    """Discovers tech founders and engineering leaders on Instagram/Threads."""
+    try:
+        req_obj = InstagramSearchRequest(**request.model_dump())
+        result = instagram_referral_service.search_profiles(req_obj)
+        return InstagramSearchResponseSchema(
+            status="success",
+            company=result.company,
+            total_found=result.total_found,
+            profiles=[p.model_dump() for p in result.profiles],
+        )
+    except Exception as exc:
+        log.error("Instagram profile search failed: %s", exc, exc_info=True)
+        raise APIError(f"Instagram profile search failed: {str(exc)}")
+
+
+@app.post("/api/instagram/generate-message", tags=["instagram"], response_model=InstagramMessageResponseSchema)
+async def generate_instagram_dm(request: InstagramMessageRequestSchema, req: Request = None):
+    """Synthesizes high-converting casual DMs and story replies with direct intent links."""
+    try:
+        req_obj = InstagramMessageRequest(**request.model_dump())
+        result = instagram_referral_service.generate_message(req_obj)
+        return InstagramMessageResponseSchema(
+            status="success",
+            target_username=result.target_username,
+            action_type=result.action_type,
+            message=result.message,
+            intent_url=result.intent_url,
+            character_count=result.character_count,
+            timestamp=result.timestamp,
+        )
+    except Exception as exc:
+        log.error("Instagram DM generation failed: %s", exc, exc_info=True)
+        raise APIError(f"Instagram DM generation failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# "Proof of Work" Skill-to-Job Bridge Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/skill-bridge/generate-project", tags=["skill-bridge"], response_model=SkillBridgeProjectResponseSchema)
+async def generate_proof_of_work_project(request: SkillBridgeProjectRequestSchema, req: Request = None):
+    """Generates a 24-hour production-grade micro-project with starter code, test suites, and pitch note."""
+    try:
+        req_obj = ProjectGenerateRequest(**request.model_dump())
+        result = skill_bridge_service.generate_project(req_obj)
+        return SkillBridgeProjectResponseSchema(
+            status="success",
+            company=result.company,
+            role_title=result.role_title,
+            gap_analysis=result.gap_analysis.model_dump(),
+            project_spec=result.project_spec.model_dump(),
+            timestamp=result.timestamp,
+        )
+    except Exception as exc:
+        log.error("Skill bridge project generation failed: %s", exc, exc_info=True)
+        raise APIError(f"Skill bridge project generation failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Global Remote USD/EUR Arbitrage & GCC Radar Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/market-radar/opportunities", tags=["market-radar"], response_model=MarketRadarResponseSchema)
+async def get_market_radar_opportunities(req: Request = None):
+    """Surfaces global remote USD/EUR contracts, PPP multipliers, and top Indian GCC hubs."""
+    try:
+        result = market_radar_service.get_market_radar()
+        return MarketRadarResponseSchema(
+            status="success",
+            usd_to_inr_rate=result.usd_to_inr_rate,
+            eur_to_inr_rate=result.eur_to_inr_rate,
+            remote_global_roles=[r.model_dump() for r in result.remote_global_roles],
+            top_gcc_hubs=[h.model_dump() for h in result.top_gcc_hubs],
+            timestamp=result.timestamp,
+        )
+    except Exception as exc:
+        log.error("Market radar retrieval failed: %s", exc, exc_info=True)
+        raise APIError(f"Market radar retrieval failed: {str(exc)}")
+
+
 # =============================================================================
+
 # Dev entry point
 # =============================================================================
 

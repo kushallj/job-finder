@@ -25,6 +25,7 @@ import {
   SettingsOutlined as SettingsIcon,
   AutoAwesome as SparkleIcon,
   SmartToyOutlined as AgentsIcon,
+  Public as GlobalIcon,
 } from '@mui/icons-material';
 import { useUIStore } from '../../stores/useUIStore';
 
@@ -40,9 +41,11 @@ const mainNavItems = [
   { text: 'Opportunities & Jobs', icon: <JobsIcon fontSize="small" />, path: '/jobs' },
   { text: 'AI Agents', icon: <AgentsIcon fontSize="small" />, path: '/agents' },
   { text: 'AI OSINT Copilot', icon: <SparkleIcon fontSize="small" />, path: '/copilot' },
+  { text: 'Global Remote Radar', icon: <GlobalIcon fontSize="small" />, path: '/market-radar' },
   { text: 'Contacts CRM', icon: <ContactsIcon fontSize="small" />, path: '/contacts' },
   { text: 'Outreach Engine', icon: <OutreachIcon fontSize="small" />, path: '/outreach' },
 ];
+
 
 
 const intelligenceNavItems = [

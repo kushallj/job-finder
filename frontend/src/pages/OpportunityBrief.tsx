@@ -61,6 +61,8 @@ import {
   Print as PrintIcon,
   Close as CloseIcon,
   RecordVoiceOver as InterviewIcon,
+  CameraAlt as InstagramIcon,
+  Build as BuildIcon,
 } from '@mui/icons-material';
 
 import { opportunitiesApi } from '../api/endpoints/opportunities';
@@ -70,13 +72,17 @@ import { xReferralsApi } from '../api/endpoints/x_referrals';
 import { emailIntelligenceApi } from '../api/endpoints/email_intelligence';
 import { attentionApi } from '../api/endpoints/attention';
 import { resumeGeneratorApi } from '../api/endpoints/resume_generator';
+import { instagramReferralsApi } from '../api/endpoints/instagram_referrals';
 import type { ResumeDocumentResponse } from '../api/endpoints/resume_generator';
 import { AttentionHeatmap } from '../components/attention/AttentionHeatmap';
 import { GhostBadge } from '../components/ghost_hunter/GhostBadge';
 import { SpamHeatmapSandbox } from '../components/deliverability/SpamHeatmapSandbox';
 import { CommunityIntelPanel } from '../components/community_intel/CommunityIntelPanel';
 import { HiregramStudio } from '../components/hiregram/HiregramStudio';
+import { ProofOfWorkModal } from '../components/skill_bridge/ProofOfWorkModal';
 import type { DiscoveredContactItem, SearchDorkItem, EmailPermutationItem } from '../api/endpoints/email_intelligence';
+import type { InstagramProfile } from '../api/endpoints/instagram_referrals';
+
 
 
 import type { OpportunityBrief as OpportunityBriefData, ReferralProfile, XProfile, XTweet } from '../api/types';
@@ -166,7 +172,18 @@ const OpportunityBrief: React.FC = () => {
   // Hiregram Voice AI Mock Interview modal state
   const [hiregramModalOpen, setHiregramModalOpen] = useState(false);
 
+  // 24h Proof of Work Micro-Project modal state
+  const [powModalOpen, setPowModalOpen] = useState(false);
+
+  // Instagram & Threads Referral state
+  const [instagramDialogOpen, setInstagramDialogOpen] = useState(false);
+  const [instagramLoading, setInstagramLoading] = useState(false);
+  const [instagramProfiles, setInstagramProfiles] = useState<InstagramProfile[]>([]);
+  const [selectedIgProfile, setSelectedIgProfile] = useState<InstagramProfile | null>(null);
+  const [igGeneratedMessage, setIgGeneratedMessage] = useState<any>(null);
+
   const brief = briefQuery.data as OpportunityBriefData | undefined;
+
 
 
   const handleOpenResumeModal = async (docType: 'ats_resume' | 'cover_letter' = 'ats_resume') => {
@@ -402,9 +419,42 @@ const OpportunityBrief: React.FC = () => {
       await refresh();
       setToast(`Saved @${profile.username} to Contacts CRM!`);
     } catch {
-      setToast('Failed to sync X contact.');
+      setToast('Failed to save to CRM.');
     }
   };
+
+  const handleOpenInstagramSearch = async () => {
+    if (!brief) return;
+    setInstagramDialogOpen(true);
+    setInstagramLoading(true);
+    try {
+      const res = await instagramReferralsApi.search({ company: brief.job.company || 'Company' });
+      setInstagramProfiles(res.data.profiles);
+    } catch {
+      setToast('Could not fetch Instagram profiles.');
+    } finally {
+      setInstagramLoading(false);
+    }
+  };
+
+  const handleGenerateInstagramDM = async (profile: InstagramProfile, actionType: 'dm' | 'story_reply' | 'comment' = 'dm') => {
+    if (!brief) return;
+    setSelectedIgProfile(profile);
+    try {
+      const res = await instagramReferralsApi.generateMessage({
+        action_type: actionType,
+        target_username: profile.username,
+        company: profile.company || brief.job.company || 'Company',
+        name: profile.name,
+        role_title: brief.job.title || 'Software Engineer',
+        portfolio_link: 'https://kushall.in',
+      });
+      setIgGeneratedMessage(res.data);
+    } catch {
+      setToast('Failed to generate Instagram DM.');
+    }
+  };
+
 
   // Email Intelligence Handlers
   const handleOpenEmailIntelligence = async () => {
@@ -573,6 +623,15 @@ const OpportunityBrief: React.FC = () => {
                 >
                   X
                 </Button>
+                <Button
+                  variant="outlined"
+                  sx={{ color: '#E1306C', borderColor: '#E1306C', '&:hover': { borderColor: '#C13584', bgcolor: '#FDF2F8' }, fontWeight: 700 }}
+                  startIcon={<InstagramIcon />}
+                  onClick={handleOpenInstagramSearch}
+                  fullWidth
+                >
+                  Instagram
+                </Button>
               </Stack>
 
               <Button
@@ -587,6 +646,16 @@ const OpportunityBrief: React.FC = () => {
               </Button>
 
               <Button
+                variant="outlined"
+                sx={{ color: '#D97706', borderColor: '#F59E0B', '&:hover': { borderColor: '#D97706', bgcolor: '#FFFBEB' }, fontWeight: 700 }}
+                startIcon={<BuildIcon />}
+                onClick={() => setPowModalOpen(true)}
+                fullWidth
+              >
+                🛠️ 24h Proof-of-Work Builder
+              </Button>
+
+              <Button
                 variant="contained"
                 sx={{ bgcolor: '#6366F1', '&:hover': { bgcolor: '#4F46E5' }, fontWeight: 700 }}
                 startIcon={<InterviewIcon />}
@@ -595,6 +664,7 @@ const OpportunityBrief: React.FC = () => {
               >
                 🎙️ Voice AI Mock (Hiregram)
               </Button>
+
 
 
 
@@ -1640,7 +1710,117 @@ const OpportunityBrief: React.FC = () => {
         </DialogContent>
       </Dialog>
 
+      {/* 24h Proof-of-Work Micro-Project Modal */}
+      <ProofOfWorkModal
+        open={powModalOpen}
+        onClose={() => setPowModalOpen(false)}
+        company={brief.job.company || 'Company'}
+        roleTitle={brief.job.title || 'Software Engineer'}
+        jobDescription={brief.job.description || undefined}
+      />
+
+      {/* Instagram & Threads Referral Sourcing Dialog */}
+      <Dialog
+        open={instagramDialogOpen}
+        onClose={() => setInstagramDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <InstagramIcon sx={{ color: '#E1306C' }} />
+            <span>📸 Instagram & Threads Referral Finder — {brief.job.company}</span>
+          </Stack>
+          <IconButton size="small" onClick={() => setInstagramDialogOpen(false)}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 3, bgcolor: '#F8FAFC' }}>
+          {instagramLoading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <CircularProgress size={32} />
+            </Box>
+          ) : (
+            <Box>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Tech founders and engineering leaders frequently respond to direct Instagram DMs and story replies with near 100% open rates.
+              </Typography>
+
+              <Stack spacing={2} sx={{ mt: 2 }}>
+                {instagramProfiles.map((p, idx) => (
+                  <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: '#FFFFFF' }}>
+                    <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1}>
+                      <Box>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Typography variant="subtitle1" fontWeight={800} color="#0F172A">
+                            {p.name}
+                          </Typography>
+                          <Typography variant="body2" color="#E1306C" fontWeight={700}>
+                            @{p.username}
+                          </Typography>
+                          {p.is_founder && <Chip label="Founder" size="small" color="primary" sx={{ height: 20, fontSize: '0.7rem' }} />}
+                        </Stack>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {p.title}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mt: 0.5, fontSize: '0.85rem' }}>
+                          {p.bio}
+                        </Typography>
+                      </Box>
+
+                      <Stack direction="row" spacing={1}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => handleGenerateInstagramDM(p, 'dm')}
+                          sx={{ fontWeight: 700 }}
+                        >
+                          Draft DM
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          href={p.profile_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          sx={{ bgcolor: '#E1306C', '&:hover': { bgcolor: '#C13584' }, fontWeight: 700 }}
+                        >
+                          Open Profile ↗
+                        </Button>
+                      </Stack>
+                    </Box>
+
+                    {selectedIgProfile?.username === p.username && igGeneratedMessage && (
+                      <Paper variant="outlined" sx={{ mt: 2, p: 2, bgcolor: '#FDF2F8', borderColor: '#FBCFE8', borderRadius: 2 }}>
+                        <Typography variant="caption" fontWeight={700} color="#9D174D" display="block" mb={0.5}>
+                          GENERATED CASUAL DM ({igGeneratedMessage.character_count} chars):
+                        </Typography>
+                        <Typography variant="body2" color="#831843" sx={{ fontStyle: 'italic', mb: 1.5 }}>
+                          "{igGeneratedMessage.message}"
+                        </Typography>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="secondary"
+                          href={igGeneratedMessage.intent_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          sx={{ fontWeight: 700 }}
+                        >
+                          Open Instagram DM (ig.me) ↗
+                        </Button>
+                      </Paper>
+                    )}
+                  </Paper>
+                ))}
+              </Stack>
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Snackbar
+
 
         open={Boolean(toast)}
         autoHideDuration={4000}

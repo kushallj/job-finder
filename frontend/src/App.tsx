@@ -13,6 +13,7 @@ import Settings from './pages/Settings';
 import OpportunityBrief from './pages/OpportunityBrief';
 import AgentsHub from './pages/AgentsHub';
 import Copilot from './pages/Copilot';
+import MarketRadar from './pages/MarketRadar';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -38,6 +39,7 @@ const App: React.FC = () => {
               <Route path="opportunities/:jobId" element={<OpportunityBrief />} />
               <Route path="agents" element={<AgentsHub />} />
               <Route path="copilot" element={<Copilot />} />
+              <Route path="market-radar" element={<MarketRadar />} />
               <Route path="contacts" element={<Contacts />} />
               <Route path="outreach" element={<Outreach />} />
               <Route path="stats" element={<Stats />} />
@@ -49,6 +51,7 @@ const App: React.FC = () => {
     </QueryClientProvider>
   );
 };
+
 
 
 export default App;

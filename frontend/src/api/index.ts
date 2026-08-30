@@ -19,6 +19,11 @@ export { resumeGeneratorApi } from './endpoints/resume_generator';
 export { communityIntelApi } from './endpoints/community_intel';
 export { copilotApi } from './endpoints/copilot';
 export { hiregramApi } from './endpoints/hiregram';
+export { agentFleetApi } from './endpoints/agent_fleet';
+export { instagramReferralsApi } from './endpoints/instagram_referrals';
+export { skillBridgeApi } from './endpoints/skill_bridge';
+export { marketRadarApi } from './endpoints/market_radar';
+
 
 
 
