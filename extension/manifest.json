@@ -1,41 +1,38 @@
 {
   "manifest_version": 3,
-  "name": "JobFinder & LinkedIn Referral Automator",
-  "version": "2.0.0",
-  "description": "Companion extension for JobFinder: 1-click job capture, AI match scoring, and 5-stage automated LinkedIn referral networking.",
-  "permissions": [
-    "storage",
-    "tabs",
-    "scripting",
-    "activeTab"
-  ],
-  "host_permissions": [
-    "https://www.linkedin.com/*",
-    "https://*.indeed.com/*",
-    "http://localhost:8000/*",
-    "http://127.0.0.1:8000/*"
-  ],
+  "name": "Job Finder Companion",
+  "version": "1.0.0",
+  "description": "Capture job postings you're viewing and manage your Job Finder backend — jobs, match scores, and outreach status — from your browser.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "action": {
-    "default_popup": "popup/popup.html",
-    "default_title": "JobFinder & Referral Automator"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "background": {
-    "service_worker": "background/service-worker.js"
+    "service_worker": "background.js"
   },
+  "options_page": "options.html",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
   "content_scripts": [
     {
       "matches": [
-        "https://www.linkedin.com/jobs/*",
-        "https://www.linkedin.com/jobs/view/*",
-        "https://*.indeed.com/viewjob*",
-        "https://*.indeed.com/rc/clk*"
+        "*://*.linkedin.com/jobs/*",
+        "*://*.indeed.com/*",
+        "*://*.indeed.com/viewjob*"
       ],
-      "js": ["content/job_capture.js"],
-      "css": ["content/job_capture.css"]
-    },
-    {
-      "matches": ["https://www.linkedin.com/*"],
-      "js": ["content/dom_fallback.js"]
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
     }
   ]
 }

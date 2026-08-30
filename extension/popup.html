@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Job Finder</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h1>Job Finder</h1>
+    <button id="settingsBtn" title="Settings">⚙️</button>
+  </header>
+
+  <div id="connectionBanner" class="banner hidden"></div>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="jobs">Jobs</button>
+    <button class="tab" data-tab="outreach">Outreach</button>
+    <button class="tab" data-tab="search">Search</button>
+  </nav>
+
+  <main>
+    <section id="tab-overview" class="tab-panel active">
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat"><span class="stat-value">–</span><span class="stat-label">Jobs</span></div>
+        <div class="stat"><span class="stat-value">–</span><span class="stat-label">Contacts</span></div>
+        <div class="stat"><span class="stat-value">–</span><span class="stat-label">Applications</span></div>
+        <div class="stat"><span class="stat-value">–</span><span class="stat-label">Emails sent</span></div>
+      </div>
+      <div class="success-rate">
+        <span>Outreach success rate</span>
+        <strong id="successRate">–</strong>
+      </div>
+      <button id="refreshStats" class="secondary full">Refresh</button>
+    </section>
+
+    <section id="tab-jobs" class="tab-panel">
+      <div id="jobsList" class="list">Loading…</div>
+      <div class="pager">
+        <button id="jobsPrev" class="secondary">◀ Prev</button>
+        <span id="jobsPageLabel">Page 1</span>
+        <button id="jobsNext" class="secondary">Next ▶</button>
+      </div>
+    </section>
+
+    <section id="tab-outreach" class="tab-panel">
+      <div class="row-inline">
+        <label for="minScore">Min match score</label>
+        <input type="number" id="minScore" min="0" max="100" value="50" />
+      </div>
+      <div id="pendingList" class="list">Loading…</div>
+    </section>
+
+    <section id="tab-search" class="tab-panel">
+      <label for="searchQuery">Search query</label>
+      <input type="text" id="searchQuery" placeholder="e.g. senior backend engineer" />
+      <label for="searchMinScore">Min match score</label>
+      <input type="number" id="searchMinScore" min="0" max="100" value="50" />
+      <button id="runQueryBtn" class="primary full">Fetch &amp; score jobs</button>
+      <p class="hint">This runs your backend's full pipeline — fetching from job boards, scoring against your resume, and generating tailored resumes/cover letters. It can take a minute or two.</p>
+      <div id="searchStatus" class="status"></div>
+    </section>
+  </main>
+
+  <div id="outreachConfirm" class="modal hidden">
+    <div class="modal-box">
+      <h2>Send outreach email?</h2>
+      <p id="outreachConfirmText"></p>
+      <div class="row">
+        <button id="outreachCancel" class="secondary full">Cancel</button>
+        <button id="outreachConfirmBtn" class="danger full">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

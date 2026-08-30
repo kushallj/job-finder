@@ -1,0 +1,40 @@
+--- repo/src/api_models.py	2026-08-20 00:00:18.696292782 +0000
++++ patched/api_models.py	2026-08-20 00:01:46.298341235 +0000
+@@ -444,6 +444,37 @@
+     pages: int = Field(..., ge=0, description="Total pages")
+ 
+ 
++class JobCaptureRequest(BaseModel):
++    """
++    Request model for saving a single job posting captured from the
++    browser extension's content script (e.g. a LinkedIn/Indeed job page
++    the user is currently viewing).
++    """
++    model_config = ConfigDict(str_strip_whitespace=True)
++
++    title: str = Field(..., min_length=1, max_length=500, description="Job title")
++    company: str = Field(default="", max_length=500, description="Company name")
++    location: Optional[str] = Field(default=None, max_length=500, description="Job location")
++    description: str = Field(default="", max_length=20000, description="Job description text")
++    url: str = Field(..., min_length=1, max_length=2000, description="Job posting URL")
++    source: str = Field(default="extension", max_length=100, description="Capture source")
++    score: bool = Field(
++        default=False,
++        description="If true, score this job against the configured resume using the AI pipeline",
++    )
++
++
++class JobCaptureResponse(BaseModel):
++    """Response model for a captured job, optionally including a match score."""
++    status: str = Field(..., description="Request status")
++    job: JobData = Field(..., description="The saved (or pre-existing) job")
++    already_existed: bool = Field(default=False, description="True if this URL was already saved")
++    match_score: Optional[float] = Field(default=None, description="AI match score (0-100), if scored")
++    matched_skills: Optional[List[str]] = Field(default=None, description="Skills the resume covers")
++    missing_skills: Optional[List[str]] = Field(default=None, description="Skills the resume is missing")
++    score_error: Optional[str] = Field(default=None, description="Set if scoring was requested but failed")
++
++
+ class JobsResponse(BaseModel):
+     """Response model for jobs list"""
+     status: str = Field(..., description="Request status")

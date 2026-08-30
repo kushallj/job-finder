@@ -1,0 +1,8 @@
+/* All widget styling lives inside the shadow root created in content.js
+   so it can't be overridden by the host page's CSS. This file is kept
+   only because manifest content_scripts requires a valid css entry for
+   sites that block inline <style> injection via CSP; it intentionally
+   contains no rules that touch the host page's DOM. */
+#jf-companion-host {
+  all: initial;
+}

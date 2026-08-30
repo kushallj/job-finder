@@ -1,0 +1,137 @@
+* { box-sizing: border-box; }
+body {
+  width: 360px;
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #1a1a1a;
+  background: #f7f7f9;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: #14213d;
+  color: #fff;
+}
+header h1 { font-size: 15px; margin: 0; }
+header button {
+  background: none; border: none; color: #fff; cursor: pointer; font-size: 14px;
+}
+
+.banner {
+  padding: 8px 14px;
+  font-size: 12px;
+  background: #fef3c7;
+  color: #92400e;
+  border-bottom: 1px solid #fde68a;
+}
+.banner.hidden { display: none; }
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #e5e5e5;
+  background: #fff;
+}
+.tab {
+  flex: 1;
+  padding: 9px 0;
+  border: none;
+  background: none;
+  font-size: 12px;
+  cursor: pointer;
+  color: #666;
+  border-bottom: 2px solid transparent;
+}
+.tab.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+
+main { padding: 12px 14px; max-height: 420px; overflow-y: auto; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.stat {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+.stat-value { display: block; font-size: 18px; font-weight: 700; }
+.stat-label { display: block; font-size: 11px; color: #777; margin-top: 2px; }
+
+.success-rate {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+button.primary, button.secondary, button.danger {
+  border: none; border-radius: 8px; padding: 9px 12px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+button.primary { background: #2563eb; color: #fff; }
+button.primary:hover { background: #1d4ed8; }
+button.secondary { background: #eef0f3; color: #333; }
+button.secondary:hover { background: #e2e5ea; }
+button.danger { background: #dc2626; color: #fff; }
+button.danger:hover { background: #b91c1c; }
+button.full { width: 100%; margin-top: 10px; }
+
+label { display: block; font-size: 11px; color: #666; margin-top: 10px; }
+input[type="text"], input[type="number"] {
+  width: 100%; padding: 7px 9px; margin-top: 3px;
+  border: 1px solid #ddd; border-radius: 6px; font-size: 13px;
+}
+
+.hint { font-size: 11px; color: #888; margin-top: 8px; line-height: 1.4; }
+.status { font-size: 12px; margin-top: 8px; min-height: 16px; }
+.status.ok { color: #15803d; }
+.status.err { color: #b91c1c; }
+
+.list { display: flex; flex-direction: column; gap: 8px; }
+.card {
+  background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 10px;
+}
+.card .title { font-size: 13px; font-weight: 600; }
+.card .meta { font-size: 11px; color: #777; margin-top: 2px; }
+.card .score {
+  display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700;
+  padding: 2px 6px; border-radius: 4px; background: #eef2ff; color: #2563eb;
+}
+.card a { color: #2563eb; font-size: 11px; text-decoration: none; }
+.card .row-actions { display: flex; gap: 6px; margin-top: 8px; }
+.card .row-actions button { flex: 1; padding: 6px 8px; font-size: 11px; }
+.empty { text-align: center; color: #999; font-size: 12px; padding: 20px 0; }
+
+.pager {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 10px; font-size: 12px; color: #666;
+}
+
+.row-inline { display: flex; align-items: center; gap: 8px; }
+.row-inline label { margin-top: 0; white-space: nowrap; }
+.row-inline input { margin-top: 0; }
+
+.modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.4);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal.hidden { display: none; }
+.modal-box {
+  background: #fff; border-radius: 10px; padding: 16px; width: 300px;
+}
+.modal-box h2 { font-size: 14px; margin: 0 0 8px; }
+.modal-box p { font-size: 12px; color: #555; }
+.modal-box .row { display: flex; gap: 8px; margin-top: 10px; }
+.modal-box .row button { flex: 1; margin-top: 0; }
