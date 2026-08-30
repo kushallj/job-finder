@@ -35,9 +35,10 @@ from src.async_pipeline.types import (
     ProcessingResult,
     WorkerPoolStats,
 )
+from src.async_pipeline import get_logger
 from src.async_pipeline.worker_pool import AsyncWorkerPool
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AsyncJobPipeline:
