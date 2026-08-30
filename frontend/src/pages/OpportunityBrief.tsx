@@ -63,7 +63,9 @@ import {
   RecordVoiceOver as InterviewIcon,
   CameraAlt as InstagramIcon,
   Build as BuildIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material';
+
 
 import { opportunitiesApi } from '../api/endpoints/opportunities';
 import { lifecycleApi } from '../api/endpoints/lifecycle';
@@ -214,18 +216,80 @@ const OpportunityBrief: React.FC = () => {
     }
   };
 
+  const handleDownloadTxt = () => {
+    if (!resumeDoc) return;
+    const filename = `${brief?.job.company || 'Company'}_${activeDocType === 'ats_resume' ? 'ATS_Resume' : 'Cover_Letter'}.txt`.replace(/\s+/g, '_');
+    const blob = new Blob([resumeDoc.plain_text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setToast(`Downloaded ${filename} successfully!`);
+  };
+
+  const handleDownloadHtml = () => {
+    if (!resumeDoc) return;
+    const filename = `${brief?.job.company || 'Company'}_${activeDocType === 'ats_resume' ? 'ATS_Resume' : 'Cover_Letter'}.html`.replace(/\s+/g, '_');
+    const blob = new Blob([resumeDoc.html_content], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setToast(`Downloaded ${filename} successfully!`);
+  };
+
+  const handleCopyPlainText = () => {
+    if (!resumeDoc) return;
+    navigator.clipboard.writeText(resumeDoc.plain_text);
+    setToast('Copied plain text document to clipboard! ✓');
+  };
+
   const handlePrintResume = () => {
     if (!resumeDoc) return;
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(resumeDoc.html_content);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-      }, 300);
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        doc.write(resumeDoc.html_content);
+        doc.close();
+        iframe.contentWindow?.focus();
+        setTimeout(() => {
+          iframe.contentWindow?.print();
+          setTimeout(() => {
+            if (document.body.contains(iframe)) document.body.removeChild(iframe);
+          }, 2000);
+        }, 200);
+        return;
+      }
+    } catch {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(resumeDoc.html_content);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+        }, 300);
+      }
     }
   };
+
 
 
   const refresh = async () => {
@@ -1669,21 +1733,55 @@ const OpportunityBrief: React.FC = () => {
               Cover Letter
             </Button>
           </Stack>
-          <Stack direction="row" spacing={1}>
-            <Button onClick={() => setResumeModalOpen(false)}>Close</Button>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<CopyIcon />}
+              onClick={handleCopyPlainText}
+              disabled={!resumeDoc || resumeLoading}
+              sx={{ fontWeight: 700 }}
+            >
+              Copy Text
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              color="secondary"
+              startIcon={<DownloadIcon />}
+              onClick={handleDownloadTxt}
+              disabled={!resumeDoc || resumeLoading}
+              sx={{ fontWeight: 700 }}
+            >
+              Download .TXT
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              color="info"
+              startIcon={<DownloadIcon />}
+              onClick={handleDownloadHtml}
+              disabled={!resumeDoc || resumeLoading}
+              sx={{ fontWeight: 700 }}
+            >
+              Download .HTML
+            </Button>
             <Button
               variant="contained"
+              size="small"
               color="primary"
               startIcon={<PrintIcon />}
               onClick={handlePrintResume}
               disabled={!resumeDoc || resumeLoading}
               sx={{ fontWeight: 700 }}
             >
-              Print / Save as PDF
+              Print / PDF
             </Button>
+            <Button size="small" onClick={() => setResumeModalOpen(false)}>Close</Button>
           </Stack>
         </DialogActions>
       </Dialog>
+
 
       {/* Hiregram Voice AI Mock Interview Simulation Dialog */}
       <Dialog
