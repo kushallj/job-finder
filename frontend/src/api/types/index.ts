@@ -57,7 +57,7 @@ export interface Contact {
   company: string;
   department: string | null;
   confidence_score: number;
-  source: 'linkedin' | 'website' | 'generated' | null;
+  source: 'linkedin' | 'website' | 'generated' | 'linkedin_referral' | string | null;
   found_at: string;
 }
 
@@ -131,6 +131,7 @@ export interface OutreachResponse {
   contact_email: string;
   email_sent: boolean;
   outreach_id: number;
+  message?: string;
 }
 
 export interface FollowUpRequest {
@@ -325,4 +326,79 @@ export interface MarketIntelligenceResponse {
   error?: string | null;
   data?: Record<string, any>;
 }
+
+export interface JobCaptureRequest {
+  title: string;
+  company?: string;
+  location?: string;
+  description?: string;
+  url: string;
+  source?: string;
+  score?: boolean;
+}
+
+export interface JobCaptureResponse {
+  status: string;
+  job: Job;
+  already_existed: boolean;
+  match_score?: number | null;
+  matched_skills?: string[] | null;
+  missing_skills?: string[] | null;
+  score_error?: string | null;
+}
+
+export interface ReferralProfile {
+  full_name: string;
+  first_name?: string;
+  last_name?: string;
+  headline?: string;
+  company?: string;
+  title?: string;
+  location?: string;
+  linkedin_url?: string;
+  mutual_connections?: number;
+  source?: string;
+}
+
+export interface ReferralSearchResponse {
+  status: string;
+  company: string;
+  source: string;
+  count: number;
+  profiles: ReferralProfile[];
+}
+
+export interface ReferralNoteGenerateRequest {
+  full_name: string;
+  company: string;
+  first_name?: string;
+  title?: string;
+  headline?: string;
+  job_title?: string;
+  job_link?: string;
+  short_bio?: string;
+  highlight?: string;
+  reason?: string;
+  sender_name?: string;
+  max_length?: number;
+}
+
+export interface ReferralNoteGenerateResponse {
+  status: string;
+  connection_note: string;
+  full_letter: string;
+  char_count: number;
+  is_under_limit: boolean;
+}
+
+export interface ReferralActionLogRequest {
+  contact_name: string;
+  company: string;
+  action_type: 'connection_sent' | 'message_sent' | 'replied';
+  linkedin_url?: string;
+  contact_email?: string;
+  message_body?: string;
+  job_id?: number;
+}
+
 

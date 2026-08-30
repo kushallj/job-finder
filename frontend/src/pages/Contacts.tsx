@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Card,
@@ -9,49 +9,45 @@ import {
   Chip,
   IconButton,
   CircularProgress,
+  Alert,
   InputAdornment,
-  List,
-  ListItem,
-  ListItemText,
   Avatar,
-  Divider,
-  Pagination,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Stack,
+  Tooltip,
+  alpha,
+  LinearProgress,
 } from '@mui/material';
 import {
   Search as SearchIcon,
-  Business as CompanyIcon,
-  Email as EmailIcon,
-  Person as PersonIcon,
-  LinkedIn as LinkedInIcon,
   ContentCopy as CopyIcon,
   Check as CheckIcon,
+  Refresh as RefreshIcon,
+  People as ContactsIcon,
+  Send as SendIcon,
+  Business as CompanyIcon,
+  OpenInNew as OpenInNewIcon,
 } from '@mui/icons-material';
 import { useContacts } from '../hooks/useContacts';
-import { useFilterStore } from '../stores/useFilterStore';
-import { capitalizeFirst } from '../utils/formatters';
-import type { Contact } from '../api/types';
+import { useNavigate } from 'react-router-dom';
 
 export const Contacts: React.FC = () => {
-  const filterStore = useFilterStore();
-  const [copiedEmail, setCopiedEmail] = React.useState<string | null>(null);
-  
-  const filters = {
-    page: filterStore.contactsPage,
-    limit: filterStore.contactsLimit,
-    company: filterStore.contactCompanyFilter[0] ?? '',
-  };
-  
-  const { contacts, pagination, isLoading, refetch, search, isSearching } = useContacts(filters);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [companyFilter, setCompanyFilter] = useState('');
+  const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
+  const navigate = useNavigate();
 
-  React.useEffect(() => {
-    refetch();
-  }, [filterStore.contactsPage, filterStore.contactsLimit, filterStore.contactCompanyFilter, refetch]);
-
-  const handleSearch = () => {
-    if (filterStore.contactSearch.trim()) {
-      search({ company_name: filterStore.contactSearch.trim() });
-    }
-  };
+  const { contacts, isLoading, error, refetch } = useContacts({
+    page: 1,
+    limit: 100,
+    company: companyFilter || undefined,
+  });
 
   const handleCopyEmail = (email: string) => {
     navigator.clipboard.writeText(email);
@@ -59,229 +55,250 @@ export const Contacts: React.FC = () => {
     setTimeout(() => setCopiedEmail(null), 2000);
   };
 
-  const companies = [...new Set(contacts.map((c) => c.company))];
-
-  const filteredContacts = contacts.filter((contact) =>
-    contact.name.toLowerCase().includes(filterStore.contactSearch.toLowerCase()) ||
-    contact.company.toLowerCase().includes(filterStore.contactSearch.toLowerCase()) ||
-    contact.email?.toLowerCase().includes(filterStore.contactSearch.toLowerCase()) ||
-    filterStore.contactCompanyFilter.some((f) => contact.company.toLowerCase().includes(f.toLowerCase()))
+  const filteredContacts = (contacts || []).filter((contact) =>
+    contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (contact.email && contact.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (contact.company && contact.company.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (contact.title && contact.title.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const groupedContacts = filteredContacts.reduce((acc: Record<string, Contact[]>, contact) => {
-    const company = contact.company || 'Unknown';
-    if (!acc[company]) {
-      acc[company] = [];
-    }
-    acc[company].push(contact);
-    return acc;
-  }, {} as Record<string, Contact[]>);
-
   return (
-    <Box>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
-          Contacts
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Manage your professional contacts and network
-        </Typography>
+    <Box sx={{ maxWidth: 1400, mx: 'auto' }}>
+      {/* Header Section */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+        <Box>
+          <Typography variant="h4" sx={{ fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', mb: 0.5 }}>
+            Decision-Maker & Contact CRM
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Discovered recruiters, engineering managers, and LinkedIn employee referrals linked to target opportunities.
+          </Typography>
+        </Box>
+
+        <Button
+          variant="outlined"
+          onClick={() => refetch()}
+          disabled={isLoading}
+          startIcon={isLoading ? <CircularProgress size={16} /> : <RefreshIcon />}
+        >
+          Refresh Contacts
+        </Button>
       </Box>
 
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'end' }}>
+      {/* Filter Card */}
+      <Card sx={{ mb: 3, border: '1px solid #E2E8F0' }}>
+        <CardContent sx={{ p: 2.5 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
-              placeholder="Search by name, company, or email..."
-              value={filterStore.contactSearch}
-              onChange={(e) => filterStore.setContactSearch(e.target.value)}
+              placeholder="Search by name, title, company, or email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               size="small"
-              sx={{ flex: 1, minWidth: 250 }}
+              fullWidth
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon color="action" />
+                    <SearchIcon sx={{ color: '#94A3B8' }} fontSize="small" />
                   </InputAdornment>
                 ),
               }}
             />
-            
-            <TextField
-              select
-              label="Filter by Company"
-              value={filterStore.contactCompanyFilter[0] || ''}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val) {
-                  filterStore.setContactCompanyFilter([val]);
-                } else {
-                  filterStore.setContactCompanyFilter([]);
-                }
-              }}
-              size="small"
-              sx={{ minWidth: 200 }}
-              SelectProps={{ native: true }}
-            >
-              <option value="">All Companies</option>
-              {companies.map((company: string) => (
-                <option key={company} value={company}>
-                  {company}
-                </option>
-              ))}
-            </TextField>
-
-            <Button
-              variant="contained"
-              onClick={handleSearch}
-              disabled={isSearching || !filterStore.contactSearch.trim()}
-            >
-              {isSearching ? <CircularProgress size={20} /> : 'Search Contacts'}
-            </Button>
-
-            <Button
-              variant="outlined"
-              onClick={() => refetch()}
-              disabled={isLoading}
-            >
-              Refresh
-            </Button>
-
-            <Button
-              variant="outlined"
-              onClick={() => filterStore.resetContactFilters()}
-            >
-              Reset Filters
-            </Button>
-          </Box>
+            {companyFilter && (
+              <Chip
+                label={`Company: ${companyFilter}`}
+                onDelete={() => setCompanyFilter('')}
+                color="primary"
+                sx={{ alignSelf: 'center' }}
+              />
+            )}
+          </Stack>
         </CardContent>
       </Card>
 
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          Error loading contacts: {String(error)}
+        </Alert>
+      )}
+
+      {/* Content */}
       {isLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 8 }}>
           <CircularProgress />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            Loading contact intelligence...
+          </Typography>
         </Box>
-      ) : contacts.length === 0 ? (
-        <Card>
-          <CardContent sx={{ textAlign: 'center', py: 6 }}>
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              No contacts found
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Run job search first to populate contacts
-            </Typography>
-          </CardContent>
+      ) : filteredContacts.length === 0 ? (
+        <Card sx={{ textAlign: 'center', py: 8 }}>
+          <Box
+            sx={{
+              width: 52,
+              height: 52,
+              borderRadius: '50%',
+              bgcolor: alpha('#4F46E5', 0.1),
+              color: '#4F46E5',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              mb: 2,
+            }}
+          >
+            <ContactsIcon />
+          </Box>
+          <Typography variant="h6" fontWeight={700} color="#0F172A" gutterBottom>
+            No contacts found
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 450, mx: 'auto', mb: 2 }}>
+            Contacts are automatically discovered when you run job queries, sync external listings, or run the LinkedIn Referral Automator.
+          </Typography>
+          <Button variant="contained" onClick={() => navigate('/')}>
+            Go to Command Center
+          </Button>
         </Card>
       ) : (
-        <>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6">
-              Showing {filteredContacts.length} of {pagination.total} contacts
-            </Typography>
-            <Pagination 
-              count={Math.ceil(pagination.total / filterStore.contactsLimit)} 
-              page={filterStore.contactsPage} 
-              onChange={(_, page) => filterStore.setContactsPage(page)} 
-              color="primary" 
-            />
-          </Box>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {Object.entries(groupedContacts).map(([company, companyContacts]) => (
-              <Card key={company}>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                    <CompanyIcon color="primary" />
-                    <Typography variant="h6" fontWeight={600}>
-                      {company}
-                    </Typography>
-                    <Chip label={`${companyContacts.length}`} size="small" color="primary" variant="outlined" />
-                  </Box>
-                  
-                  <Divider sx={{ mb: 2 }} />
-                  
-                  <List disablePadding>
-                    {companyContacts.map((contact, index) => (
-                      <React.Fragment key={contact.id}>
-                        <ListItem
+        <TableContainer component={Paper} sx={{ borderRadius: '16px', border: '1px solid #E2E8F0', mb: 3 }}>
+          <Table size="medium">
+            <TableHead sx={{ bgcolor: '#F8FAFC' }}>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700, color: '#475569' }}>Contact</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#475569' }}>Company</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#475569' }}>Email & Confidence</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#475569' }}>Discovery Source</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700, color: '#475569' }}>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredContacts.map((contact) => {
+                const initials = contact.name
+                  .split(' ')
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join('')
+                  .toUpperCase();
+                const score = contact.confidence_score || 75;
+                const isLinkedIn = contact.source === 'linkedin_referral' || !!contact.linkedin_url;
+
+                return (
+                  <TableRow key={contact.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                    <TableCell>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Avatar
                           sx={{
-                            px: 0,
-                            py: 2,
-                            '&:hover': { backgroundColor: 'action.hover' },
+                            bgcolor: isLinkedIn ? alpha('#0077B5', 0.1) : alpha('#4F46E5', 0.1),
+                            color: isLinkedIn ? '#0077B5' : '#4F46E5',
+                            fontWeight: 700,
+                            fontSize: '0.85rem',
                           }}
-                          secondaryAction={
-                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                              {contact.confidence_score > 0 && (
-                                <Chip
-                                  label={`${contact.confidence_score}%`}
-                                  size="small"
-                                  color={contact.confidence_score >= 80 ? 'success' : contact.confidence_score >= 60 ? 'warning' : 'default'}
-                                />
-                              )}
-                              {contact.email && (
-                                <IconButton
-                                  size="small"
-                                  onClick={() => contact.email && handleCopyEmail(contact.email)}
-                                  title="Copy email"
-                                >
-                                  {copiedEmail === contact.email ? (
-                                    <CheckIcon color="success" fontSize="small" />
-                                  ) : (
-                                    <CopyIcon fontSize="small" />
-                                  )}
-                                </IconButton>
-                              )}
-                            </Box>
-                          }
                         >
-                          <Avatar sx={{ mr: 2, bgcolor: 'primary.light' }}>
-                            <PersonIcon />
-                          </Avatar>
-                          <ListItemText
-                            primary={
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography variant="body1" fontWeight={500}>
-                                  {contact.name}
-                                </Typography>
-                                {contact.title && (
-                                  <Typography variant="body2" color="text.secondary">
-                                    - {contact.title}
-                                  </Typography>
+                          {initials || 'C'}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A' }}>
+                            {contact.name}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: '#64748B' }}>
+                            {contact.title || 'Engineering / Talent'}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        icon={<CompanyIcon fontSize="small" />}
+                        label={contact.company || 'Unknown'}
+                        size="small"
+                        sx={{ fontWeight: 600, bgcolor: '#F1F5F9' }}
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      {contact.email ? (
+                        <Stack spacing={0.5}>
+                          <Stack direction="row" spacing={0.5} alignItems="center">
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A' }}>
+                              {contact.email}
+                            </Typography>
+                            <Tooltip title={copiedEmail === contact.email ? 'Copied!' : 'Copy Email'}>
+                              <IconButton
+                                size="small"
+                                onClick={() => contact.email && handleCopyEmail(contact.email)}
+                              >
+                                {copiedEmail === contact.email ? (
+                                  <CheckIcon color="success" fontSize="small" />
+                                ) : (
+                                  <CopyIcon fontSize="small" />
                                 )}
-                              </Box>
-                            }
-                            secondary={
-                              <Box sx={{ display: 'flex', gap: 2, mt: 0.5, flexWrap: 'wrap' }}>
-                                {contact.email && (
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    <EmailIcon fontSize="small" color="action" />
-                                    <Typography variant="caption">{contact.email}</Typography>
-                                  </Box>
-                                )}
-                                {contact.linkedin_url && (
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    <LinkedInIcon fontSize="small" color="action" />
-                                    <Typography variant="caption">LinkedIn</Typography>
-                                  </Box>
-                                )}
-                                {contact.source && (
-                                  <Chip
-                                    label={capitalizeFirst(contact.source)}
-                                    size="small"
-                                    variant="outlined"
-                                  />
-                                )}
-                              </Box>
-                            }
-                          />
-                        </ListItem>
-                        {index < companyContacts.length - 1 && <Divider />}
-                      </React.Fragment>
-                    ))}
-                  </List>
-                </CardContent>
-              </Card>
-            ))}
-          </Box>
-        </>
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <LinearProgress
+                              variant="determinate"
+                              value={score}
+                              sx={{
+                                width: 70,
+                                height: 5,
+                                borderRadius: 3,
+                                bgcolor: '#E2E8F0',
+                                '& .MuiLinearProgress-bar': {
+                                  bgcolor: score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#64748B',
+                                },
+                              }}
+                            />
+                            <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600 }}>
+                              {score}% confidence
+                            </Typography>
+                          </Box>
+                        </Stack>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          Direct LinkedIn profile
+                        </Typography>
+                      )}
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        label={isLinkedIn ? 'LinkedIn Referral' : contact.source || 'Apollo / Hunter'}
+                        size="small"
+                        color={isLinkedIn ? 'info' : 'default'}
+                        variant={isLinkedIn ? 'filled' : 'outlined'}
+                        sx={{ fontSize: '0.72rem', fontWeight: 700 }}
+                      />
+                    </TableCell>
+
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        {contact.linkedin_url && (
+                          <Tooltip title="Open LinkedIn Profile">
+                            <IconButton
+                              size="small"
+                              onClick={() => window.open(contact.linkedin_url ?? undefined, '_blank')}
+                              sx={{ border: '1px solid #E2E8F0', borderRadius: '8px' }}
+                            >
+                              <OpenInNewIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        <Button
+                          variant="contained"
+                          size="small"
+                          startIcon={<SendIcon fontSize="small" />}
+                          onClick={() => navigate(`/outreach?email=${encodeURIComponent(contact.email || '')}&name=${encodeURIComponent(contact.name)}`)}
+                          sx={{ fontWeight: 700 }}
+                        >
+                          Outreach
+                        </Button>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
     </Box>
   );

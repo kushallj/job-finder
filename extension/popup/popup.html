@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>JobFinder & Referral Automator</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div>
+        <div class="brand-title">JobFinder AI</div>
+        <div class="brand-sub">LinkedIn Referral Automator</div>
+      </div>
+    </div>
+    <div id="backend-status-pill" class="status-pill status-checking">Checking Backend...</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      <span>Pipeline Targets</span>
+      <button id="sync-targets-btn" class="btn-sync">⚡ Sync Targets from JobFinder</button>
+    </div>
+    <div class="targets-summary" id="targets-summary">Loading active pipeline companies...</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Referral Outreach Actions</div>
+    <div class="actions-grid">
+      <button id="btn-run-all" class="btn btn-primary">🚀 Run All Stages</button>
+      <button id="btn-discover" class="btn btn-secondary">🔍 Discover Only</button>
+      <button id="btn-connect" class="btn btn-secondary">🤝 Connect Only</button>
+      <button id="btn-followup" class="btn btn-secondary">📬 Follow-up</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Connection Note (Max 200/300 chars)</div>
+    <textarea id="note-template" class="note-input" rows="3"></textarea>
+    <div class="char-count" id="char-counter">0 / 200 chars</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Live Log Stream</div>
+    <div id="log-box" class="log-box">Ready. Click a stage above to execute.</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

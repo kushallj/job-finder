@@ -5,5 +5,6 @@ export { statsApi } from './endpoints/stats';
 export { opportunitiesApi } from './endpoints/opportunities';
 export { lifecycleApi } from './endpoints/lifecycle';
 export { providersApi } from './endpoints/providers';
+export { referralsApi } from './endpoints/referrals';
 
 
