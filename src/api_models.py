@@ -1483,6 +1483,67 @@ class ResumeDocumentResponseSchema(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Community Intel & Interview Debrief Aggregator API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CommunityHarvestRequest(BaseModel):
+    """Request model to trigger community debrief harvesting for a company."""
+    company: str = Field(..., min_length=1)
+    role_category: Optional[str] = Field(default="Software Engineer")
+    force_refresh: bool = Field(default=False)
+
+
+class CommunityIntelResponse(BaseModel):
+    """Response model with interview rounds, question leaks, and source citations."""
+    status: str = Field(default="success")
+    company: str = Field(...)
+    role_category: str = Field(...)
+    total_sources_scanned: int = Field(...)
+    overall_sentiment: str = Field(...)
+    interview_debrief: Dict[str, Any] = Field(...)
+    sources: List[Dict[str, Any]] = Field(default_factory=list)
+    last_updated: str = Field(...)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AI OSINT Boolean Query Copilot API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CopilotChatRequest(BaseModel):
+    """Request model for conversational AI turn with Boolean query detection."""
+    message: str = Field(..., min_length=1)
+    session_id: Optional[str] = Field(default=None)
+    target_company: Optional[str] = Field(default=None)
+    role_title: Optional[str] = Field(default=None)
+
+
+class CopilotChatResponse(BaseModel):
+    """Response model with AI reply, targeted boolean dorks, and follow-ups."""
+    status: str = Field(default="success")
+    session_id: str = Field(...)
+    reply: str = Field(...)
+    dorks: List[Dict[str, Any]] = Field(default_factory=list)
+    suggested_followups: List[str] = Field(default_factory=list)
+    timestamp: str = Field(...)
+
+
+class CopilotDorksRequest(BaseModel):
+    """Request model for generating specific Google Boolean Dork queries."""
+    role_title: str = Field(..., min_length=1)
+    company: Optional[str] = Field(default=None)
+    intent: Optional[str] = Field(default="unindexed_jds")
+
+
+class CopilotDorksResponse(BaseModel):
+    """Response model with generated precision Boolean dorks."""
+    status: str = Field(default="success")
+    total_dorks: int = Field(...)
+    dorks: List[Dict[str, Any]] = Field(default_factory=list)
+    timestamp: str = Field(...)
+
+
+
 
 
 

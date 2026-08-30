@@ -70,7 +70,9 @@ import type { ResumeDocumentResponse } from '../api/endpoints/resume_generator';
 import { AttentionHeatmap } from '../components/attention/AttentionHeatmap';
 import { GhostBadge } from '../components/ghost_hunter/GhostBadge';
 import { SpamHeatmapSandbox } from '../components/deliverability/SpamHeatmapSandbox';
+import { CommunityIntelPanel } from '../components/community_intel/CommunityIntelPanel';
 import type { DiscoveredContactItem, SearchDorkItem, EmailPermutationItem } from '../api/endpoints/email_intelligence';
+
 import type { OpportunityBrief as OpportunityBriefData, ReferralProfile, XProfile, XTweet } from '../api/types';
 
 
@@ -953,8 +955,14 @@ const OpportunityBrief: React.FC = () => {
         </Grid>
       </Grid>
 
+      {/* Community Interview Debriefs & Insider Intelligence */}
+      <CommunityIntelPanel
+        company={brief.job.company || 'Target Company'}
+        roleTitle={brief.job.title || 'Software Engineer'}
+      />
 
       {/* Email Intelligence & Google Boolean Dorking Dialog */}
+
       <Dialog open={emailDialogOpen} onClose={() => setEmailDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ fontWeight: 800, color: '#0F172A' }}>
           Email Intelligence & Google Boolean Dorks — {brief.job.company}

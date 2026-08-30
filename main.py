@@ -161,6 +161,12 @@ from src.api_models import (
     ResumeGenerateRequestSchema,
     CoverLetterGenerateRequestSchema,
     ResumeDocumentResponseSchema,
+    CommunityHarvestRequest,
+    CommunityIntelResponse,
+    CopilotChatRequest,
+    CopilotChatResponse,
+    CopilotDorksRequest,
+    CopilotDorksResponse,
 )
 from src.referral import referral_service
 from src.x_referral import x_referral_service, x_oauth
@@ -176,6 +182,8 @@ from src.resume_generator import (
     ResumeGenerateRequest,
     CoverLetterGenerateRequest,
 )
+from src.community_intel import community_intel_service
+from src.copilot import copilot_service, ChatTurnRequest, DorkGenerateRequest
 from src.api_error_handlers import (
     register_error_handlers,
     APIError,
@@ -3854,11 +3862,129 @@ async def generate_tailored_cover_letter(request: CoverLetterGenerateRequestSche
         raise APIError(f"Cover letter generation failed: {str(exc)}")
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Community Intel & Interview Debrief Aggregator Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/community-intel/company/{company}", tags=["community-intel"], response_model=CommunityIntelResponse)
+async def get_company_community_intel(company: str, role: Optional[str] = "Software Engineer", force_refresh: bool = False, req: Request = None):
+    """Retrieves aggregated interview experiences, question leaks, and source citations from Reddit, HN, Medium, Substack, and YouTube."""
+    try:
+        result = await community_intel_service.get_company_intel(company=company, role=role or "Software Engineer", force_refresh=force_refresh)
+        return CommunityIntelResponse(
+            status="success",
+            company=result.company,
+            role_category=result.role_category or "Software Engineering",
+            total_sources_scanned=result.total_sources_scanned,
+            overall_sentiment=result.overall_sentiment,
+            interview_debrief=result.interview_debrief.model_dump(),
+            sources=[s.model_dump() for s in result.sources],
+            last_updated=result.last_updated,
+        )
+    except Exception as exc:
+        log.error("Failed to fetch community intel for %s: %s", company, exc, exc_info=True)
+        raise APIError(f"Community intel fetch failed: {str(exc)}")
+
+
+@app.post("/api/community-intel/harvest", tags=["community-intel"], response_model=CommunityIntelResponse)
+async def harvest_company_community_intel(request: CommunityHarvestRequest, req: Request = None):
+    """Triggers an on-demand multi-channel intelligence harvest for a target company."""
+    try:
+        result = await community_intel_service.get_company_intel(
+            company=request.company,
+            role=request.role_category or "Software Engineer",
+            force_refresh=request.force_refresh,
+        )
+        return CommunityIntelResponse(
+            status="success",
+            company=result.company,
+            role_category=result.role_category or "Software Engineering",
+            total_sources_scanned=result.total_sources_scanned,
+            overall_sentiment=result.overall_sentiment,
+            interview_debrief=result.interview_debrief.model_dump(),
+            sources=[s.model_dump() for s in result.sources],
+            last_updated=result.last_updated,
+        )
+    except Exception as exc:
+        log.error("Failed to harvest community intel: %s", exc, exc_info=True)
+        raise APIError(f"Community harvest failed: {str(exc)}")
+
+
+@app.get("/api/jobs/{job_id}/community-intel", tags=["community-intel"], response_model=CommunityIntelResponse)
+async def get_job_community_intel(job_id: int, req: Request = None):
+    """Retrieves synthesized interview loops and community intel auto-mapped to a specific Job ID."""
+    try:
+        job = db.get_job(job_id)
+        company = (job.get("company") or "Target Company") if job else "Target Company"
+        title = (job.get("title") or "Software Engineer") if job else "Software Engineer"
+        result = await community_intel_service.get_company_intel(company=company, role=title)
+        return CommunityIntelResponse(
+            status="success",
+            company=result.company,
+            role_category=result.role_category or "Software Engineering",
+            total_sources_scanned=result.total_sources_scanned,
+            overall_sentiment=result.overall_sentiment,
+            interview_debrief=result.interview_debrief.model_dump(),
+            sources=[s.model_dump() for s in result.sources],
+            last_updated=result.last_updated,
+        )
+    except Exception as exc:
+        log.error("Failed to get community intel for job %s: %s", job_id, exc, exc_info=True)
+        raise APIError(f"Job community intel failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AI OSINT Boolean Query Copilot Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/copilot/starters", tags=["copilot"])
+async def get_copilot_prompt_starters(req: Request = None):
+    """Returns curated starter prompts for discovering unindexed JDs, hiring managers, and salary spreadsheets."""
+    return {"status": "success", "starters": copilot_service.get_starters()}
+
+
+@app.post("/api/copilot/chat", tags=["copilot"], response_model=CopilotChatResponse)
+async def copilot_chat_turn(request: CopilotChatRequest, req: Request = None):
+    """Executes a multi-turn conversational turn with automated Boolean query synthesis and repository intelligence."""
+    try:
+        req_obj = ChatTurnRequest(**request.model_dump())
+        result = await copilot_service.chat(req_obj)
+        return CopilotChatResponse(
+            status="success",
+            session_id=result.session_id,
+            reply=result.reply,
+            dorks=[d.model_dump() for d in result.dorks],
+            suggested_followups=result.suggested_followups,
+            timestamp=result.timestamp,
+        )
+    except Exception as exc:
+        log.error("Copilot chat failed: %s", exc, exc_info=True)
+        raise APIError(f"Copilot chat failed: {str(exc)}")
+
+
+@app.post("/api/copilot/generate-dorks", tags=["copilot"], response_model=CopilotDorksResponse)
+async def generate_osint_dorks(request: CopilotDorksRequest, req: Request = None):
+    """Generates targeted Google Boolean Dork queries for a specific role and company."""
+    try:
+        req_obj = DorkGenerateRequest(**request.model_dump())
+        result = copilot_service.generate_dorks(req_obj)
+        return CopilotDorksResponse(
+            status="success",
+            total_dorks=result.total_dorks,
+            dorks=[d.model_dump() for d in result.dorks],
+            timestamp=result.timestamp,
+        )
+    except Exception as exc:
+        log.error("Dork generation failed: %s", exc, exc_info=True)
+        raise APIError(f"Dork generation failed: {str(exc)}")
+
+
 # =============================================================================
 # Dev entry point
 # =============================================================================
 
 if __name__ == "__main__":
     import uvicorn
+
 
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

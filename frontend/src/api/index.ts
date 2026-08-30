@@ -16,6 +16,8 @@ export { voiceInterviewerApi } from './endpoints/voice_interviewer';
 export { notificationsApi } from './endpoints/notifications';
 export { compSimulatorApi } from './endpoints/comp_simulator';
 export { resumeGeneratorApi } from './endpoints/resume_generator';
+export { communityIntelApi } from './endpoints/community_intel';
+export { copilotApi } from './endpoints/copilot';
 
 
 
