@@ -1,4 +1,4 @@
-# The Nine Agent Strategies
+# The Fifteen Agent Strategies
 
 This document explains the *why* behind each agent in `src/agents/`. It's the
 companion to `config/target_companies.yml` (the researched company list,
@@ -184,6 +184,65 @@ automated posting/engagement outside their official partner APIs, and
 account-level automation risks a ban. You copy-paste and post it yourself,
 same review gate as every outreach email in this system.
 
+## 13. Pitcher — `agent_13_pitcher.py`
+
+**Problem it solves:** matches the NxtJob.ai "Pitcher" agent's WIN
+framework (Well-researched problem, Insightful solution, Narrative) — a
+formal one-pager for a leave-behind after a first call, or as prep material
+directly before an interview.
+
+**What it does:** does not generate a new pitch from scratch — it composes
+one from material this repo already produces for real, evidenced reasons.
+**W** comes from `agent_10_challenge_solver.py`'s `identified_challenge` +
+`evidence`. **I** comes from Agent 10's `matched_proof_points`, falling
+back to `agent_04_resume_tailor.py`'s ordered bullets for the same
+company/JD if no challenge was found. **N** ties the two together using
+`config/profile.yml`'s `narrative.one_liner` and `positioning.headline`.
+If no JD is supplied, it still produces a pitch from your general
+positioning, but flags a warning that it's generic rather than
+evidence-backed — never silently pretends it found a company-specific
+problem when it didn't.
+
+## 14. Interviewer — `agent_14_interviewer.py`
+
+**Problem it solves:** matches NxtJob.ai's "Interviewer" agent — structured
+mock interviews with STAR-format feedback, rather than a static prep
+document you read once.
+
+**What it does:** two stateless operations so it works cleanly behind a
+plain HTTP API with no server-side session storage (the frontend holds the
+running Q&A array). `generate_questions()` builds a tailored set: one
+company-specific question straight from Agent 10's challenge-finding logic
+(only if you supply real JD text), a handful of technical/system-design
+questions mapped from the company's industry via the same
+`_FOCUS_HEURISTICS` table `agent_08_interview_prepper.py` uses, and
+behavioral questions to round it out. `score_answer()` runs a deterministic
+STAR-structure check (does the answer show a Situation, Task, Action,
+Result shape via regex pattern-matching?) plus a specificity heuristic
+(numbers present? reasonable length?), then optionally asks
+`UnifiedAIService` to turn that into 2-3 sentences of qualitative feedback
+— falling back to the deterministic rubric if no AI provider is available,
+so this never returns nothing.
+
+## 15. Negotiator — `agent_15_negotiator.py`
+
+**Problem it solves:** matches NxtJob.ai's "Negotiator" agent — comp-band
+benchmarking and a rehearsed counter-offer script, the one part of the job
+search this repo had zero coverage of before.
+
+**What it does:** uses ONLY numbers already in config — the per-company
+`comp_benchmark_inr_lpa` band in `config/target_companies.yml` and your
+own target range in `config/profile.yml`'s `compensation` block — never
+invents a market number. `benchmark()` compares a company's known band
+against your target and suggests an anchor (never below your floor, never
+above the company's known max). `counter_script()` takes an actual offer
+number, works out where it lands in the band, and drafts a short counter
+anchored to one of your real proof points. If a company has no comp
+benchmark on file, it says so explicitly and falls back to a clearly-labeled
+generic +12% heuristic rather than pretending it has market data it doesn't
+— add a sourced benchmark to `target_companies.yml` for a stronger
+negotiating position.
+
 ---
 
 ## Running it
@@ -212,7 +271,23 @@ python -m src.agents.orchestrator --stage leads --categories funding ats yc
 # Find a real evidenced challenge at a company + draft LinkedIn/X content
 # from it (never auto-posts — copy-paste only)
 python -m src.agents.orchestrator --stage networker --company Perfios --jd "<paste JD text>"
+
+# Build a WIN (Well-researched problem / Insightful solution / Narrative)
+# one-pager from the same evidenced-challenge logic as --stage networker
+python -m src.agents.orchestrator --stage pitch --company Perfios --jd "<paste JD text>"
+
+# Generate mock-interview questions tailored to the company/industry
+python -m src.agents.orchestrator --stage interview-questions --company Perfios --num-questions 5
+
+# Comp benchmarking and a counter-offer script from real numbers only
+python -m src.agents.orchestrator --stage negotiate-benchmark --company Perfios
+python -m src.agents.orchestrator --stage negotiate-counter --company Perfios --offer 14.0
 ```
+
+All 15 agents are also exposed over HTTP via `src/api/routers/agents_router.py`
+(mounted at `/api/agents/*` in `main.py`, delegating to
+`src/services/agents_service.py`) so the React dashboard can drive them —
+see the route list in that router file for the full set.
 
 Every agent is also runnable standalone for debugging:
 `python -m src.agents.agent_0N_whatever`.
@@ -221,7 +296,11 @@ Every agent is also runnable standalone for debugging:
 
 - Does not auto-apply or auto-send email (same hard rule as `/nexus pipeline`).
 - Does not invent candidate metrics — everything traces back to
-  `data/resume.txt` / `config/profile.yml`.
+  `data/resume.txt` / `config/profile.yml`. This includes the profile
+  schema adapter in `src/agents/base.py` (`_normalize_profile`), which only
+  aggregates/transforms fields already present in `config/profile.yml` —
+  it never fills in a differentiator, proof point, or comp number that
+  isn't already written down somewhere in the file.
 - Does not scrape company signals live by default — `config/target_companies.yml`
   is the source of truth until you refresh it (manually, or via
   `/nexus deep <company>` + `SignalScoutAgent.ingest_signal()`).

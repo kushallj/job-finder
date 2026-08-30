@@ -1,0 +1,321 @@
+# config/boolean_queries.yml
+#
+# X-ray / boolean search queries for CRM-style lead sourcing. Executed via
+# src/agents/agent_11_query_hunter.py, which runs them through the Google
+# Custom Search JSON API or Serper.dev (both ToS-compliant, key-based) —
+# NEVER via raw scraping of Google's results page, which breaks Google's
+# ToS and gets IPs blocked quickly. Without an API key configured, the
+# agent just renders these for you to paste into Google manually.
+#
+# {role}, {location}, {company}, {stack} are substituted at runtime from
+# config/profile.yml target roles/locations and config/target_companies.yml
+# company names — see agent_11_query_hunter.py for the templating logic.
+#
+# Each query has a `purpose` explaining WHY this source/angle, because a
+# boolean query bank without rationale rots the first time your niche shifts.
+
+queries:
+
+  # ---------------------------------------------------------------------
+  # A. ATS platforms — direct job-posting X-ray (highest signal density,
+  #    freshest postings, avoids LinkedIn/Naukri repost noise)
+  # ---------------------------------------------------------------------
+  - id: ats_core_delhi
+    category: ats
+    query: >-
+      (site:myworkdayjobs.com OR site:greenhouse.io OR site:icims.com OR
+      site:taleo.net OR site:lever.co OR site:smartrecruiters.com OR
+      site:jobvite.com OR site:workforcenow.adp.com OR
+      site:successfactors.com OR site:brassring.com OR site:jazzhr.com OR
+      site:breezy.hr OR site:jobdiva.com OR site:bullhorn.com OR
+      site:bamboohr.com) ("Software Engineer") ("Delhi")
+    purpose: "Baseline ATS sweep for the exact role in the exact city — your original query, kept as the anchor."
+
+  - id: ats_backend_python_django
+    category: ats
+    query: >-
+      (site:greenhouse.io OR site:lever.co OR site:ashbyhq.com OR
+      site:smartrecruiters.com) ("Backend Engineer" OR "Backend Developer")
+      ("Django" OR "FastAPI" OR "Python") ("India" OR "Delhi" OR "Bangalore" OR "Pune")
+    purpose: "Filters for your actual stack (Python/Django-first per positioning) instead of generic 'Software Engineer'."
+
+  - id: ats_fullstack_react_django
+    category: ats
+    query: >-
+      (site:greenhouse.io OR site:lever.co OR site:ashbyhq.com)
+      ("Full Stack" OR "Full-Stack") ("React") ("Django" OR "FastAPI")
+      ("Series A" OR "Series B" OR "Series C") remote OR India
+    purpose: "Full-stack roles that name your exact frontend+backend combo AND mention funding stage in the same posting."
+
+  - id: ats_api_security_rbac
+    category: ats
+    query: >-
+      (site:greenhouse.io OR site:lever.co OR site:workday.com)
+      ("API security" OR "access control" OR "RBAC" OR "JWT")
+      ("Backend Engineer" OR "Platform Engineer") India
+    purpose: "Targets your specific differentiator (access-control hardening) — roles that explicitly call this out score higher fit."
+
+  - id: ats_credit_lending_engineer
+    category: ats
+    query: >-
+      (site:greenhouse.io OR site:lever.co OR site:smartrecruiters.com)
+      ("credit" OR "lending" OR "underwriting" OR "risk engine")
+      ("Software Engineer" OR "Backend Engineer") India
+    purpose: "Fintech-lending domain match — surfaces roles at companies doing exactly what Progfin did."
+
+  - id: ats_iot_solar_device
+    category: ats
+    query: >-
+      (site:greenhouse.io OR site:lever.co OR site:ashbyhq.com)
+      ("IoT" OR "device management" OR "MQTT" OR "solar") ("Software Engineer" OR "Backend Engineer")
+    purpose: "Industrial-IoT/cleantech domain match — mirrors GameChange Energy experience."
+
+  # ---------------------------------------------------------------------
+  # B. YC / startup directories — YC batches are a leading indicator:
+  #    freshly-funded YC companies hire fast and post on their own domains
+  #    or workatastartup.com before hitting mainstream job boards.
+  # ---------------------------------------------------------------------
+  - id: yc_workatastartup_backend
+    category: yc
+    query: >-
+      site:workatastartup.com ("Backend Engineer" OR "Full Stack Engineer")
+      ("Django" OR "Python" OR "FastAPI") (India OR remote)
+    purpose: "YC's own job board — postings here mean the company just raised/is actively scaling, by definition."
+
+  - id: yc_directory_india_fintech
+    category: yc
+    query: >-
+      site:ycombinator.com/companies "India" ("fintech" OR "lending" OR "credit")
+    purpose: "YC company directory filtered to India fintech — cross-reference against config/target_companies.yml to find overlaps not yet tracked."
+
+  - id: yc_directory_climate_iot
+    category: yc
+    query: >-
+      site:ycombinator.com/companies ("climate" OR "solar" OR "IoT" OR "industrial") India
+    purpose: "Same directory sweep for the cleantech/industrial-IoT side of the target niche."
+
+  - id: wellfound_backend_python
+    category: yc
+    query: >-
+      site:wellfound.com ("Backend Engineer" OR "Software Engineer") ("Python" OR "Django")
+      ("Delhi" OR "Bangalore" OR "Remote") ("Seed" OR "Series A" OR "Series B")
+    purpose: "Wellfound (AngelList Talent) surfaces stage explicitly in the listing — filters for exactly your target company_stage."
+
+  # ---------------------------------------------------------------------
+  # C. Funding-signal driven — the core insight from the labor-market
+  #    research: outreach timed to a funding event outperforms cold sends.
+  #    These queries find the funding announcement AND the hiring intent
+  #    in the same breath.
+  # ---------------------------------------------------------------------
+  - id: funding_techcrunch_series_india
+    category: funding
+    query: >-
+      site:techcrunch.com ("raises" OR "Series A" OR "Series B" OR "Series C")
+      ("India" OR "Delhi" OR "Bangalore") ("fintech" OR "lending" OR "cleantech" OR "solar" OR "IoT") 2026
+    purpose: "Freshest funding announcements in your exact two industries, current year — feeds directly into agent_01_signal_scout.py."
+
+  - id: funding_entrackr_inc42_hiring
+    category: funding
+    query: >-
+      (site:entrackr.com OR site:inc42.com OR site:startuptalky.com)
+      ("raises" OR "funding round") ("hiring" OR "expand team" OR "engineering team") India
+    purpose: "Indian startup press specifically ties funding to hiring intent — higher-precision than global press for this niche."
+
+  - id: funding_crunchbase_recent_rounds
+    category: funding
+    query: >-
+      site:crunchbase.com/organization ("India") ("fintech" OR "lending" OR "credit infrastructure")
+      "Series C" OR "Series D" OR "pre-IPO"
+    purpose: "Later-stage rounds correlate with platform-hardening hiring (security, compliance, scale) — your differentiator zone."
+
+  - id: funding_tracxn_sector_reports
+    category: funding
+    query: >-
+      site:tracxn.com ("renewable energy tech" OR "climate tech" OR "industrial IoT") India funding report 2026
+    purpose: "Sector-level funding reports (used in the original labor-market research) — refresh these quarterly to catch new entrants."
+
+  - id: funding_ipo_drhp_filings
+    category: funding
+    query: >-
+      ("files DRHP" OR "files for IPO" OR "draft red herring prospectus") India fintech OR lending 2026
+    purpose: "IPO-track companies (Fibe/Moneyview/KreditBee/Kissht pattern) — pre-IPO platform hardening = hiring window."
+
+  # ---------------------------------------------------------------------
+  # D. Engineering blogs, Medium, Substack — companies that write publicly
+  #    about their stack/challenges are both (a) identifiable by tech
+  #    stack match and (b) a direct source for agent_10_challenge_solver.py
+  # ---------------------------------------------------------------------
+  - id: medium_engineering_django_hiring
+    category: content
+    query: >-
+      site:medium.com ("engineering blog" OR "tech blog") ("Django" OR "FastAPI")
+      ("we're hiring" OR "join our team" OR "join us") India
+    purpose: "Medium engineering posts naming your stack + hiring intent in the same post — near-perfect fit signal."
+
+  - id: substack_indian_fintech_hiring
+    category: content
+    query: >-
+      site:substack.com ("Indian fintech" OR "India lending") ("hiring" OR "funding round" OR "raises")
+    purpose: "Mirrors the IndiaFintech Substack source already used in the labor-market research — check for newer posts each run."
+
+  - id: medium_pain_points_scaling
+    category: content
+    query: >-
+      site:medium.com ("scaling our microservices" OR "API reliability" OR "technical debt")
+      ("fintech" OR "lending" OR "IoT") India
+    purpose: "Feeds agent_10_challenge_solver.py directly — a public post describing a real scaling pain point is stronger evidence than a JD line."
+
+  - id: engineering_blog_general_stack
+    category: content
+    query: >-
+      inurl:blog OR inurl:engineering ("Django REST Framework" OR "FastAPI") ("PostgreSQL")
+      ("fintech" OR "solar" OR "IoT") -site:medium.com
+    purpose: "Catches company-hosted engineering blogs (not on Medium/Substack) that Google still indexes — often missed by generic sweeps."
+
+  # ---------------------------------------------------------------------
+  # E. GitHub — public repos are a direct tech-stack fingerprint and
+  #    sometimes literally contain "we're hiring" in the README.
+  # ---------------------------------------------------------------------
+  - id: github_readme_hiring_django
+    category: github
+    query: >-
+      site:github.com ("we're hiring" OR "join our team") ("Django" OR "FastAPI") India
+    purpose: "Startups often drop a hiring CTA in their public repo README — a very low-competition channel most candidates never check."
+
+  - id: github_topics_fintech_india
+    category: github
+    query: >-
+      site:github.com/topics ("fintech-india" OR "lending-platform" OR "credit-scoring")
+    purpose: "GitHub topic pages aggregate active open-source projects in your exact domain — good for both leads and portfolio-relevant OSS contribution targets."
+
+  - id: github_orgs_yc_batch
+    category: github
+    query: >-
+      site:github.com "org:" ("YC W26" OR "YC S25" OR "Y Combinator") fintech OR climate India
+    purpose: "Cross-references YC batch companies with an active GitHub org — signals real engineering (not just a landing page)."
+
+  # ---------------------------------------------------------------------
+  # F. YouTube — engineering talks/podcasts are a strong "team exists and
+  #    is technically serious" signal, and often reveal team size/tech
+  #    stack details that never make it into a job posting.
+  # ---------------------------------------------------------------------
+  - id: youtube_engineering_talks
+    category: video
+    query: >-
+      site:youtube.com ("engineering team" OR "tech talk" OR "architecture") ("Django" OR "microservices")
+      ("fintech" OR "lending" OR "solar") India 2025 OR 2026
+    purpose: "Companies presenting at conferences/meetups are usually scaling their engineering org — cross-check speaker's company against target list."
+
+  - id: youtube_founder_funding_interview
+    category: video
+    query: >-
+      site:youtube.com ("raised" OR "Series C" OR "Series B") founder interview India fintech OR cleantech 2026
+    purpose: "Founder interviews post-funding often state hiring plans explicitly ('we're doubling engineering this year') that don't appear in press releases."
+
+  - id: youtube_podcast_indian_startups
+    category: video
+    query: >-
+      site:youtube.com ("The Neon Show" OR "Founder Thesis" OR "IVM Podcasts") fintech OR lending OR solar hiring
+    purpose: "Named Indian startup podcasts frequently interview founders right after funding rounds — direct source for fresh signals."
+
+  # ---------------------------------------------------------------------
+  # G. X / Twitter — search-only (no scraping, no automation). Use these
+  #    as web-search queries, not as an excuse to script X's site directly.
+  # ---------------------------------------------------------------------
+  - id: x_hiring_thread_backend
+    category: social_search
+    query: >-
+      site:x.com OR site:twitter.com ("hiring" OR "we're hiring") ("Backend Engineer" OR "Full Stack")
+      ("Delhi" OR "Bangalore" OR "India") ("Django" OR "Python")
+    purpose: "Founders/CTOs often tweet hiring threads before the ATS posting goes live — genuinely early signal, search-only (see caution below)."
+    caution: "Search-engine indexed results only. Do not attempt to scrape x.com directly or automate posting — against ToS and outside this repo's scope."
+
+  - id: x_funding_announcement_founder
+    category: social_search
+    query: >-
+      site:x.com OR site:twitter.com ("closed our Series" OR "raised $") India fintech OR cleantech OR IoT
+    purpose: "Founders frequently announce funding on X before/alongside press coverage — often the freshest possible signal."
+    caution: "Same as above — search only."
+
+  # ---------------------------------------------------------------------
+  # H. LinkedIn — search-only via Google indexing of public posts. Do NOT
+  #    scrape linkedin.com directly (explicit ToS violation, active
+  #    detection/ban risk). This finds public company/founder posts that
+  #    Google has already indexed, same as any other web search.
+  # ---------------------------------------------------------------------
+  - id: linkedin_posts_hiring_public
+    category: social_search
+    query: >-
+      site:linkedin.com/posts ("hiring" OR "join our team") ("Backend Engineer" OR "Full Stack Engineer")
+      ("Django" OR "FastAPI") India
+    purpose: "Public LinkedIn posts indexed by Google — company pages often post hiring updates here before the ATS listing is live."
+    caution: "Search-engine indexed public posts only. Never log in and scrape LinkedIn directly, and never automate connection requests/messages — both break LinkedIn's ToS and risk account suspension."
+
+  - id: linkedin_company_updates_funding
+    category: social_search
+    query: >-
+      site:linkedin.com/company ("Series C" OR "Series D" OR "raised") India fintech OR lending OR cleantech
+    purpose: "Company LinkedIn pages post funding milestones — cross-reference against config/target_companies.yml to catch anything missed."
+    caution: "Search-only, same constraint as above."
+
+  # ---------------------------------------------------------------------
+  # I. India-specific job boards — Naukri/Instahyre/Cutshort are where a
+  #    large share of Indian startup postings actually live, alongside
+  #    (not instead of) the global ATS platforms above.
+  # ---------------------------------------------------------------------
+  - id: india_boards_naukri_instahyre_cutshort
+    category: india_boards
+    query: >-
+      (site:naukri.com OR site:instahyre.com OR site:cutshort.io)
+      ("Backend Developer" OR "Full Stack Developer") ("Django" OR "Python") ("Delhi NCR" OR "Gurugram" OR "Noida")
+    purpose: "India-specific boards with strong Delhi-NCR density — complements the global ATS sweep."
+
+  - id: india_boards_hirist_updazz
+    category: india_boards
+    query: >-
+      (site:hirist.com OR site:updazz.com) ("Python" OR "Django") ("fintech" OR "lending") India
+    purpose: "Secondary India-tech boards, lower volume but less competition than Naukri."
+
+  # ---------------------------------------------------------------------
+  # J. Generic company career-page sweep — catches companies too small or
+  #    too new to be on a named ATS yet (common for seed-stage startups).
+  # ---------------------------------------------------------------------
+  - id: careers_page_generic_sweep
+    category: careers_page
+    query: >-
+      (inurl:careers OR inurl:jobs) ("Backend Engineer" OR "Full Stack Engineer")
+      ("Django" OR "FastAPI") ("India" OR "Delhi") -site:linkedin.com -site:naukri.com -site:indeed.com
+    purpose: "Catches self-hosted careers pages not on any named ATS — the exclusions filter out noise from the boards already covered above."
+
+  - id: careers_page_series_stage
+    category: careers_page
+    query: >-
+      inurl:careers ("recently raised" OR "backed by") ("Sequoia" OR "Lightspeed" OR "Accel" OR "Tiger Global")
+      ("engineer" OR "developer") India
+    purpose: "Named-investor filter is a fast proxy for company stage without needing a funding database lookup."
+
+  # ---------------------------------------------------------------------
+  # K. Compound/negative-filtered queries — precision passes, run these
+  #    LAST once the broad sweeps above have been reviewed, to cut noise.
+  # ---------------------------------------------------------------------
+  - id: compound_high_precision_final_pass
+    category: compound
+    query: >-
+      (site:greenhouse.io OR site:lever.co OR site:ashbyhq.com)
+      ("Backend Engineer" OR "Full Stack Engineer") ("Django" OR "FastAPI") ("PostgreSQL")
+      ("JWT" OR "RBAC" OR "authentication") India -"Senior" -"Staff" -"Principal" -internship
+    purpose: "Final precision pass: stack + security angle + explicit seniority exclusions, matching the SDE-II positioning from config/profile.yml."
+
+  - id: compound_signal_plus_role
+    category: compound
+    query: >-
+      ("Series C" OR "Series D" OR "pre-IPO") ("hiring" OR "join our engineering team")
+      ("Backend Engineer" OR "Full Stack Engineer") India fintech OR cleantech OR IoT
+    purpose: "Combines the funding-signal and role-match filters into one query — the single highest-precision query in this bank, run it first."
+
+sources_context: >-
+  Compiled Aug 2026 alongside config/target_companies.yml. Re-review this
+  file every quarter — ATS platform market share shifts (e.g. Ashby has
+  been gaining share among Indian startups relative to Lever/Greenhouse),
+  and new YC batches / funding rounds should prompt new entries here rather
+  than manual one-off searches.

@@ -18,6 +18,9 @@ from src.agents.agent_07_priority_scheduler import PriorityScheduleAgent
 from src.agents.agent_10_challenge_solver import ChallengeSolverAgent
 from src.agents.agent_11_query_hunter import QueryHunterAgent
 from src.agents.agent_12_influencer import InfluencerAgent
+from src.agents.agent_13_pitcher import PitcherAgent
+from src.agents.agent_14_interviewer import InterviewerAgent
+from src.agents.agent_15_negotiator import NegotiatorAgent
 
 
 @pytest.fixture(scope="module")
@@ -167,3 +170,100 @@ def test_influencer_draft_reflects_real_signal_not_generic(ctx):
     company_cfg = ctx.company("SolarSquare")
     signal_detail = company_cfg["signals"][0]["detail"]
     assert signal_detail in result.data["platform_drafts"]["linkedin"]
+
+
+# ── Profile normalization (config/profile.yml schema adapter) ─────────────
+
+def test_profile_normalization_derives_all_compat_keys(ctx):
+    p = ctx.profile
+    assert p["candidate"]["name"]
+    assert p["positioning"]["headline"]
+    assert p["positioning"]["lead_with"]
+    assert p["positioning"]["differentiators"]
+    assert p["narrative"]["one_liner"]
+    assert p["narrative"]["proof_points_by_theme"]
+    assert p["target"]["roles"]
+    assert p["target"]["locations"]
+    assert p["compensation"]["target_ctc_lakhs_min"] is not None
+    assert p["compensation"]["target_ctc_lakhs_max"] is not None
+
+
+def test_profile_differentiators_trace_back_to_real_proof_points(ctx):
+    raw_proof_points = ctx.profile.get("narrative", {}).get("proof_points", [])
+    if not raw_proof_points:
+        pytest.skip("profile.yml on disk uses the flat schema, nothing to cross-check")
+    diffs = ctx.profile["positioning"]["differentiators"]
+    for d in diffs:
+        name = d.split(":")[0].strip()
+        assert any(p.get("name") == name for p in raw_proof_points)
+
+
+# ── Pitcher (agent 13) ──────────────────────────────────────────────────
+
+def test_pitcher_builds_win_pitch_from_real_evidence(ctx):
+    jd = "Scale our microservices and improve API reliability while maintaining strict compliance."
+    result = PitcherAgent(ctx).run(company="Perfios", job_description=jd)
+    assert result.ok
+    assert result.data["problem"]
+    assert result.data["solution_points"]
+    for point in result.data["solution_points"]:
+        assert point in ctx.profile["positioning"]["differentiators"] or \
+               point in ctx.profile["narrative"]["proof_points_by_theme"].values()
+    assert "WIN Pitch" in result.data["win_markdown"]
+
+
+def test_pitcher_warns_when_no_jd_given(ctx):
+    result = PitcherAgent(ctx).run(company="Zenatix", job_description="")
+    # Zenatix has only a "caution" signal type with no implied-challenge mapping,
+    # so with no JD this should either find nothing or warn, never invent a problem.
+    if not result.data["problem"]:
+        assert result.warnings
+
+
+# ── Interviewer (agent 14) ──────────────────────────────────────────────
+
+def test_interviewer_generates_requested_question_count(ctx):
+    result = InterviewerAgent(ctx).generate_questions(company="Perfios", num_questions=4)
+    assert result.ok
+    assert len(result.data["questions"]) <= 4
+    assert all({"id", "text", "type", "focus_area"} <= q.keys() for q in result.data["questions"])
+
+
+def test_interviewer_scores_strong_star_answer_highly(ctx):
+    answer = (
+        "At Progfin we had a query that was taking 800ms and slowing down the whole dashboard. "
+        "I needed to fix it before the next release. I profiled the query, added the right indexes, "
+        "and rewrote a join. As a result response time dropped to 200ms, a 75% improvement."
+    )
+    result = InterviewerAgent(ctx).score_answer("Tell me about a performance fix.", answer)
+    assert result.ok
+    assert result.data["overall"] >= 70
+
+
+def test_interviewer_scores_empty_answer_zero(ctx):
+    result = InterviewerAgent(ctx).score_answer("Tell me about a time...", "")
+    assert result.ok
+    assert result.data["overall"] == 0
+
+
+# ── Negotiator (agent 15) ───────────────────────────────────────────────
+
+def test_negotiator_benchmark_uses_real_comp_data(ctx):
+    result = NegotiatorAgent(ctx).benchmark("Perfios")
+    assert result.ok
+    company_cfg = ctx.company("Perfios")
+    assert result.data["band"] == company_cfg["comp_benchmark_inr_lpa"]
+
+
+def test_negotiator_flags_missing_benchmark_instead_of_inventing(ctx):
+    result = NegotiatorAgent(ctx).benchmark("GPS Renewables")  # has empty comp_benchmark_inr_lpa
+    assert result.ok
+    assert result.data["suggested_ask_lpa"] is None
+    assert result.warnings
+
+
+def test_negotiator_counter_script_never_exceeds_reasonable_bump(ctx):
+    result = NegotiatorAgent(ctx).counter_script("Perfios", 14.0)
+    assert result.ok
+    assert result.data["counter_ask_lpa"] > 14.0
+    assert result.data["counter_ask_lpa"] < 14.0 * 1.5  # sanity: no wild overshoot

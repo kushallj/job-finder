@@ -44,6 +44,12 @@ from src.job_processor import JobProcessor
 from src.database import init_db, SessionLocal
 from src.models import Application, Job, OutreachRecord, Contact
 from src.config import settings
+try:
+    from src.api.routers.agents_router import router as agents_router
+    _AGENTS_ROUTER_OK = True
+except Exception as _agents_router_err:  # noqa: BLE001
+    _AGENTS_ROUTER_OK = False
+    logging.warning("src.api.routers.agents_router not importable: %s", _agents_router_err)
 
 # API models and error handlers
 from src.api_models import (
@@ -645,6 +651,8 @@ app = FastAPI(title="Job Search API", version="2.1.0", lifespan=lifespan)
 # Register comprehensive error handlers
 # Requirements: 23.2 (Comprehensive error responses with proper HTTP status codes)
 register_error_handlers(app)
+if _AGENTS_ROUTER_OK:
+    app.include_router(agents_router)
 
 app.add_middleware(
     CORSMiddleware,

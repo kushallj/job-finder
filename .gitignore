@@ -156,6 +156,7 @@ job311/
 config/*
 !config/profile.yml
 !config/target_companies.yml
+!config/boolean_queries.yml
 .blackboxcli/
 .env
 .env

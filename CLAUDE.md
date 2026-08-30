@@ -21,11 +21,14 @@ When the user types `/nexus <subcommand>`, route to the appropriate action:
 | `/nexus normalize` | Run `python -m src.cli normalize` — fix non-canonical status values |
 | `/nexus digest` | Run `python -m src.cli digest` — print weekly outreach digest |
 | `/nexus deep <company>` | WebSearch company AI/engineering strategy + open roles + culture |
-| `/nexus agents` | Run the 9-agent target-company pipeline: `python -m src.agents.orchestrator --stage daily`, then display `data/agent_run_report.md` |
+| `/nexus agents` | Run the 15-agent target-company pipeline: `python -m src.agents.orchestrator --stage daily`, then display `data/agent_run_report.md` |
 | `/nexus agents tier1` | Same, restricted to Tier 1 companies: `python -m src.agents.orchestrator --stage daily --tiers 1` |
 | `/nexus leads` | Run boolean/X-ray lead sourcing: `python -m src.agents.orchestrator --stage leads` |
 | `/nexus networker <company>` | Find a real evidenced challenge + draft LinkedIn/X content: `python -m src.agents.orchestrator --stage networker --company "<company>"` |
 | `/nexus prep <company>` | Run `python -m src.agents.orchestrator --stage interview-prep --company "<company>"` |
+| `/nexus pitch <company>` | Build the WIN one-pager: `python -m src.agents.orchestrator --stage pitch --company "<company>"` |
+| `/nexus mock <company>` | Generate mock-interview questions: `python -m src.agents.orchestrator --stage interview-questions --company "<company>"` |
+| `/nexus negotiate <company> <offer_lpa>` | Comp benchmark + counter script: `python -m src.agents.orchestrator --stage negotiate-counter --company "<company>" --offer <offer_lpa>` |
 | `/nexus learn` | Run `python -m src.agents.orchestrator --stage weekly-learning` — recalibrate tier weights from real reply data |
 | `/nexus help` | Show this file |
 
@@ -46,7 +49,7 @@ ALWAYS read these before evaluating or generating content:
 | `config/boolean_queries.yml` | 30-query X-ray/boolean sourcing bank (ATS, YC, funding press, GitHub, YouTube, content) |
 | `data/applications.md` | Application tracker — current pipeline state |
 | `data/pipeline.md` | Pending job URLs to process |
-| `docs/AGENT_STRATEGIES.md` | Rationale for each of the 12 target-company agents in `src/agents/` |
+| `docs/AGENT_STRATEGIES.md` | Rationale for each of the 15 target-company agents in `src/agents/` |
 
 ---
 
@@ -123,10 +126,12 @@ data/applications.md   — human-readable tracker
 
 ## Target-Company Agent Layer (`src/agents/`)
 
-Twelve strategy agents, purpose-built around `config/target_companies.yml`
+Fifteen strategy agents, purpose-built around `config/target_companies.yml`
 (the ranked, research-backed company list) rather than the generic job-board
 firehose above. They wrap the modules in the diagram above instead of
-replacing them. Full rationale in `docs/AGENT_STRATEGIES.md`.
+replacing them. Exposed over HTTP via `src/api/routers/agents_router.py`
+(`/api/agents/*`, delegating to `src/services/agents_service.py`) for the
+React dashboard. Full rationale in `docs/AGENT_STRATEGIES.md`.
 
 ```
 1 SignalScoutAgent        — freshness-track funding/hiring signals per company
@@ -141,6 +146,9 @@ replacing them. Full rationale in `docs/AGENT_STRATEGIES.md`.
 10 ChallengeSolverAgent   — finds a real, evidenced challenge (never invented)
 11 QueryHunterAgent       — 30-query X-ray/boolean sourcing -> lead CRM table
 12 InfluencerAgent        — drafts LinkedIn/X content, never auto-posts
+13 PitcherAgent           — WIN (problem/solution/narrative) one-pager
+14 InterviewerAgent       — mock Q&A + deterministic STAR-format feedback
+15 NegotiatorAgent        — comp benchmarking + counter-offer script
 ```
 
 Run: `python -m src.agents.orchestrator --stage daily`. Never auto-sends,

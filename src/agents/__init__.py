@@ -1,5 +1,5 @@
 """
-src/agents — Nine target-company agent strategies for the NEXUS job-acquisition system.
+src/agents — Fifteen target-company agent strategies for the NEXUS job-acquisition system.
 
 See docs/AGENT_STRATEGIES.md for the full rationale behind each agent, and
 config/target_companies.yml for the researched company list they operate on.
@@ -16,6 +16,9 @@ config/target_companies.yml for the researched company list they operate on.
    10. ChallengeSolverAgent      — agent_10_challenge_solver.py   ("Networker" — fixes a real problem)
    11. QueryHunterAgent          — agent_11_query_hunter.py       ("Hunter" — X-ray/boolean sourcing + lead CRM)
    12. InfluencerAgent           — agent_12_influencer.py         ("Influencer" — content drafts, never auto-posts)
+   13. PitcherAgent              — agent_13_pitcher.py            ("Pitcher" — WIN one-pager)
+   14. InterviewerAgent          — agent_14_interviewer.py        ("Interviewer" — mock Q&A + STAR feedback)
+   15. NegotiatorAgent           — agent_15_negotiator.py         ("Negotiator" — comp benchmark + counter script)
 
 Run the full pipeline: `python -m src.agents.orchestrator`
 """
@@ -33,6 +36,9 @@ from .agent_09_feedback_strategist import FeedbackStrategistAgent
 from .agent_10_challenge_solver import ChallengeSolverAgent
 from .agent_11_query_hunter import QueryHunterAgent
 from .agent_12_influencer import InfluencerAgent
+from .agent_13_pitcher import PitcherAgent
+from .agent_14_interviewer import InterviewerAgent
+from .agent_15_negotiator import NegotiatorAgent
 
 __all__ = [
     "AgentContext", "AgentResult", "BaseAgent",
@@ -48,4 +54,7 @@ __all__ = [
     "ChallengeSolverAgent",
     "QueryHunterAgent",
     "InfluencerAgent",
+    "PitcherAgent",
+    "InterviewerAgent",
+    "NegotiatorAgent",
 ]

@@ -51,11 +51,13 @@ python outreach_cli.py outreach
 
 ## 🎯 Target-Company Agent Strategies (`src/agents/`)
 
-Twelve purpose-built agents that run against a researched, ranked list of
+Fifteen purpose-built agents that run against a researched, ranked list of
 target companies (`config/target_companies.yml`) instead of the generic
 job-board firehose — for fit-scoring, signal-aware timing, X-ray/boolean
-lead sourcing, and personalized outreach specifically tuned to *this*
-candidate's positioning (`config/profile.yml`).
+lead sourcing, evidenced-challenge networking, mock interviews, comp
+negotiation, and personalized outreach specifically tuned to *this*
+candidate's positioning (`config/profile.yml`). Exposed to the React
+dashboard over HTTP via `/api/agents/*` (`src/api/routers/agents_router.py`).
 
 ```bash
 # Run the full daily pipeline: signal check -> live ATS job discovery ->
@@ -75,6 +77,16 @@ python -m src.agents.orchestrator --stage leads
 # copy-paste and post it yourself; nothing here logs into any platform.
 python -m src.agents.orchestrator --stage networker --company "Perfios" --jd "<paste JD>"
 
+# Build a WIN (problem/solution/narrative) one-pager from the same
+# evidenced-challenge logic
+python -m src.agents.orchestrator --stage pitch --company "Perfios" --jd "<paste JD>"
+
+# Mock interview: tailored questions + deterministic STAR-format scoring
+python -m src.agents.orchestrator --stage interview-questions --company "Perfios"
+
+# Comp benchmarking + a counter-offer script, using only real numbers
+python -m src.agents.orchestrator --stage negotiate-counter --company "Perfios" --offer 14.0
+
 # Once a target company replies and you land an interview
 python -m src.agents.orchestrator --stage interview-prep --company "Perfios"
 
@@ -82,7 +94,7 @@ python -m src.agents.orchestrator --stage interview-prep --company "Perfios"
 python -m src.agents.orchestrator --stage weekly-learning
 ```
 
-See `docs/AGENT_STRATEGIES.md` for the strategy behind each of the 12 agents,
+See `docs/AGENT_STRATEGIES.md` for the strategy behind each of the 15 agents,
 and `CLAUDE.md` for the `/nexus agents` slash-command routing.
 
 ## 📖 Documentation

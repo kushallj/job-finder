@@ -49,6 +49,9 @@ from .agent_09_feedback_strategist import FeedbackStrategistAgent
 from .agent_10_challenge_solver import ChallengeSolverAgent
 from .agent_11_query_hunter import QueryHunterAgent
 from .agent_12_influencer import InfluencerAgent
+from .agent_13_pitcher import PitcherAgent
+from .agent_14_interviewer import InterviewerAgent
+from .agent_15_negotiator import NegotiatorAgent
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("nexus.agents.orchestrator")
@@ -142,6 +145,23 @@ def run_challenge_and_content(ctx: AgentContext, company: str, job_description: 
     return {"challenge": challenge_result.data, "content_drafts": content_result.data}
 
 
+def run_pitch(ctx: AgentContext, company: str, job_description: str = "") -> Dict[str, Any]:
+    """Builds the WIN (Well-researched problem, Insightful solution, Narrative)
+    one-pager via PitcherAgent — reuses ChallengeSolverAgent + ResumeTailorAgent."""
+    result = PitcherAgent(ctx).run(company=company, job_description=job_description)
+    return result.data
+
+
+def run_negotiation_benchmark(ctx: AgentContext, company: str) -> Dict[str, Any]:
+    result = NegotiatorAgent(ctx).benchmark(company)
+    return result.data
+
+
+def run_negotiation_counter(ctx: AgentContext, company: str, offer_amount_lpa: float) -> Dict[str, Any]:
+    result = NegotiatorAgent(ctx).counter_script(company, offer_amount_lpa)
+    return result.data
+
+
 def run_weekly_learning(ctx: AgentContext) -> Dict[str, Any]:
     result = FeedbackStrategistAgent(ctx).run()
     return result.data
@@ -174,12 +194,15 @@ def _render_report(signal_result, hunt_result, fit_result, priority_result, draf
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run the NEXUS 12-agent target-company pipeline.")
-    parser.add_argument("--stage", choices=["daily", "interview-prep", "weekly-learning", "leads", "networker"],
+    parser = argparse.ArgumentParser(description="Run the NEXUS 15-agent target-company pipeline.")
+    parser.add_argument("--stage", choices=["daily", "interview-prep", "weekly-learning", "leads", "networker",
+                                             "pitch", "interview-questions", "negotiate-benchmark", "negotiate-counter"],
                          default="daily")
-    parser.add_argument("--company", help="Required for --stage interview-prep/networker")
-    parser.add_argument("--role", default="", help="Optional role title for --stage interview-prep")
-    parser.add_argument("--jd", default="", help="Job description text for --stage networker (much stronger result)")
+    parser.add_argument("--company", help="Required for --stage interview-prep/networker/pitch/negotiate-*")
+    parser.add_argument("--role", default="", help="Optional role title for --stage interview-prep/interview-questions")
+    parser.add_argument("--jd", default="", help="Job description text (much stronger result for pitch/networker/interview-questions)")
+    parser.add_argument("--num-questions", type=int, default=5, help="For --stage interview-questions")
+    parser.add_argument("--offer", type=float, help="Offer amount in LPA, required for --stage negotiate-counter")
     parser.add_argument("--categories", nargs="*", default=None,
                          help="Restrict --stage leads to these boolean_queries.yml categories")
     parser.add_argument("--tiers", nargs="*", type=int, default=None, help="Restrict daily pipeline to these tiers")
@@ -210,6 +233,29 @@ def main():
         print("CHALLENGE:\n" + result["challenge"].get("solution_sketch", "(none found — paste a JD for better results)"))
         print("\nLINKEDIN DRAFT:\n" + result["content_drafts"]["platform_drafts"]["linkedin"])
         print("\nX DRAFT:\n" + result["content_drafts"]["platform_drafts"]["x"])
+    elif args.stage == "pitch":
+        if not args.company:
+            parser.error("--company is required for --stage pitch")
+        result = run_pitch(ctx, args.company, args.jd)
+        print(result.get("win_markdown", ""))
+    elif args.stage == "interview-questions":
+        if not args.company:
+            parser.error("--company is required for --stage interview-questions")
+        agent = InterviewerAgent(ctx)
+        result = agent.generate_questions(company=args.company, role_title=args.role,
+                                           job_description=args.jd, num_questions=args.num_questions)
+        for q in result.data["questions"]:
+            print(f"[{q['type']}] {q['text']}")
+    elif args.stage == "negotiate-benchmark":
+        if not args.company:
+            parser.error("--company is required for --stage negotiate-benchmark")
+        result = run_negotiation_benchmark(ctx, args.company)
+        print(result)
+    elif args.stage == "negotiate-counter":
+        if not args.company or args.offer is None:
+            parser.error("--company and --offer are required for --stage negotiate-counter")
+        result = run_negotiation_counter(ctx, args.company, args.offer)
+        print(result["script"])
     elif args.stage == "weekly-learning":
         result = run_weekly_learning(ctx)
         print(result)
