@@ -1,5 +1,6 @@
+from contextlib import contextmanager
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from src.config import settings
 from src.models import Base
 from src.answer_bank import models as _answer_bank_models  # noqa: F401  (registers AnsweredQuestion on Base.metadata)
@@ -17,6 +18,16 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+@contextmanager
+def db_session():
+    """Synchronous context manager for database sessions."""
+    s: Session = SessionLocal()
+    try:
+        yield s
+    finally:
+        s.close()
+
 
 def init_db():
     """Initialize database tables and add nullable columns to existing SQLite DBs."""

@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "JobFinder & LinkedIn Referral Automator",
+  "version": "2.0.0",
+  "description": "Companion extension for JobFinder: 1-click job capture, AI match scoring, and 5-stage automated LinkedIn referral networking.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "https://*.indeed.com/*",
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "JobFinder & Referral Automator"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.linkedin.com/jobs/*",
+        "https://www.linkedin.com/jobs/view/*",
+        "https://*.indeed.com/viewjob*",
+        "https://*.indeed.com/rc/clk*"
+      ],
+      "js": ["content/job_capture.js"],
+      "css": ["content/job_capture.css"]
+    },
+    {
+      "matches": ["https://www.linkedin.com/*"],
+      "js": ["content/dom_fallback.js"]
+    }
+  ]
+}

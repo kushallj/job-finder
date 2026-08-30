@@ -105,7 +105,19 @@ from src.api_models import (
     ProviderSyncSource,
     MarketIntelligenceResponse,
     ApplicationUpdateRequest,
+    JobCaptureRequest,
+    JobCaptureResponse,
+    ReferralTargetsResponse,
+    ReferralSearchRequest,
+    ReferralSearchResponse,
+    ReferralProfileSyncRequest,
+    ReferralProfileSyncResponse,
+    ReferralNoteGenerateRequest,
+    ReferralNoteGenerateResponse,
+    ReferralActionLogRequest,
+    ReferralActionLogResponse,
 )
+from src.referral import referral_service
 from src.api_error_handlers import (
     register_error_handlers,
     APIError,
@@ -875,8 +887,8 @@ async def health(state: AppState = Depends(get_state)):
     # Requirement 22.1: Check database connectivity and table status
     try:
         async with db_session() as db:
-            # Check database connectivity with simple query
-            db.execute("SELECT 1").fetchone()
+            from sqlalchemy import text
+            db.execute(text("SELECT 1")).fetchone()
             
             # Check table existence and row counts
             from src.models import Job, Application, Contact, OutreachRecord
@@ -889,7 +901,7 @@ async def health(state: AppState = Depends(get_state)):
             
             # Check if processing_results table exists (for async pipeline)
             try:
-                result = db.execute("SELECT COUNT(*) FROM processing_results").fetchone()
+                result = db.execute(text("SELECT COUNT(*) FROM processing_results")).fetchone()
                 processing_count = result[0] if result else 0
             except Exception:
                 processing_count = None
@@ -2895,6 +2907,236 @@ async def discover_startups(
     except Exception as exc:
         log.error("[%s] Startup discovery error: %s", trace, exc, exc_info=True)
         raise HTTPException(500, f"Discovery failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Job Capture & LinkedIn Referral Automator Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/jobs/capture", tags=["jobs"], response_model=JobCaptureResponse)
+async def capture_job(
+    request: JobCaptureRequest,
+    req: Request,
+    state: AppState = Depends(get_state),
+):
+    """
+    Save a single job scraped from the browser extension (LinkedIn/Indeed posting),
+    deduplicated by URL. Optionally scores it against the configured resume.
+    """
+    trace = req.state.trace_id
+    import hashlib
+
+    try:
+        job_id = "ext-" + hashlib.sha256(request.url.encode("utf-8")).hexdigest()[:24]
+
+        async with db_session() as db:
+            existing = db.query(Job).filter(Job.url == request.url).first()
+            already_existed = existing is not None
+
+            if existing:
+                j = existing
+            else:
+                j = Job(
+                    job_id=job_id,
+                    title=request.title,
+                    company=request.company,
+                    location=request.location,
+                    description=request.description,
+                    url=request.url,
+                    source=request.source,
+                    fetched_at=datetime.utcnow(),
+                )
+                db.add(j)
+                db.commit()
+                db.refresh(j)
+                log.info("[%s] Captured job from extension: %s @ %s", trace, j.title, j.company)
+
+            job_data = JobData(
+                id=j.id,
+                job_id=j.job_id,
+                title=j.title,
+                company=j.company,
+                location=j.location,
+                description=j.description,
+                url=j.url,
+                source=j.source,
+                posted_date=j.posted_date,
+                fetched_at=j.fetched_at,
+            )
+
+        response = JobCaptureResponse(
+            status="success",
+            job=job_data,
+            already_existed=already_existed,
+        )
+
+        if request.score:
+            if not state.job_processor:
+                response.score_error = "AI service unavailable — check server startup logs"
+                return response
+            try:
+                resume_path = state.resume_router.route(request.title)
+                resume_text = _read_resume(resume_path)
+                skills = await state.job_processor.ai.extract_skills(
+                    request.description or request.title
+                )
+                match = await state.job_processor.ai.match_resume_to_job(resume_text, skills)
+                response.match_score = match.get("match_score")
+                response.matched_skills = match.get("matched_skills")
+                response.missing_skills = match.get("missing_skills")
+            except Exception as exc:
+                log.warning("[%s] Scoring failed for captured job: %s", trace, exc)
+                response.score_error = str(exc)
+
+        return response
+
+    except Exception as exc:
+        log.error("[%s] Job capture failed: %s", trace, exc, exc_info=True)
+        raise APIError(f"Job capture failed: {str(exc)}")
+
+
+@app.get("/api/referrals/targets", tags=["referrals"], response_model=ReferralTargetsResponse)
+async def get_referral_targets(
+    limit: int = 30,
+    req: Request = None,
+):
+    """
+    Retrieve active target companies and roles currently in the pipeline
+    for automated LinkedIn referral discovery and targeting.
+    """
+    try:
+        async with db_session() as db:
+            targets = referral_service.get_active_targets(db, limit=limit)
+            return ReferralTargetsResponse(
+                status="success",
+                total_targets=len(targets),
+                targets=targets,
+            )
+    except Exception as exc:
+        log.error("Failed to retrieve referral targets: %s", exc, exc_info=True)
+        raise APIError(f"Failed to retrieve referral targets: {str(exc)}")
+
+
+@app.post("/api/referrals/search", tags=["referrals"], response_model=ReferralSearchResponse)
+async def search_company_referrals(
+    request: ReferralSearchRequest,
+    req: Request,
+):
+    """
+    Search for LinkedIn employee and alumni profiles at a target company
+    (uses live Proxycurl API or offline sample CSV fallback with disk caching).
+    """
+    trace = req.state.trace_id
+    try:
+        res = referral_service.search_company_referrals(request.company, limit=request.limit)
+        return ReferralSearchResponse(
+            status="success",
+            company=res["company"],
+            source=res["source"],
+            count=res["count"],
+            profiles=res["profiles"],
+        )
+    except Exception as exc:
+        log.error("[%s] Referral search error: %s", trace, exc, exc_info=True)
+        raise APIError(f"Referral search failed: {str(exc)}")
+
+
+@app.post("/api/referrals/sync", tags=["referrals"], response_model=ReferralProfileSyncResponse)
+async def sync_referral_profiles(
+    request: ReferralProfileSyncRequest,
+    req: Request,
+):
+    """
+    Batch ingests discovered LinkedIn profiles into the Contacts CRM database.
+    """
+    trace = req.state.trace_id
+    try:
+        async with db_session() as db:
+            result = referral_service.sync_profiles_to_contacts(db, request.profiles)
+            log.info("[%s] Synced %d referral contacts (%d new)", trace, result["synced_count"], result["new_contacts_count"])
+            return ReferralProfileSyncResponse(
+                status="success",
+                synced_count=result["synced_count"],
+                new_contacts_count=result["new_contacts_count"],
+            )
+    except Exception as exc:
+        log.error("[%s] Referral profile sync error: %s", trace, exc, exc_info=True)
+        raise APIError(f"Referral profile sync failed: {str(exc)}")
+
+
+@app.post("/api/referrals/generate-note", tags=["referrals"], response_model=ReferralNoteGenerateResponse)
+async def generate_referral_note(
+    request: ReferralNoteGenerateRequest,
+    req: Request,
+):
+    """
+    Generates a personalized LinkedIn connection note (<=200/300 chars)
+    and full referral pitch letter for a specific candidate and role.
+    """
+    try:
+        profile_data = {
+            "full_name": request.full_name,
+            "first_name": request.first_name,
+            "company": request.company,
+            "title": request.title,
+            "headline": request.headline,
+        }
+        context_data = {
+            "company": request.company,
+            "job_title": request.job_title,
+            "job_link": request.job_link,
+            "short_bio": request.short_bio,
+            "highlight": request.highlight,
+            "reason": request.reason,
+            "sender_name": request.sender_name,
+            "max_length": request.max_length,
+        }
+        result = referral_service.generate_referral_note(
+            profile_data, context_data, max_length=request.max_length
+        )
+        return ReferralNoteGenerateResponse(
+            status="success",
+            connection_note=result["connection_note"],
+            full_letter=result["full_letter"],
+            char_count=result["char_count"],
+            is_under_limit=result["is_under_limit"],
+        )
+    except Exception as exc:
+        log.error("Referral note generation error: %s", exc, exc_info=True)
+        raise APIError(f"Referral note generation failed: {str(exc)}")
+
+
+@app.post("/api/referrals/log-action", tags=["referrals"], response_model=ReferralActionLogResponse)
+async def log_referral_action(
+    request: ReferralActionLogRequest,
+    req: Request,
+):
+    """
+    Logs a LinkedIn referral action (connection request, direct message, or reply)
+    into the OutreachRecord CRM table.
+    """
+    trace = req.state.trace_id
+    try:
+        async with db_session() as db:
+            rec = referral_service.log_referral_action(
+                db,
+                contact_name=request.contact_name,
+                company=request.company,
+                action_type=request.action_type,
+                linkedin_url=request.linkedin_url,
+                contact_email=request.contact_email,
+                message_body=request.message_body,
+                job_id=request.job_id,
+            )
+            log.info("[%s] Logged referral action '%s' for %s (record #%d)", trace, request.action_type, request.contact_name, rec.id)
+            return ReferralActionLogResponse(
+                status="success",
+                outreach_id=rec.id,
+                message=f"Referral action '{request.action_type}' recorded successfully",
+            )
+    except Exception as exc:
+        log.error("[%s] Failed to log referral action: %s", trace, exc, exc_info=True)
+        raise APIError(f"Failed to log referral action: {str(exc)}")
 
 
 # =============================================================================

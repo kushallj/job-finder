@@ -886,3 +886,118 @@ class MarketIntelligenceResponse(BaseModel):
     stale: bool = False
     error: Optional[str] = None
     generated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Job Capture & LinkedIn Referral Automator Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class JobCaptureRequest(BaseModel):
+    """Request model for 1-click capturing job postings from LinkedIn/Indeed."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    title: str = Field(..., min_length=1, max_length=500, description="Job title")
+    company: str = Field(default="", max_length=500, description="Company name")
+    location: Optional[str] = Field(default=None, max_length=500, description="Job location")
+    description: str = Field(default="", max_length=20000, description="Job description text")
+    url: str = Field(..., min_length=1, max_length=2000, description="Job posting URL")
+    source: str = Field(default="linkedin_extension", max_length=100, description="Capture source")
+    score: bool = Field(
+        default=False,
+        description="If true, score this job against the configured resume using AI",
+    )
+
+
+class JobCaptureResponse(BaseModel):
+    """Response model for a captured job, optionally including an AI match score."""
+    status: str = Field(..., description="Request status")
+    job: JobData = Field(..., description="The saved or pre-existing job")
+    already_existed: bool = Field(default=False, description="True if this URL was already saved")
+    match_score: Optional[float] = Field(default=None, description="AI match score (0-100), if scored")
+    matched_skills: Optional[List[str]] = Field(default=None, description="Skills the resume covers")
+    missing_skills: Optional[List[str]] = Field(default=None, description="Skills the resume is missing")
+    score_error: Optional[str] = Field(default=None, description="Error message if scoring failed")
+
+
+class ReferralTargetsResponse(BaseModel):
+    """Response model for active referral targets from the job pipeline."""
+    status: str = Field(..., description="Request status")
+    total_targets: int = Field(..., description="Total active targets")
+    targets: List[Dict[str, Any]] = Field(default_factory=list, description="Active target companies and roles")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ReferralSearchRequest(BaseModel):
+    """Request model for searching LinkedIn referral contacts by company."""
+    company: str = Field(..., min_length=1, max_length=255, description="Target company name")
+    limit: int = Field(default=10, ge=1, le=100, description="Maximum profiles to return")
+    job_title: Optional[str] = Field(default=None, max_length=255, description="Optional target job title")
+
+
+class ReferralSearchResponse(BaseModel):
+    """Response model for LinkedIn referral contacts search."""
+    status: str = Field(..., description="Request status")
+    company: str = Field(..., description="Target company")
+    source: str = Field(..., description="Data source: 'proxycurl', 'csv', or 'disk_cache'")
+    count: int = Field(..., description="Number of profiles returned")
+    profiles: List[Dict[str, Any]] = Field(default_factory=list, description="Discovered profiles")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ReferralProfileSyncRequest(BaseModel):
+    """Request model for batch syncing discovered LinkedIn profiles into Contacts CRM."""
+    profiles: List[Dict[str, Any]] = Field(..., min_length=1, description="List of profile objects to ingest")
+
+
+class ReferralProfileSyncResponse(BaseModel):
+    """Response model for referral profile ingestion."""
+    status: str = Field(..., description="Request status")
+    synced_count: int = Field(..., description="Total profiles processed")
+    new_contacts_count: int = Field(..., description="Newly inserted contacts")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ReferralNoteGenerateRequest(BaseModel):
+    """Request model for generating personalized referral connection notes & letters."""
+    full_name: str = Field(..., min_length=1, max_length=255, description="Contact full name")
+    company: str = Field(..., min_length=1, max_length=255, description="Target company")
+    first_name: Optional[str] = Field(default=None, max_length=100)
+    title: Optional[str] = Field(default=None, max_length=255)
+    headline: Optional[str] = Field(default=None, max_length=500)
+    job_title: Optional[str] = Field(default=None, max_length=255)
+    job_link: Optional[str] = Field(default=None, max_length=2000)
+    short_bio: Optional[str] = Field(default=None, max_length=500)
+    highlight: Optional[str] = Field(default=None, max_length=500)
+    reason: Optional[str] = Field(default=None, max_length=500)
+    sender_name: Optional[str] = Field(default="Candidate", max_length=100)
+    max_length: Optional[int] = Field(default=200, ge=50, le=2000, description="Max character length for connection note")
+
+
+class ReferralNoteGenerateResponse(BaseModel):
+    """Response model for generated referral notes."""
+    status: str = Field(..., description="Request status")
+    connection_note: str = Field(..., description="Concise connection note constrained by max_length")
+    full_letter: str = Field(..., description="Full multi-paragraph referral letter")
+    char_count: int = Field(..., description="Connection note character count")
+    is_under_limit: bool = Field(..., description="Whether note satisfies max_length")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ReferralActionLogRequest(BaseModel):
+    """Request model for logging a LinkedIn referral action."""
+    contact_name: str = Field(..., min_length=1, max_length=255, description="Contact name")
+    company: str = Field(..., min_length=1, max_length=255, description="Company name")
+    action_type: str = Field(..., pattern=r"^(connection_sent|message_sent|replied)$", description="Action type")
+    linkedin_url: Optional[str] = Field(default=None, max_length=2000, description="LinkedIn profile URL")
+    contact_email: Optional[str] = Field(default=None, max_length=255, description="Contact email if known")
+    message_body: Optional[str] = Field(default=None, max_length=10000, description="Message text")
+    job_id: Optional[int] = Field(default=None, description="Associated job ID if applicable")
+
+
+class ReferralActionLogResponse(BaseModel):
+    """Response model for referral action logging."""
+    status: str = Field(..., description="Request status")
+    outreach_id: int = Field(..., description="Created OutreachRecord ID")
+    message: str = Field(..., description="Confirmation message")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
