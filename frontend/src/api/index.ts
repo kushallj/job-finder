@@ -10,6 +10,12 @@ export { xReferralsApi } from './endpoints/x_referrals';
 export { emailIntelligenceApi } from './endpoints/email_intelligence';
 export { agentsApi } from './endpoints/agents';
 export { attentionApi } from './endpoints/attention';
+export { ghostHunterApi } from './endpoints/ghost_hunter';
+export { deliverabilityApi } from './endpoints/deliverability';
+export { voiceInterviewerApi } from './endpoints/voice_interviewer';
+export { notificationsApi } from './endpoints/notifications';
+export { compSimulatorApi } from './endpoints/comp_simulator';
+export { resumeGeneratorApi } from './endpoints/resume_generator';
 
 
 

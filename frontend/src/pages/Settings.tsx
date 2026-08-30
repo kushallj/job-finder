@@ -27,12 +27,28 @@ import {
   Share as ReferralIcon,
   AlternateEmail as XIcon,
   Launch as LaunchIcon,
+  NotificationsActive as AlertIcon,
+  Send as SendIcon,
 } from '@mui/icons-material';
 import { xReferralsApi } from '../api/endpoints/x_referrals';
+import { notificationsApi } from '../api/endpoints/notifications';
+import type { NotificationConfig } from '../api/endpoints/notifications';
 
 export const Settings: React.FC = () => {
   const [apiUrl, setApiUrl] = useState('http://localhost:8000');
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [notifConfig, setNotifConfig] = useState<NotificationConfig>({
+    telegram_bot_token: '',
+    telegram_chat_id: '',
+    discord_webhook_url: '',
+    slack_webhook_url: '',
+    min_fit_score: 65,
+    notify_on_tier1_only: false,
+    enabled: true,
+  });
+  const [testingChannel, setTestingChannel] = useState<string | null>(null);
+  const [testStatusMsg, setTestStatusMsg] = useState<string | null>(null);
+
   const [saved, setSaved] = useState(false);
   const [health, setHealth] = useState<any>(null);
   const [loadingHealth, setLoadingHealth] = useState(false);
@@ -54,6 +70,13 @@ export const Settings: React.FC = () => {
       setXAuthStatus(xStatus);
     } catch {
       setXAuthStatus({ connected: false });
+    }
+
+    try {
+      const notifRes = await notificationsApi.getConfig();
+      setNotifConfig(notifRes.data);
+    } catch {
+      // fallback default
     } finally {
       setLoadingHealth(false);
     }
@@ -77,13 +100,32 @@ export const Settings: React.FC = () => {
     }
   };
 
-  const handleSave = () => {
+  const handleTestChannel = async (channel: 'telegram' | 'discord' | 'slack') => {
+    setTestingChannel(channel);
+    setTestStatusMsg(null);
+    try {
+      const res = await notificationsApi.testChannel(channel);
+      setTestStatusMsg(`[${channel.toUpperCase()}] ${res.data.delivery_status}: ${res.data.detail}`);
+    } catch (e: any) {
+      setTestStatusMsg(`[${channel.toUpperCase()}] Test failed: ${e.message || 'Error'}`);
+    } finally {
+      setTestingChannel(null);
+    }
+  };
+
+  const handleSave = async () => {
     localStorage.setItem('apiUrl', apiUrl);
     localStorage.setItem('autoRefresh', String(autoRefresh));
+    try {
+      await notificationsApi.updateConfig(notifConfig);
+    } catch {
+      // silent fail
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
     fetchHealthAndX();
   };
+
 
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto' }}>
@@ -324,6 +366,136 @@ export const Settings: React.FC = () => {
               >
                 Save Settings
               </Button>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Multi-Channel Webhook Alerts */}
+        <Grid size={{ xs: 12 }}>
+          <Card sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} flexWrap="wrap" gap={1}>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <AlertIcon sx={{ color: '#F59E0B' }} />
+                  <Typography variant="h6" fontWeight={800} color="#0F172A">
+                    📲 Multi-Channel Webhook Alerts (Telegram / Discord / Slack)
+                  </Typography>
+                </Stack>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={notifConfig.enabled}
+                      onChange={(e) => setNotifConfig({ ...notifConfig, enabled: e.target.checked })}
+                    />
+                  }
+                  label="Enable Instant Alerts"
+                />
+              </Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
+                Get instant notifications on your phone or workstation within minutes when Tier-1 high-fit roles and verified decision-makers are discovered.
+              </Typography>
+              <Divider sx={{ mb: 2.5 }} />
+
+              {testStatusMsg && (
+                <Alert severity="info" sx={{ mb: 2.5 }} onClose={() => setTestStatusMsg(null)}>
+                  {testStatusMsg}
+                </Alert>
+              )}
+
+              <Grid container spacing={2.5}>
+                {/* Telegram */}
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: '#F8FAFC' }}>
+                    <Typography variant="subtitle2" fontWeight={700} color="#0F172A" gutterBottom>
+                      ✈️ Telegram Bot
+                    </Typography>
+                    <TextField
+                      label="Bot Token"
+                      placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                      value={notifConfig.telegram_bot_token || ''}
+                      onChange={(e) => setNotifConfig({ ...notifConfig, telegram_bot_token: e.target.value })}
+                      fullWidth
+                      size="small"
+                      sx={{ mb: 1.5 }}
+                    />
+                    <TextField
+                      label="Chat / Channel ID"
+                      placeholder="-1001234567890"
+                      value={notifConfig.telegram_chat_id || ''}
+                      onChange={(e) => setNotifConfig({ ...notifConfig, telegram_chat_id: e.target.value })}
+                      fullWidth
+                      size="small"
+                      sx={{ mb: 1.5 }}
+                    />
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={testingChannel === 'telegram' ? <CircularProgress size={12} /> : <SendIcon sx={{ fontSize: 13 }} />}
+                      onClick={() => handleTestChannel('telegram')}
+                      disabled={!notifConfig.telegram_bot_token || Boolean(testingChannel)}
+                      fullWidth
+                    >
+                      Test Telegram Alert
+                    </Button>
+                  </Paper>
+                </Grid>
+
+                {/* Discord */}
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: '#F8FAFC' }}>
+                    <Typography variant="subtitle2" fontWeight={700} color="#0F172A" gutterBottom>
+                      🎮 Discord Webhook
+                    </Typography>
+                    <TextField
+                      label="Discord Webhook URL"
+                      placeholder="https://discord.com/api/webhooks/..."
+                      value={notifConfig.discord_webhook_url || ''}
+                      onChange={(e) => setNotifConfig({ ...notifConfig, discord_webhook_url: e.target.value })}
+                      fullWidth
+                      size="small"
+                      sx={{ mb: 4.5 }}
+                    />
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={testingChannel === 'discord' ? <CircularProgress size={12} /> : <SendIcon sx={{ fontSize: 13 }} />}
+                      onClick={() => handleTestChannel('discord')}
+                      disabled={!notifConfig.discord_webhook_url || Boolean(testingChannel)}
+                      fullWidth
+                    >
+                      Test Discord Alert
+                    </Button>
+                  </Paper>
+                </Grid>
+
+                {/* Slack */}
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: '#F8FAFC' }}>
+                    <Typography variant="subtitle2" fontWeight={700} color="#0F172A" gutterBottom>
+                      💬 Slack Webhook
+                    </Typography>
+                    <TextField
+                      label="Slack Webhook URL"
+                      placeholder="https://hooks.slack.com/services/..."
+                      value={notifConfig.slack_webhook_url || ''}
+                      onChange={(e) => setNotifConfig({ ...notifConfig, slack_webhook_url: e.target.value })}
+                      fullWidth
+                      size="small"
+                      sx={{ mb: 4.5 }}
+                    />
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={testingChannel === 'slack' ? <CircularProgress size={12} /> : <SendIcon sx={{ fontSize: 13 }} />}
+                      onClick={() => handleTestChannel('slack')}
+                      disabled={!notifConfig.slack_webhook_url || Boolean(testingChannel)}
+                      fullWidth
+                    >
+                      Test Slack Alert
+                    </Button>
+                  </Paper>
+                </Grid>
+              </Grid>
             </CardContent>
           </Card>
         </Grid>

@@ -1286,5 +1286,208 @@ class AttentionOutreachResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Ghost Job & Stale Listing Detector API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class GhostAnalysisRequest(BaseModel):
+    """Request model for Ghost Job analysis."""
+    title: str = Field(..., min_length=1)
+    company: str = Field(..., min_length=1)
+    description: str = Field(..., min_length=1)
+    posted_date: Optional[str] = Field(None)
+    has_decision_maker: bool = Field(default=False)
+
+
+class GhostAnalysisResponse(BaseModel):
+    """Response model containing Ghost score and urgency signals."""
+    status: str = Field(default="success")
+    ghost_score: float = Field(...)
+    urgency_label: str = Field(...)
+    is_ghost_risk: bool = Field(...)
+    confidence_score: float = Field(...)
+    estimated_age_days: Optional[int] = Field(None)
+    signals: List[Dict[str, Any]] = Field(default_factory=list)
+    action_recommendation: str = Field(...)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Cold Email Deliverability Sandbox API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class DeliverabilityDraftRequest(BaseModel):
+    """Request model for analyzing cold email deliverability and spam risk."""
+    subject: str = Field(..., min_length=1)
+    body: str = Field(..., min_length=1)
+
+
+class DeliverabilityDraftResponse(BaseModel):
+    """Response model with spam score, reading grade, and synonym suggestions."""
+    status: str = Field(default="success")
+    spam_score: float = Field(...)
+    deliverability_tier: str = Field(...)
+    is_safe: bool = Field(...)
+    flesch_kincaid_grade: float = Field(...)
+    reading_time_seconds: int = Field(...)
+    word_count: int = Field(...)
+    char_count: int = Field(...)
+    link_count: int = Field(...)
+    uppercase_ratio: float = Field(...)
+    spam_matches: List[Dict[str, Any]] = Field(default_factory=list)
+    subject_score: float = Field(...)
+    subject_advice: str = Field(...)
+    deliverability_recommendations: List[str] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Live Voice & Audio AI Mock Interviewer API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class VoiceFeedbackRequest(BaseModel):
+    """Request model for analyzing spoken audio interview transcript."""
+    transcript: str = Field(..., min_length=1)
+    duration_seconds: float = Field(..., ge=1.0)
+    target_focus: Optional[str] = Field(default="Distributed Systems")
+
+
+class VoiceFeedbackResponse(BaseModel):
+    """Response model for verbal delivery, cadence, and STAR fluency."""
+    status: str = Field(default="success")
+    speech_delivery_score: float = Field(...)
+    filler_stats: Dict[str, Any] = Field(...)
+    cadence_stats: Dict[str, Any] = Field(...)
+    star_eval: Dict[str, Any] = Field(...)
+    delivery_tips: List[str] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Instant Multi-Channel Webhook Alerts API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class NotificationConfigSchema(BaseModel):
+    """Configuration model for Telegram, Discord, and Slack alerts."""
+    telegram_bot_token: Optional[str] = Field(None)
+    telegram_chat_id: Optional[str] = Field(None)
+    discord_webhook_url: Optional[str] = Field(None)
+    slack_webhook_url: Optional[str] = Field(None)
+    min_fit_score: float = Field(default=65.0, ge=0.0, le=100.0)
+    notify_on_tier1_only: bool = Field(default=False)
+    enabled: bool = Field(default=True)
+
+
+class NotificationAlertSchema(BaseModel):
+    """Alert payload to dispatch to webhooks."""
+    job_id: Optional[int] = Field(None)
+    title: str = Field(..., min_length=1)
+    company: str = Field(..., min_length=1)
+    location: Optional[str] = Field(default="Remote")
+    fit_score: float = Field(..., ge=0.0, le=100.0)
+    job_url: str = Field(..., min_length=1)
+    top_contact_name: Optional[str] = Field(None)
+    top_contact_email: Optional[str] = Field(None)
+    summary_hook: Optional[str] = Field(None)
+
+
+class NotificationTestRequest(BaseModel):
+    """Request model for testing a specific notification channel."""
+    channel: str = Field(..., description="telegram, discord, slack")
+
+
+class NotificationDispatchResponseSchema(BaseModel):
+    """Response model summarizing alert dispatch results across channels."""
+    status: str = Field(default="success")
+    dispatched_count: int = Field(...)
+    results: List[Dict[str, Any]] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 4-Year Total Compensation & Equity Simulator API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class OfferPackageSchema(BaseModel):
+    """Offer package data for compensation modeling."""
+    company: str = Field(..., min_length=1)
+    role_title: str = Field(..., min_length=1)
+    base_salary: float = Field(..., ge=0.0)
+    signon_bonus: float = Field(default=0.0, ge=0.0)
+    target_bonus_pct: float = Field(default=15.0, ge=0.0, le=100.0)
+    equity_grant_usd: float = Field(default=0.0, ge=0.0)
+    vesting_schedule: str = Field(default="standard_4yr_25")
+    custom_vesting_splits: Optional[List[float]] = Field(None)
+    stock_type: str = Field(default="RSU")
+    startup_exit_multiple: float = Field(default=1.0, ge=0.1, le=100.0)
+    estimated_tax_rate: float = Field(default=35.0, ge=0.0, le=70.0)
+
+
+class CompSimulationResponse(BaseModel):
+    """Response model with 4-year trajectory, yearly breakdowns, and counter targets."""
+    status: str = Field(default="success")
+    company: str = Field(...)
+    role_title: str = Field(...)
+    four_year_total_pre_tax: float = Field(...)
+    four_year_total_post_tax: float = Field(...)
+    average_annual_comp: float = Field(...)
+    yearly_breakdowns: List[Dict[str, Any]] = Field(default_factory=list)
+    negotiation_counter_target: float = Field(...)
+    negotiation_advice: str = Field(...)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class CompComparisonRequest(BaseModel):
+    """Request model for comparing multiple offer packages."""
+    offers: List[OfferPackageSchema] = Field(..., min_length=1)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 1-Click ATS Tailored Resume & Cover Letter API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ResumeGenerateRequestSchema(BaseModel):
+    """Request model for tailored ATS resume generation."""
+    candidate_name: Optional[str] = Field(default="Candidate")
+    candidate_email: Optional[str] = Field(default="candidate@example.com")
+    candidate_phone: Optional[str] = Field(default="+1 (555) 019-2834")
+    candidate_location: Optional[str] = Field(default="San Francisco, CA / Remote")
+    candidate_linkedin: Optional[str] = Field(default="linkedin.com/in/candidate")
+    candidate_github: Optional[str] = Field(default="github.com/candidate")
+    role_title: str = Field(..., min_length=1)
+    company: str = Field(..., min_length=1)
+    job_description: Optional[str] = Field(default=None)
+    custom_bullets: Optional[List[str]] = Field(default=None)
+
+
+class CoverLetterGenerateRequestSchema(BaseModel):
+    """Request model for tailored cover letter synthesis."""
+    candidate_name: Optional[str] = Field(default="Candidate")
+    candidate_email: Optional[str] = Field(default="candidate@example.com")
+    company: str = Field(..., min_length=1)
+    role_title: str = Field(..., min_length=1)
+    hiring_manager_name: Optional[str] = Field(default="Engineering Leadership Team")
+    job_description: Optional[str] = Field(default=None)
+
+
+class ResumeDocumentResponseSchema(BaseModel):
+    """Response model with rendered HTML, plain text, and ATS keyword matches."""
+    status: str = Field(default="success")
+    document_type: str = Field(...)
+    company: str = Field(...)
+    role_title: str = Field(...)
+    ats_match_score: float = Field(...)
+    html_content: str = Field(...)
+    plain_text: str = Field(...)
+    suggested_keywords: List[str] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+
+
+
+
+
+
 
 

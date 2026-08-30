@@ -38,6 +38,7 @@ import {
 } from '@mui/icons-material';
 import { useJobs } from '../hooks/useJobs';
 import { formatSource, formatRelativeTime } from '../utils/formatters';
+import { GhostBadge } from '../components/ghost_hunter/GhostBadge';
 import type { Job } from '../api/types';
 
 export const Jobs: React.FC = () => {
@@ -342,6 +343,7 @@ export const Jobs: React.FC = () => {
                         variant="outlined"
                         sx={{ color: '#64748B' }}
                       />
+                      <GhostBadge jobId={job.id} />
                     </Stack>
                   </Box>
 

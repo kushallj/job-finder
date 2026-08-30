@@ -145,11 +145,37 @@ from src.api_models import (
     AttentionTailorResponse,
     AttentionOutreachRequest,
     AttentionOutreachResponse,
+    GhostAnalysisRequest,
+    GhostAnalysisResponse,
+    DeliverabilityDraftRequest,
+    DeliverabilityDraftResponse,
+    VoiceFeedbackRequest,
+    VoiceFeedbackResponse,
+    NotificationConfigSchema,
+    NotificationAlertSchema,
+    NotificationTestRequest,
+    NotificationDispatchResponseSchema,
+    OfferPackageSchema,
+    CompSimulationResponse,
+    CompComparisonRequest,
+    ResumeGenerateRequestSchema,
+    CoverLetterGenerateRequestSchema,
+    ResumeDocumentResponseSchema,
 )
 from src.referral import referral_service
 from src.x_referral import x_referral_service, x_oauth
 from src.email_intelligence import email_intelligence_service
 from src.attention import attention_service
+from src.ghost_hunter import ghost_hunter_service
+from src.deliverability import deliverability_service
+from src.voice_interviewer import voice_interview_service
+from src.notifications import notification_service, NotificationConfig, AlertPayload
+from src.comp_simulator import comp_simulator_service, OfferPackage
+from src.resume_generator import (
+    resume_generator_service,
+    ResumeGenerateRequest,
+    CoverLetterGenerateRequest,
+)
 from src.api_error_handlers import (
     register_error_handlers,
     APIError,
@@ -3572,10 +3598,267 @@ async def generate_cross_attention_outreach(request: AttentionOutreachRequest, r
         raise APIError(f"Cross-attention outreach failed: {str(exc)}")
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Ghost Job & Stale Listing Detector Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/ghost-hunter/analyze", tags=["ghost-hunter"], response_model=GhostAnalysisResponse)
+async def analyze_ghost_job(request: GhostAnalysisRequest, req: Request):
+    """Analyzes a job posting against temporal, textual, and company signals to compute its Ghost Score."""
+    try:
+        result = ghost_hunter_service.analyze(
+            title=request.title,
+            company=request.company,
+            description=request.description,
+            posted_date=request.posted_date,
+            has_decision_maker=request.has_decision_maker,
+        )
+        return GhostAnalysisResponse(
+            status="success",
+            ghost_score=result.ghost_score,
+            urgency_label=result.urgency_label,
+            is_ghost_risk=result.is_ghost_risk,
+            confidence_score=result.confidence_score,
+            estimated_age_days=result.estimated_age_days,
+            signals=[s.model_dump() for s in result.signals],
+            action_recommendation=result.action_recommendation,
+        )
+    except Exception as exc:
+        log.error("Ghost analysis failed: %s", exc, exc_info=True)
+        raise APIError(f"Ghost analysis failed: {str(exc)}")
+
+
+@app.get("/api/jobs/{job_id}/ghost-score", tags=["ghost-hunter"], response_model=GhostAnalysisResponse)
+async def get_job_ghost_score(job_id: int, req: Request):
+    """Retrieves Ghost Job legitimacy analysis for an existing database job."""
+    try:
+        async with db_session() as db:
+            result = ghost_hunter_service.analyze_db_job(db, job_id)
+            return GhostAnalysisResponse(
+                status="success",
+                ghost_score=result.ghost_score,
+                urgency_label=result.urgency_label,
+                is_ghost_risk=result.is_ghost_risk,
+                confidence_score=result.confidence_score,
+                estimated_age_days=result.estimated_age_days,
+                signals=[s.model_dump() for s in result.signals],
+                action_recommendation=result.action_recommendation,
+            )
+    except ValueError as exc:
+        raise ResourceNotFoundError("Job", job_id)
+    except Exception as exc:
+        log.error("Database ghost analysis failed: %s", exc, exc_info=True)
+        raise APIError(f"Database ghost analysis failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Cold Email Deliverability Sandbox Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/deliverability/analyze-draft", tags=["deliverability"], response_model=DeliverabilityDraftResponse)
+async def analyze_email_deliverability(request: DeliverabilityDraftRequest, req: Request):
+    """Analyzes a cold outreach draft for spam trigger keywords, reading grade level, and deliverability risk."""
+    try:
+        result = deliverability_service.analyze(subject=request.subject, body=request.body)
+        return DeliverabilityDraftResponse(
+            status="success",
+            spam_score=result.spam_score,
+            deliverability_tier=result.deliverability_tier,
+            is_safe=result.is_safe,
+            flesch_kincaid_grade=result.flesch_kincaid_grade,
+            reading_time_seconds=result.reading_time_seconds,
+            word_count=result.word_count,
+            char_count=result.char_count,
+            link_count=result.link_count,
+            uppercase_ratio=result.uppercase_ratio,
+            spam_matches=[m.model_dump() for m in result.spam_matches],
+            subject_score=result.subject_score,
+            subject_advice=result.subject_advice,
+            deliverability_recommendations=result.deliverability_recommendations,
+        )
+    except Exception as exc:
+        log.error("Deliverability analysis failed: %s", exc, exc_info=True)
+        raise APIError(f"Deliverability analysis failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Live Voice & Audio AI Mock Interviewer Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/interview/voice-feedback", tags=["interview"], response_model=VoiceFeedbackResponse)
+async def analyze_spoken_mock_interview(request: VoiceFeedbackRequest, req: Request):
+    """Analyzes a candidate's spoken mock interview response for filler words, speech cadence (WPM), and STAR structure."""
+    try:
+        result = voice_interview_service.analyze_spoken_response(
+            transcript=request.transcript,
+            duration_seconds=request.duration_seconds,
+            target_focus=request.target_focus or "Distributed Systems",
+        )
+        return VoiceFeedbackResponse(
+            status="success",
+            speech_delivery_score=result.speech_delivery_score,
+            filler_stats=result.filler_stats.model_dump(),
+            cadence_stats=result.cadence_stats.model_dump(),
+            star_eval=result.star_eval.model_dump(),
+            delivery_tips=result.delivery_tips,
+        )
+    except Exception as exc:
+        log.error("Voice interview feedback failed: %s", exc, exc_info=True)
+        raise APIError(f"Voice interview feedback failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Instant Multi-Channel Webhook Alerts Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/notifications/config", tags=["notifications"], response_model=NotificationConfigSchema)
+async def get_notification_config(req: Request):
+    """Retrieves current Telegram, Discord, and Slack webhook alert configuration."""
+    return notification_service.get_config()
+
+
+@app.post("/api/notifications/config", tags=["notifications"], response_model=NotificationConfigSchema)
+async def update_notification_config(config: NotificationConfigSchema, req: Request):
+    """Updates Telegram, Discord, and Slack webhook alert settings."""
+    try:
+        saved = notification_service.save_config(NotificationConfig(**config.model_dump()))
+        return saved
+    except Exception as exc:
+        log.error("Failed to save notification configuration: %s", exc, exc_info=True)
+        raise APIError(f"Failed to save notification settings: {str(exc)}")
+
+
+@app.post("/api/notifications/test", tags=["notifications"])
+async def test_notification_channel(request: NotificationTestRequest, req: Request):
+    """Sends a sample test alert payload to Telegram, Discord, or Slack."""
+    try:
+        res = await notification_service.send_test_alert(request.channel)
+        return {"status": "success", "channel": res.channel, "delivery_status": res.status, "detail": res.detail}
+    except Exception as exc:
+        log.error("Notification channel test failed: %s", exc, exc_info=True)
+        raise APIError(f"Channel test failed: {str(exc)}")
+
+
+@app.post("/api/notifications/dispatch", tags=["notifications"], response_model=NotificationDispatchResponseSchema)
+async def dispatch_opportunity_alert(alert: NotificationAlertSchema, req: Request):
+    """Dispatches a high-priority opportunity alert to all active webhook channels."""
+    try:
+        res = await notification_service.dispatch_alert(AlertPayload(**alert.model_dump()))
+        return NotificationDispatchResponseSchema(
+            status=res.status,
+            dispatched_count=res.dispatched_count,
+            results=[r.model_dump() for r in res.results],
+            timestamp=res.timestamp,
+        )
+    except Exception as exc:
+        log.error("Notification dispatch failed: %s", exc, exc_info=True)
+        raise APIError(f"Notification dispatch failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 4-Year Total Compensation & Equity Simulator Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/comp/simulate", tags=["compensation"], response_model=CompSimulationResponse)
+async def simulate_compensation_package(offer: OfferPackageSchema, req: Request):
+    """Simulates 4-year total compensation cash flows, equity vesting curves, and counter-offer targets."""
+    try:
+        pkg = OfferPackage(**offer.model_dump())
+        result = comp_simulator_service.simulate(pkg)
+        return CompSimulationResponse(
+            status="success",
+            company=result.company,
+            role_title=result.role_title,
+            four_year_total_pre_tax=result.four_year_total_pre_tax,
+            four_year_total_post_tax=result.four_year_total_post_tax,
+            average_annual_comp=result.average_annual_comp,
+            yearly_breakdowns=[b.model_dump() for b in result.yearly_breakdowns],
+            negotiation_counter_target=result.negotiation_counter_target,
+            negotiation_advice=result.negotiation_advice,
+        )
+    except Exception as exc:
+        log.error("Comp package simulation failed: %s", exc, exc_info=True)
+        raise APIError(f"Comp package simulation failed: {str(exc)}")
+
+
+@app.post("/api/comp/compare", tags=["compensation"], response_model=List[CompSimulationResponse])
+async def compare_compensation_packages(request: CompComparisonRequest, req: Request):
+    """Simulates and ranks multiple competing job offer packages over a 4-year horizon."""
+    try:
+        packages = [OfferPackage(**o.model_dump()) for o in request.offers]
+        results = comp_simulator_service.compare(packages)
+        return [
+            CompSimulationResponse(
+                status="success",
+                company=r.company,
+                role_title=r.role_title,
+                four_year_total_pre_tax=r.four_year_total_pre_tax,
+                four_year_total_post_tax=r.four_year_total_post_tax,
+                average_annual_comp=r.average_annual_comp,
+                yearly_breakdowns=[b.model_dump() for b in r.yearly_breakdowns],
+                negotiation_counter_target=r.negotiation_counter_target,
+                negotiation_advice=r.negotiation_advice,
+            )
+            for r in results
+        ]
+    except Exception as exc:
+        log.error("Comp comparison failed: %s", exc, exc_info=True)
+        raise APIError(f"Comp comparison failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 1-Click ATS Tailored Resume & Cover Letter Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/resume/generate-ats", tags=["resume"], response_model=ResumeDocumentResponseSchema)
+async def generate_tailored_ats_resume(request: ResumeGenerateRequestSchema, req: Request):
+    """Generates an attention-weighted, single-page ATS-compliant HTML/PDF resume tailored to target job requirements."""
+    try:
+        req_obj = ResumeGenerateRequest(**request.model_dump())
+        result = resume_generator_service.generate_resume(req_obj)
+        return ResumeDocumentResponseSchema(
+            status="success",
+            document_type=result.document_type,
+            company=result.company,
+            role_title=result.role_title,
+            ats_match_score=result.ats_match_score,
+            html_content=result.html_content,
+            plain_text=result.plain_text,
+            suggested_keywords=result.suggested_keywords,
+            timestamp=result.timestamp,
+        )
+    except Exception as exc:
+        log.error("ATS resume generation failed: %s", exc, exc_info=True)
+        raise APIError(f"ATS resume generation failed: {str(exc)}")
+
+
+@app.post("/api/resume/generate-cover-letter", tags=["resume"], response_model=ResumeDocumentResponseSchema)
+async def generate_tailored_cover_letter(request: CoverLetterGenerateRequestSchema, req: Request):
+    """Generates a tailored executive cover letter explicitly referencing target company challenges and candidate metrics."""
+    try:
+        req_obj = CoverLetterGenerateRequest(**request.model_dump())
+        result = resume_generator_service.generate_cover_letter(req_obj)
+        return ResumeDocumentResponseSchema(
+            status="success",
+            document_type=result.document_type,
+            company=result.company,
+            role_title=result.role_title,
+            ats_match_score=result.ats_match_score,
+            html_content=result.html_content,
+            plain_text=result.plain_text,
+            suggested_keywords=result.suggested_keywords,
+            timestamp=result.timestamp,
+        )
+    except Exception as exc:
+        log.error("Cover letter generation failed: %s", exc, exc_info=True)
+        raise APIError(f"Cover letter generation failed: {str(exc)}")
+
+
 # =============================================================================
 # Dev entry point
 # =============================================================================
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

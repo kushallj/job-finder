@@ -55,6 +55,9 @@ import {
   FindInPage as DorkIcon,
   MarkEmailRead as VerifiedMailIcon,
   Security as SecurityIcon,
+  PictureAsPdf as PdfIcon,
+  Article as ArticleIcon,
+  Print as PrintIcon,
 } from '@mui/icons-material';
 import { opportunitiesApi } from '../api/endpoints/opportunities';
 import { lifecycleApi } from '../api/endpoints/lifecycle';
@@ -62,9 +65,14 @@ import { referralsApi } from '../api/endpoints/referrals';
 import { xReferralsApi } from '../api/endpoints/x_referrals';
 import { emailIntelligenceApi } from '../api/endpoints/email_intelligence';
 import { attentionApi } from '../api/endpoints/attention';
+import { resumeGeneratorApi } from '../api/endpoints/resume_generator';
+import type { ResumeDocumentResponse } from '../api/endpoints/resume_generator';
 import { AttentionHeatmap } from '../components/attention/AttentionHeatmap';
+import { GhostBadge } from '../components/ghost_hunter/GhostBadge';
+import { SpamHeatmapSandbox } from '../components/deliverability/SpamHeatmapSandbox';
 import type { DiscoveredContactItem, SearchDorkItem, EmailPermutationItem } from '../api/endpoints/email_intelligence';
 import type { OpportunityBrief as OpportunityBriefData, ReferralProfile, XProfile, XTweet } from '../api/types';
+
 
 const lifecycleStages = ['saved', 'ready', 'applied', 'interview', 'offer', 'negotiation', 'accepted'];
 const stageLabel: Record<string, string> = {
@@ -141,7 +149,55 @@ const OpportunityBrief: React.FC = () => {
   });
   const [customPermName, setCustomPermName] = useState('');
 
+  // 1-Click ATS Resume & Cover Letter Generator state
+  const [resumeModalOpen, setResumeModalOpen] = useState(false);
+  const [resumeLoading, setResumeLoading] = useState(false);
+  const [activeDocType, setActiveDocType] = useState<'ats_resume' | 'cover_letter'>('ats_resume');
+  const [resumeDoc, setResumeDoc] = useState<ResumeDocumentResponse | null>(null);
+
   const brief = briefQuery.data as OpportunityBriefData | undefined;
+
+  const handleOpenResumeModal = async (docType: 'ats_resume' | 'cover_letter' = 'ats_resume') => {
+    if (!brief) return;
+    setActiveDocType(docType);
+    setResumeModalOpen(true);
+    setResumeLoading(true);
+    try {
+      if (docType === 'ats_resume') {
+        const res = await resumeGeneratorApi.generateAtsResume({
+          role_title: brief.job.title || 'Software Engineer',
+          company: brief.job.company || 'Target Company',
+          job_description: brief.job.description || undefined,
+        });
+        setResumeDoc(res.data);
+      } else {
+        const res = await resumeGeneratorApi.generateCoverLetter({
+          role_title: brief.job.title || 'Software Engineer',
+          company: brief.job.company || 'Target Company',
+          job_description: brief.job.description || undefined,
+        });
+        setResumeDoc(res.data);
+      }
+    } catch {
+      setToast('Failed to generate document.');
+    } finally {
+      setResumeLoading(false);
+    }
+  };
+
+  const handlePrintResume = () => {
+    if (!resumeDoc) return;
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(resumeDoc.html_content);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 300);
+    }
+  };
+
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ['opportunity-brief', id] });
@@ -430,6 +486,7 @@ const OpportunityBrief: React.FC = () => {
                     sx={{ fontWeight: 700 }}
                   />
                 )}
+                <GhostBadge jobId={id} />
               </Stack>
 
               <Typography variant="h4" sx={{ fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', mb: 1 }}>
@@ -505,6 +562,18 @@ const OpportunityBrief: React.FC = () => {
                   X
                 </Button>
               </Stack>
+
+              <Button
+                variant="outlined"
+                color="secondary"
+                startIcon={<PdfIcon />}
+                onClick={() => handleOpenResumeModal('ats_resume')}
+                fullWidth
+                sx={{ fontWeight: 700 }}
+              >
+                Export Tailored ATS Resume
+              </Button>
+
 
               {brief.application_status === 'ready' && (
                 <Button
@@ -842,15 +911,48 @@ const OpportunityBrief: React.FC = () => {
               <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>
                 Recommended Cold Outreach Hook:
               </Typography>
-              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: '10px', bgcolor: '#F8FAFC', mt: 0.5 }}>
+              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: '10px', bgcolor: '#F8FAFC', mt: 0.5, mb: 2 }}>
                 <Typography variant="body2" sx={{ color: '#334155', fontStyle: 'italic' }}>
                   "{brief.outreach.recommended_message || 'Highlight your experience scaling distributed backend systems and mention recent production milestones.'}"
                 </Typography>
               </Paper>
+
+              <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block', mb: 1 }}>
+                ATS Document Engine & Deliverability Sandbox:
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="primary"
+                  startIcon={<PdfIcon fontSize="small" />}
+                  onClick={() => handleOpenResumeModal('ats_resume')}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Export Tailored ATS Resume
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="secondary"
+                  startIcon={<ArticleIcon fontSize="small" />}
+                  onClick={() => handleOpenResumeModal('cover_letter')}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Generate Cover Letter
+                </Button>
+              </Stack>
+
+              {/* Spam Heatmap Sandbox */}
+              <SpamHeatmapSandbox
+                subject={`Excited about ${brief.job.title || 'engineering'} opportunities at ${brief.job.company}`}
+                body={brief.outreach.recommended_message || `Hi Team,\n\nI noticed the ${brief.job.title || 'engineering'} opening at ${brief.job.company} and wanted to reach out. In my previous role, I scaled distributed systems handling 50k RPS with sub-15ms latency.\n\nBest regards,\nCandidate`}
+              />
             </CardContent>
           </Card>
         </Grid>
       </Grid>
+
 
       {/* Email Intelligence & Google Boolean Dorking Dialog */}
       <Dialog open={emailDialogOpen} onClose={() => setEmailDialogOpen(false)} maxWidth="md" fullWidth>
@@ -1396,12 +1498,101 @@ const OpportunityBrief: React.FC = () => {
         </DialogActions>
       </Dialog>
 
+      {/* 1-Click ATS Tailored Resume & Cover Letter Preview Modal */}
+      <Dialog open={resumeModalOpen} onClose={() => setResumeModalOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            {activeDocType === 'ats_resume' ? <PdfIcon sx={{ color: '#4F46E5' }} /> : <ArticleIcon sx={{ color: '#7C3AED' }} />}
+            <Typography variant="h6" fontWeight={800}>
+              {activeDocType === 'ats_resume' ? 'Tailored ATS-Compliant Resume' : 'Executive Cover Letter'} — {brief?.job.company}
+            </Typography>
+          </Stack>
+          {resumeDoc && (
+            <Chip
+              label={`ATS Score: ${resumeDoc.ats_match_score}%`}
+              size="small"
+              color="success"
+              sx={{ fontWeight: 700 }}
+            />
+          )}
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 2 }}>
+          {resumeLoading ? (
+            <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" py={8}>
+              <CircularProgress size={36} sx={{ mb: 2 }} />
+              <Typography variant="body2" color="text.secondary">
+                Applying Transformer Q,K,V Attention matrix to synthesize document…
+              </Typography>
+            </Box>
+          ) : resumeDoc ? (
+            <Box>
+              <Stack direction="row" spacing={1} sx={{ mb: 1.5 }} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Typography variant="caption" fontWeight={700} color="text.secondary">
+                  Attended Keywords:
+                </Typography>
+                {resumeDoc.suggested_keywords.map((kw, i) => (
+                  <Chip key={i} label={kw} size="small" variant="outlined" sx={{ fontWeight: 600, fontSize: '0.75rem' }} />
+                ))}
+              </Stack>
+              <Paper
+                variant="outlined"
+                sx={{
+                  height: 480,
+                  bgcolor: '#FFFFFF',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  border: '1px solid #CBD5E1',
+                }}
+              >
+                <iframe
+                  title="Document Preview"
+                  srcDoc={resumeDoc.html_content}
+                  style={{ width: '100%', height: '100%', border: 'none' }}
+                />
+              </Paper>
+            </Box>
+          ) : null}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, justifyContent: 'space-between' }}>
+          <Stack direction="row" spacing={1}>
+            <Button
+              size="small"
+              variant={activeDocType === 'ats_resume' ? 'contained' : 'outlined'}
+              onClick={() => handleOpenResumeModal('ats_resume')}
+            >
+              ATS Resume
+            </Button>
+            <Button
+              size="small"
+              variant={activeDocType === 'cover_letter' ? 'contained' : 'outlined'}
+              onClick={() => handleOpenResumeModal('cover_letter')}
+            >
+              Cover Letter
+            </Button>
+          </Stack>
+          <Stack direction="row" spacing={1}>
+            <Button onClick={() => setResumeModalOpen(false)}>Close</Button>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<PrintIcon />}
+              onClick={handlePrintResume}
+              disabled={!resumeDoc || resumeLoading}
+              sx={{ fontWeight: 700 }}
+            >
+              Print / Save as PDF
+            </Button>
+          </Stack>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar
         open={Boolean(toast)}
         autoHideDuration={4000}
         onClose={() => setToast('')}
         message={toast}
       />
+
     </Box>
   );
 };
