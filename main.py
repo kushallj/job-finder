@@ -139,10 +139,17 @@ from src.api_models import (
     EmailDorksResponse,
     EmailPermutationsRequest,
     EmailPermutationsResponse,
+    AttentionMatchRequest,
+    AttentionMatchResponse,
+    AttentionTailorRequest,
+    AttentionTailorResponse,
+    AttentionOutreachRequest,
+    AttentionOutreachResponse,
 )
 from src.referral import referral_service
 from src.x_referral import x_referral_service, x_oauth
 from src.email_intelligence import email_intelligence_service
+from src.attention import attention_service
 from src.api_error_handlers import (
     register_error_handlers,
     APIError,
@@ -3484,6 +3491,85 @@ async def generate_email_permutations(request: EmailPermutationsRequest, req: Re
     except Exception as exc:
         log.error("Permutation generation error: %s", exc, exc_info=True)
         raise APIError(f"Permutation generation failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Transformer Q, K, V Attention Architecture Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/attention/match", tags=["attention"], response_model=AttentionMatchResponse)
+async def match_job_with_attention(request: AttentionMatchRequest, req: Request):
+    """
+    Computes 4-Head Scaled Dot-Product Attention (Tech, Scale, Impact, Seniority)
+    between Job Description requirement queries (Q) and Candidate capability keys (K),
+    synthesizing the attended value vector (V) and attention weight matrix.
+    """
+    trace = req.state.trace_id
+    try:
+        result = attention_service.match_job(
+            job_description=request.job_description,
+            custom_bullets=request.custom_bullets,
+        )
+        log.info("[%s] Transformer Q,K,V match computed: score=%.1f%% (%s)", trace, result.overall_score, result.fit_label)
+        return AttentionMatchResponse(
+            status="success",
+            overall_score=result.overall_score,
+            fit_label=result.fit_label,
+            heads={h_name: h.model_dump() for h_name, h in result.heads.items()},
+            matrix=result.matrix.model_dump(),
+            top_attended_values=[v.model_dump() for v in result.top_attended_values],
+            tailored_bullets=[b.model_dump() for b in result.tailored_bullets],
+            outreach_hooks=[h.model_dump() for h in result.outreach_hooks],
+            summary_insight=result.summary_insight,
+        )
+    except Exception as exc:
+        log.error("[%s] Attention match failed: %s", trace, exc, exc_info=True)
+        raise APIError(f"Attention match failed: {str(exc)}")
+
+
+@app.post("/api/attention/tailor", tags=["attention"], response_model=AttentionTailorResponse)
+async def tailor_resume_bullets_with_attention(request: AttentionTailorRequest, req: Request):
+    """Generates attention-ranked tailored bullets for a job description based on received attention weights."""
+    try:
+        bullets = attention_service.tailor_resume(
+            job_description=request.job_description,
+            custom_bullets=request.custom_bullets,
+        )
+        return AttentionTailorResponse(
+            status="success",
+            total_bullets=len(bullets),
+            tailored_bullets=[b.model_dump() for b in bullets],
+        )
+    except Exception as exc:
+        log.error("Attention tailoring error: %s", exc, exc_info=True)
+        raise APIError(f"Attention tailoring failed: {str(exc)}")
+
+
+@app.post("/api/attention/outreach", tags=["attention"], response_model=AttentionOutreachResponse)
+async def generate_cross_attention_outreach(request: AttentionOutreachRequest, req: Request):
+    """Cross-attends target contact persona against candidate portfolio wins to generate personalized hooks."""
+    try:
+        result = attention_service.synthesize_outreach_hooks(
+            contact_name=request.contact_name,
+            contact_title=request.contact_title,
+            company=request.company,
+            job_description=request.job_description,
+        )
+        return AttentionOutreachResponse(
+            status="success",
+            contact_name=result["contact_name"],
+            contact_title=result["contact_title"],
+            company=result["company"],
+            role_type=result["role_type"],
+            subject=result["subject"],
+            hook_message=result["hook_message"],
+            attended_proof_point=result["attended_proof_point"],
+            impact_metric=result["impact_metric"],
+            call_to_action=result["call_to_action"],
+        )
+    except Exception as exc:
+        log.error("Cross-attention outreach error: %s", exc, exc_info=True)
+        raise APIError(f"Cross-attention outreach failed: {str(exc)}")
 
 
 # =============================================================================

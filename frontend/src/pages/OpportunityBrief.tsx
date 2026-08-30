@@ -61,6 +61,8 @@ import { lifecycleApi } from '../api/endpoints/lifecycle';
 import { referralsApi } from '../api/endpoints/referrals';
 import { xReferralsApi } from '../api/endpoints/x_referrals';
 import { emailIntelligenceApi } from '../api/endpoints/email_intelligence';
+import { attentionApi } from '../api/endpoints/attention';
+import { AttentionHeatmap } from '../components/attention/AttentionHeatmap';
 import type { DiscoveredContactItem, SearchDorkItem, EmailPermutationItem } from '../api/endpoints/email_intelligence';
 import type { OpportunityBrief as OpportunityBriefData, ReferralProfile, XProfile, XTweet } from '../api/types';
 
@@ -87,6 +89,17 @@ const OpportunityBrief: React.FC = () => {
     queryFn: () => opportunitiesApi.brief(id),
     enabled: Number.isFinite(id),
     staleTime: 15000,
+  });
+
+  const attentionQuery = useQuery({
+    queryKey: ['attention-match', id],
+    queryFn: () =>
+      attentionApi.match(
+        briefQuery.data?.job?.description ||
+          `${briefQuery.data?.job?.title || 'Software Engineer'} at ${briefQuery.data?.job?.company || 'Company'}`
+      ),
+    enabled: !!briefQuery.data,
+    staleTime: 60000,
   });
 
   const [working, setWorking] = useState(false);
@@ -570,6 +583,9 @@ const OpportunityBrief: React.FC = () => {
           </Stack>
         </CardContent>
       </Card>
+
+      {/* Transformer Q,K,V Attention Analysis Heatmap */}
+      <AttentionHeatmap data={attentionQuery.data} loading={attentionQuery.isLoading} />
 
       {/* 4-Quadrant Intelligence Deck */}
       <Grid container spacing={3}>

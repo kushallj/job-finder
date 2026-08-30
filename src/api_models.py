@@ -1225,4 +1225,66 @@ class EmailPermutationsResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Transformer Q, K, V Attention Architecture API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class AttentionMatchRequest(BaseModel):
+    """Request model for Multi-Head Q,K,V Attention job matching."""
+    job_description: str = Field(..., min_length=10)
+    custom_bullets: Optional[List[str]] = Field(default=None)
+
+
+class AttentionMatchResponse(BaseModel):
+    """Response model containing 4-head attention scores, matrix, and values."""
+    status: str = Field(default="success")
+    overall_score: float = Field(...)
+    fit_label: str = Field(...)
+    heads: Dict[str, Any] = Field(default_factory=dict)
+    matrix: Dict[str, Any] = Field(default_factory=dict)
+    top_attended_values: List[Dict[str, Any]] = Field(default_factory=list)
+    tailored_bullets: List[Dict[str, Any]] = Field(default_factory=list)
+    outreach_hooks: List[Dict[str, Any]] = Field(default_factory=list)
+    summary_insight: str = Field(...)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AttentionTailorRequest(BaseModel):
+    """Request model for attention-weighted resume bullet tailoring."""
+    job_description: str = Field(..., min_length=10)
+    custom_bullets: Optional[List[str]] = Field(default=None)
+
+
+class AttentionTailorResponse(BaseModel):
+    """Response containing tailored bullets ordered by attention weights."""
+    status: str = Field(default="success")
+    total_bullets: int = Field(...)
+    tailored_bullets: List[Dict[str, Any]] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AttentionOutreachRequest(BaseModel):
+    """Request model for cross-attention outreach hook generation."""
+    contact_name: str = Field(..., min_length=1, max_length=255)
+    contact_title: str = Field(..., min_length=1, max_length=255)
+    company: str = Field(..., min_length=1, max_length=255)
+    job_description: Optional[str] = Field(default=None)
+
+
+class AttentionOutreachResponse(BaseModel):
+    """Response model for cross-attention personalized outreach."""
+    status: str = Field(default="success")
+    contact_name: str = Field(...)
+    contact_title: str = Field(...)
+    company: str = Field(...)
+    role_type: str = Field(...)
+    subject: str = Field(...)
+    hook_message: str = Field(...)
+    attended_proof_point: str = Field(...)
+    impact_metric: Optional[str] = Field(None)
+    call_to_action: str = Field(...)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+
 

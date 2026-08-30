@@ -185,11 +185,36 @@ def run_all_checks():
     res = client.post("/api/email-intelligence/permutations", json={"full_name": "Sam Altman", "domain": "openai.com"})
     log_test("POST /api/email-intelligence/permutations", res.status_code == 200, f"Permutations={res.json().get('total_permutations')}")
 
+    # 28. Transformer Q,K,V Attention Match
+    res = client.post("/api/attention/match", json={
+        "job_description": (
+            "We are hiring a Senior Python Engineer with expertise in FastAPI, PostgreSQL, and distributed caching with Redis. "
+            "Must have experience designing low-latency async services and mentoring team members."
+        ),
+    })
+    log_test("POST /api/attention/match", res.status_code == 200, f"Score={res.json().get('overall_score')}% ({res.json().get('fit_label')})")
+
+    # 29. Attention Tailored Bullets
+    res = client.post("/api/attention/tailor", json={
+        "job_description": "FastAPI async microservices and PostgreSQL latency optimization."
+    })
+    log_test("POST /api/attention/tailor", res.status_code == 200, f"Tailored Bullets={res.json().get('total_bullets')}")
+
+    # 30. Cross-Attention Cold Outreach
+    res = client.post("/api/attention/outreach", json={
+        "contact_name": "David Marcus",
+        "contact_title": "Head of Engineering",
+        "company": "Stripe",
+        "job_description": "Distributed asynchronous payments platform",
+    })
+    log_test("POST /api/attention/outreach", res.status_code == 200, f"Subject='{res.json().get('subject')}'")
+
     print("=" * 60)
-    print("🎉 ALL 27 E2E API CHECKS PASSED PERFECTLY!")
+    print("🎉 ALL 30 E2E API CHECKS PASSED PERFECTLY!")
     print("=" * 60)
 
 if __name__ == "__main__":
     run_all_checks()
+
 
 

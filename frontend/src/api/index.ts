@@ -9,6 +9,8 @@ export { referralsApi } from './endpoints/referrals';
 export { xReferralsApi } from './endpoints/x_referrals';
 export { emailIntelligenceApi } from './endpoints/email_intelligence';
 export { agentsApi } from './endpoints/agents';
+export { attentionApi } from './endpoints/attention';
+
 
 
 
