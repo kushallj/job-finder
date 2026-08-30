@@ -204,3 +204,40 @@ class PipelineMetric(Base):
     recorded_at = Column(DateTime, default=datetime.utcnow)
     pipeline_start_time = Column(DateTime)
     pipeline_end_time = Column(DateTime)
+
+
+class XOAuthToken(Base):
+    """Stores OAuth 2.0 PKCE access and refresh tokens for connected X accounts."""
+    __tablename__ = "x_oauth_tokens"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_identifier = Column(String(255), default="default_user", unique=True, index=True)
+    x_user_id = Column(String(255), nullable=True)
+    x_username = Column(String(255), nullable=True)
+    x_name = Column(String(255), nullable=True)
+    access_token = Column(Text, nullable=False)
+    refresh_token = Column(Text, nullable=True)
+    token_type = Column(String(50), default="bearer")
+    expires_at = Column(DateTime, nullable=True)
+    scopes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DiscoveredEmailCache(Base):
+    """Caches discovered and verified emails, MX records, and corporate patterns."""
+    __tablename__ = "discovered_email_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company = Column(String(255), index=True)
+    domain = Column(String(255), index=True)
+    person_name = Column(String(255))
+    email = Column(String(255), index=True)
+    title = Column(String(255))
+    confidence_score = Column(Float, default=70.0)
+    source = Column(String(100))  # dorking, github, hunter, apollo, pattern, clearbit
+    mail_provider = Column(String(100))  # Google Workspace, Microsoft 365, Custom
+    verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+

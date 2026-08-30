@@ -1001,3 +1001,228 @@ class ReferralActionLogResponse(BaseModel):
     message: str = Field(..., description="Confirmation message")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# X (Twitter) Referral Automator & Engagement Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class XAuthUrlResponse(BaseModel):
+    """Response containing generated X OAuth 2.0 PKCE authorization link."""
+    status: str = Field(default="success")
+    authorization_url: str = Field(..., description="X OAuth URL")
+    state: str = Field(..., description="State parameter for CSRF verification")
+
+
+class XAuthCallbackRequest(BaseModel):
+    """Request model for exchanging OAuth code for tokens."""
+    code: str = Field(..., min_length=1, description="Authorization code from X")
+    state: str = Field(..., min_length=1, description="State parameter returned by X")
+    code_verifier: Optional[str] = Field(None, description="PKCE code verifier if stored by client")
+
+
+class XAuthCallbackResponse(BaseModel):
+    """Response for successful X authentication."""
+    status: str = Field(default="success")
+    connected: bool = Field(default=True)
+    message: str = Field(..., description="Confirmation message")
+
+
+class XAuthStatusResponse(BaseModel):
+    """Status of X account connection."""
+    connected: bool = Field(..., description="Whether X account is connected")
+    username: Optional[str] = Field(None, description="Connected X handle")
+    expires_at: Optional[datetime] = Field(None)
+    scopes: Optional[List[str]] = Field(default_factory=list)
+
+
+class XTargetsResponse(BaseModel):
+    """Active target companies for X networking."""
+    status: str = Field(default="success")
+    total_targets: int = Field(...)
+    targets: List[Dict[str, Any]] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class XSearchRequest(BaseModel):
+    """Search request for tech employees & leaders on X."""
+    company: str = Field(..., min_length=1, max_length=255)
+    role: Optional[str] = Field(default=None, max_length=255)
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class XSearchResponse(BaseModel):
+    """Search response for X users."""
+    status: str = Field(default="success")
+    company: str = Field(...)
+    role: Optional[str] = Field(None)
+    source: str = Field(...)
+    count: int = Field(...)
+    profiles: List[Dict[str, Any]] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class XTweetSearchRequest(BaseModel):
+    """Search request for active hiring tweets."""
+    company: str = Field(..., min_length=1, max_length=255)
+    role: Optional[str] = Field(default=None, max_length=255)
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class XTweetSearchResponse(BaseModel):
+    """Search response for hiring tweets on X."""
+    status: str = Field(default="success")
+    company: str = Field(...)
+    role: Optional[str] = Field(None)
+    count: int = Field(...)
+    tweets: List[Dict[str, Any]] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class XMessageGenerateRequest(BaseModel):
+    """Request model for AI generation of X contextual replies, quote tweets, or DMs."""
+    action_type: Literal["dm", "reply", "quote"] = Field(...)
+    username: str = Field(..., min_length=1, max_length=255)
+    company: str = Field(..., min_length=1, max_length=255)
+    name: Optional[str] = Field(None, max_length=255)
+    title: Optional[str] = Field(None, max_length=255)
+    role_title: Optional[str] = Field(None, max_length=255)
+    job_link: Optional[str] = Field(None, max_length=2000)
+    candidate_bio: Optional[str] = Field(None, max_length=500)
+    highlight: Optional[str] = Field(None, max_length=500)
+    target_topic: Optional[str] = Field(None, max_length=500)
+    sender_name: Optional[str] = Field(default="Candidate", max_length=100)
+    tweet_id: Optional[str] = Field(None, max_length=100)
+    tweet_text: Optional[str] = Field(None, max_length=1000)
+    max_length: Optional[int] = Field(default=280, ge=50, le=2000)
+
+
+class XMessageGenerateResponse(BaseModel):
+    """Response model for generated X message/reply."""
+    status: str = Field(default="success")
+    action_type: str = Field(...)
+    message: str = Field(...)
+    char_count: int = Field(...)
+    is_under_limit: bool = Field(...)
+    intent_url: Optional[str] = Field(None)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class XEngageRequest(BaseModel):
+    """Request to execute an action on X (follow, like, repost, reply, DM)."""
+    action_type: Literal["follow", "like", "repost", "reply", "dm", "quote"] = Field(...)
+    target_username: str = Field(..., min_length=1, max_length=255)
+    company: str = Field(default="Tech Company", max_length=255)
+    target_user_id: Optional[str] = Field(None, max_length=100)
+    tweet_id: Optional[str] = Field(None, max_length=100)
+    message_text: Optional[str] = Field(None, max_length=5000)
+    job_id: Optional[int] = Field(None)
+
+
+class XEngageResponse(BaseModel):
+    """Response for executed X action."""
+    status: str = Field(default="success")
+    outreach_id: int = Field(...)
+    action_type: str = Field(...)
+    target: str = Field(...)
+    intent_url: Optional[str] = Field(None)
+    mode: str = Field(default="api")
+    daily_usage: Dict[str, Any] = Field(default_factory=dict)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class XProfileSyncRequest(BaseModel):
+    """Batch ingest X profiles into Contacts CRM."""
+    profiles: List[Dict[str, Any]] = Field(..., min_length=1)
+
+
+class XProfileSyncResponse(BaseModel):
+    """Response for X profile ingestion."""
+    status: str = Field(default="success")
+    synced_count: int = Field(...)
+    new_contacts_count: int = Field(...)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Email Intelligence & Google Boolean Dorking API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class EmailDiscoveryRequest(BaseModel):
+    """Request model for waterfall decision-maker and email discovery."""
+    company: str = Field(..., min_length=1, max_length=255)
+    job_title: Optional[str] = Field(default=None, max_length=255)
+    website_hint: Optional[str] = Field(default=None, max_length=2000)
+    target_name: Optional[str] = Field(default=None, max_length=255)
+    limit: int = Field(default=6, ge=1, le=20)
+
+
+class EmailDiscoveryResponse(BaseModel):
+    """Response model for discovered decision-makers and emails."""
+    status: str = Field(default="success")
+    company: str = Field(...)
+    domain: str = Field(...)
+    has_mx: bool = Field(default=True)
+    mail_provider: str = Field(default="Unknown")
+    total_found: int = Field(...)
+    contacts: List[Dict[str, Any]] = Field(default_factory=list)
+    recommended_contact: Optional[Dict[str, Any]] = Field(None)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class EmailVerifyRequest(BaseModel):
+    """Request model for live email verification and MX check."""
+    email: str = Field(..., min_length=3, max_length=255)
+
+
+class EmailVerifyResponse(BaseModel):
+    """Response model for email verification."""
+    status: str = Field(default="success")
+    email: str = Field(...)
+    is_valid_syntax: bool = Field(...)
+    is_disposable: bool = Field(...)
+    is_free_mail: bool = Field(...)
+    has_mx_records: bool = Field(...)
+    mx_records: List[str] = Field(default_factory=list)
+    mail_provider: str = Field(...)
+    confidence_score: float = Field(...)
+    verification_status: str = Field(...)
+    reason: Optional[str] = Field(None)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class EmailDorksRequest(BaseModel):
+    """Request model for generating Google Boolean Dorks."""
+    company: str = Field(..., min_length=1, max_length=255)
+    domain: Optional[str] = Field(default=None, max_length=255)
+    person_name: Optional[str] = Field(default=None, max_length=255)
+    role_title: Optional[str] = Field(default=None, max_length=255)
+
+
+class EmailDorksResponse(BaseModel):
+    """Response containing generated Google Boolean Dorks."""
+    status: str = Field(default="success")
+    company: str = Field(...)
+    domain: str = Field(...)
+    total_dorks: int = Field(...)
+    dorks: List[Dict[str, Any]] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class EmailPermutationsRequest(BaseModel):
+    """Request model for 12 corporate email permutations."""
+    full_name: str = Field(..., min_length=1, max_length=255)
+    domain: str = Field(..., min_length=1, max_length=255)
+
+
+class EmailPermutationsResponse(BaseModel):
+    """Response model containing 12 corporate permutations with MX score."""
+    status: str = Field(default="success")
+    full_name: str = Field(...)
+    domain: str = Field(...)
+    has_mx: bool = Field(...)
+    total_permutations: int = Field(...)
+    permutations: List[Dict[str, Any]] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+

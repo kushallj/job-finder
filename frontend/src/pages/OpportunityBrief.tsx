@@ -23,6 +23,8 @@ import {
   ListItemText,
   Snackbar,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Typography,
   Paper,
@@ -45,11 +47,22 @@ import {
   Search as SearchIcon,
   PersonAdd as PersonAddIcon,
   Share as ReferralIcon,
+  Favorite as FavoriteIcon,
+  Repeat as RepostIcon,
+  ChatBubbleOutline as ReplyIcon,
+  AlternateEmail as XIcon,
+  Email as EmailIcon,
+  FindInPage as DorkIcon,
+  MarkEmailRead as VerifiedMailIcon,
+  Security as SecurityIcon,
 } from '@mui/icons-material';
 import { opportunitiesApi } from '../api/endpoints/opportunities';
 import { lifecycleApi } from '../api/endpoints/lifecycle';
 import { referralsApi } from '../api/endpoints/referrals';
-import type { OpportunityBrief as OpportunityBriefData, ReferralProfile } from '../api/types';
+import { xReferralsApi } from '../api/endpoints/x_referrals';
+import { emailIntelligenceApi } from '../api/endpoints/email_intelligence';
+import type { DiscoveredContactItem, SearchDorkItem, EmailPermutationItem } from '../api/endpoints/email_intelligence';
+import type { OpportunityBrief as OpportunityBriefData, ReferralProfile, XProfile, XTweet } from '../api/types';
 
 const lifecycleStages = ['saved', 'ready', 'applied', 'interview', 'offer', 'negotiation', 'accepted'];
 const stageLabel: Record<string, string> = {
@@ -84,13 +97,36 @@ const OpportunityBrief: React.FC = () => {
   const [advanceStage, setAdvanceStage] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Referral search state
+  // LinkedIn Referral state
   const [referralDialogOpen, setReferralDialogOpen] = useState(false);
   const [referralLoading, setReferralLoading] = useState(false);
   const [referralProfiles, setReferralProfiles] = useState<ReferralProfile[]>([]);
   const [selectedReferral, setSelectedReferral] = useState<ReferralProfile | null>(null);
   const [generatedNote, setGeneratedNote] = useState<any>(null);
   const [generatingNote, setGeneratingNote] = useState(false);
+
+  // X (Twitter) Referral & Tweets state
+  const [xDialogOpen, setXDialogOpen] = useState(false);
+  const [xTab, setXTab] = useState(0);
+  const [xLoading, setXLoading] = useState(false);
+  const [xProfiles, setXProfiles] = useState<XProfile[]>([]);
+  const [xTweets, setXTweets] = useState<XTweet[]>([]);
+  const [xGeneratedMessage, setXGeneratedMessage] = useState<any>(null);
+  const [selectedXProfile, setSelectedXProfile] = useState<XProfile | null>(null);
+
+  // Email Intelligence & Google Boolean Dorking state
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailTab, setEmailTab] = useState(0);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [discoveredContacts, setDiscoveredContacts] = useState<DiscoveredContactItem[]>([]);
+  const [emailDorks, setEmailDorks] = useState<SearchDorkItem[]>([]);
+  const [emailPermutations, setEmailPermutations] = useState<EmailPermutationItem[]>([]);
+  const [domainInfo, setDomainInfo] = useState<{ domain: string; has_mx: boolean; mail_provider: string }>({
+    domain: '',
+    has_mx: true,
+    mail_provider: '',
+  });
+  const [customPermName, setCustomPermName] = useState('');
 
   const brief = briefQuery.data as OpportunityBriefData | undefined;
 
@@ -171,6 +207,7 @@ const OpportunityBrief: React.FC = () => {
     }
   };
 
+  // LinkedIn handlers
   const handleOpenReferralSearch = async () => {
     if (!brief?.job.company) return;
     setReferralDialogOpen(true);
@@ -214,6 +251,117 @@ const OpportunityBrief: React.FC = () => {
       setToast(`Saved ${profile.full_name} to Contacts CRM!`);
     } catch {
       setToast('Failed to sync contact to CRM.');
+    }
+  };
+
+  // X (Twitter) Handlers
+  const handleOpenXSearch = async () => {
+    if (!brief?.job.company) return;
+    setXDialogOpen(true);
+    setXLoading(true);
+    try {
+      const [profilesRes, tweetsRes] = await Promise.all([
+        xReferralsApi.search(brief.job.company, brief.job.title, 8),
+        xReferralsApi.searchTweets(brief.job.company, brief.job.title, 6),
+      ]);
+      setXProfiles(profilesRes.profiles || []);
+      setXTweets(tweetsRes.tweets || []);
+    } catch {
+      setToast('Could not fetch X referrals/tweets for this company.');
+    } finally {
+      setXLoading(false);
+    }
+  };
+
+  const handleGenerateXMessage = async (profile: XProfile, actionType: 'reply' | 'dm' | 'quote', tweet?: XTweet) => {
+    if (!brief) return;
+    setSelectedXProfile(profile);
+    try {
+      const res = await xReferralsApi.generateMessage({
+        action_type: actionType,
+        username: profile.username,
+        company: profile.company || brief.job.company || '',
+        name: profile.name,
+        title: profile.title || undefined,
+        role_title: brief.job.title,
+        job_link: brief.job.url || undefined,
+        tweet_id: tweet?.tweet_id,
+        tweet_text: tweet?.text,
+        max_length: actionType === 'dm' ? 1000 : 280,
+      });
+      setXGeneratedMessage(res);
+    } catch {
+      setToast('Failed to generate X message.');
+    }
+  };
+
+  const handleExecuteXAction = async (profile: XProfile, actionType: 'follow' | 'like' | 'repost' | 'reply' | 'dm', tweetId?: string, messageText?: string) => {
+    try {
+      const res = await xReferralsApi.engage({
+        action_type: actionType,
+        target_username: profile.username,
+        company: profile.company || brief?.job.company || 'Company',
+        tweet_id: tweetId,
+        message_text: messageText,
+        job_id: id,
+      });
+      if (res.intent_url) {
+        window.open(res.intent_url, '_blank', 'noopener,noreferrer');
+      }
+      await refresh();
+      setToast(`Executed ${actionType} on @${profile.username} (Logged to CRM) ✓`);
+    } catch {
+      setToast(`Failed to execute ${actionType}.`);
+    }
+  };
+
+  const handleSyncXProfileToCRM = async (profile: XProfile) => {
+    try {
+      await xReferralsApi.sync([profile]);
+      await refresh();
+      setToast(`Saved @${profile.username} to Contacts CRM!`);
+    } catch {
+      setToast('Failed to sync X contact.');
+    }
+  };
+
+  // Email Intelligence Handlers
+  const handleOpenEmailIntelligence = async () => {
+    if (!brief?.job.company) return;
+    setEmailDialogOpen(true);
+    setEmailLoading(true);
+    try {
+      const [discoveryRes, dorksRes] = await Promise.all([
+        emailIntelligenceApi.discover(brief.job.company, brief.job.title, brief.job.company_website || undefined),
+        emailIntelligenceApi.getDorks(brief.job.company, undefined, undefined, brief.job.title),
+      ]);
+      setDiscoveredContacts(discoveryRes.contacts || []);
+      setDomainInfo({
+        domain: discoveryRes.domain,
+        has_mx: discoveryRes.has_mx,
+        mail_provider: discoveryRes.mail_provider,
+      });
+      setEmailDorks(dorksRes.dorks || []);
+      if (discoveryRes.contacts.length > 0) {
+        const topName = discoveryRes.contacts[0].name;
+        const permsRes = await emailIntelligenceApi.getPermutations(topName, discoveryRes.domain);
+        setEmailPermutations(permsRes.permutations || []);
+      }
+    } catch {
+      setToast('Email Intelligence discovery encountered an issue.');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const handleGenerateCustomPermutations = async () => {
+    if (!customPermName.trim() || !domainInfo.domain) return;
+    try {
+      const res = await emailIntelligenceApi.getPermutations(customPermName.trim(), domainInfo.domain);
+      setEmailPermutations(res.permutations || []);
+      setToast(`Generated 12 permutations for ${customPermName}!`);
+    } catch {
+      setToast('Could not generate permutations.');
     }
   };
 
@@ -312,16 +460,38 @@ const OpportunityBrief: React.FC = () => {
                 {working ? 'Processing…' : brief.next_action.label}
               </Button>
 
-              <Button
-                variant="outlined"
-                color="secondary"
-                startIcon={<ReferralIcon />}
-                onClick={handleOpenReferralSearch}
-                fullWidth
-                sx={{ fontWeight: 700 }}
-              >
-                Find LinkedIn Referrals
-              </Button>
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  startIcon={<EmailIcon />}
+                  onClick={handleOpenEmailIntelligence}
+                  fullWidth
+                  sx={{ fontWeight: 700 }}
+                >
+                  Emails & Dorks
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  startIcon={<ReferralIcon />}
+                  onClick={handleOpenReferralSearch}
+                  fullWidth
+                  sx={{ fontWeight: 700 }}
+                >
+                  LinkedIn
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="info"
+                  startIcon={<XIcon />}
+                  onClick={handleOpenXSearch}
+                  fullWidth
+                  sx={{ fontWeight: 700 }}
+                >
+                  X
+                </Button>
+              </Stack>
 
               {brief.application_status === 'ready' && (
                 <Button
@@ -553,23 +723,45 @@ const OpportunityBrief: React.FC = () => {
                     Hiring Decision-Makers
                   </Typography>
                 </Stack>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<SearchIcon fontSize="small" />}
-                  onClick={handleOpenReferralSearch}
-                  sx={{ fontWeight: 700 }}
-                >
-                  Find Referrals
-                </Button>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="warning"
+                    startIcon={<EmailIcon fontSize="small" />}
+                    onClick={handleOpenEmailIntelligence}
+                    sx={{ fontWeight: 700 }}
+                  >
+                    Email Dorks
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<SearchIcon fontSize="small" />}
+                    onClick={handleOpenReferralSearch}
+                    sx={{ fontWeight: 700 }}
+                  >
+                    LinkedIn
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="info"
+                    startIcon={<XIcon fontSize="small" />}
+                    onClick={handleOpenXSearch}
+                    sx={{ fontWeight: 700 }}
+                  >
+                    X
+                  </Button>
+                </Stack>
               </Stack>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Identified contacts and LinkedIn referrals who can open doors for this role.
+                Identified contacts, recruiters, and tech leaders who can open doors for this role.
               </Typography>
 
               {brief.people.length === 0 ? (
                 <Alert severity="info" sx={{ borderRadius: '10px' }}>
-                  No contacts indexed yet for {brief.job.company || 'this company'}. Click "Find Referrals" to search alumni and employees.
+                  No contacts indexed yet for {brief.job.company || 'this company'}. Click "Email Dorks", "LinkedIn", or "X" to search hiring leads.
                 </Alert>
               ) : (
                 <Stack spacing={1.5}>
@@ -644,7 +836,207 @@ const OpportunityBrief: React.FC = () => {
         </Grid>
       </Grid>
 
-      {/* LinkedIn Referral Search & Generator Dialog */}
+      {/* Email Intelligence & Google Boolean Dorking Dialog */}
+      <Dialog open={emailDialogOpen} onClose={() => setEmailDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800, color: '#0F172A' }}>
+          Email Intelligence & Google Boolean Dorks — {brief.job.company}
+        </DialogTitle>
+        <DialogContent dividers>
+          {/* Domain & MX Header Banner */}
+          <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: '12px', bgcolor: '#F0FDF4', borderColor: '#BBF7D0' }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} gap={1.5}>
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <SecurityIcon sx={{ color: '#16A34A' }} />
+                <Box>
+                  <Typography variant="subtitle2" fontWeight={800} color="#14532D">
+                    Corporate Domain: <code>{domainInfo.domain || 'resolving...'}</code>
+                  </Typography>
+                  <Typography variant="caption" color="#166534">
+                    Mail Provider: <strong>{domainInfo.mail_provider || 'Active'}</strong> · MX Verified: {domainInfo.has_mx ? 'Yes ✓' : 'No'}
+                  </Typography>
+                </Box>
+              </Stack>
+              <Chip
+                label={domainInfo.has_mx ? "Deliverability High" : "Standard"}
+                size="small"
+                color={domainInfo.has_mx ? "success" : "warning"}
+                sx={{ fontWeight: 700 }}
+              />
+            </Stack>
+          </Paper>
+
+          <Tabs value={emailTab} onChange={(_, val) => setEmailTab(val)} sx={{ mb: 2.5 }}>
+            <Tab label={`Verified Decision-Makers (${discoveredContacts.length})`} sx={{ fontWeight: 700 }} />
+            <Tab label={`Google Boolean Dorks (${emailDorks.length})`} sx={{ fontWeight: 700 }} />
+            <Tab label={`12-Pattern Permutations (${emailPermutations.length})`} sx={{ fontWeight: 700 }} />
+          </Tabs>
+
+          {emailLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 6, gap: 2 }}>
+              <CircularProgress />
+              <Typography variant="body2" color="text.secondary">Running multi-provider waterfall & Google Dork analysis...</Typography>
+            </Box>
+          ) : emailTab === 0 ? (
+            // Contacts Tab
+            discoveredContacts.length === 0 ? (
+              <Alert severity="info">No emails discovered yet. Run Google Dorks or Permutations below.</Alert>
+            ) : (
+              <Stack spacing={2}>
+                {discoveredContacts.map((c, idx) => (
+                  <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: '12px' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1.5}>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Avatar sx={{ bgcolor: alpha('#16A34A', 0.1), color: '#16A34A', fontWeight: 800 }}>
+                          {c.name.split(' ').map((n) => n[0]).slice(0, 2).join('')}
+                        </Avatar>
+                        <Box>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="subtitle2" fontWeight={800} color="#0F172A">
+                              {c.name}
+                            </Typography>
+                            <Chip
+                              label={c.title}
+                              size="small"
+                              sx={{ fontWeight: 700, fontSize: '0.7rem', bgcolor: '#F1F5F9' }}
+                            />
+                          </Stack>
+                          <Typography variant="body2" fontWeight={600} color="#2563EB" sx={{ my: 0.25 }}>
+                            {c.email}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Confidence: {Math.round(c.confidence_score)}% · Source: {c.source} · {c.mail_provider || 'Verified MX'}
+                          </Typography>
+                        </Box>
+                      </Stack>
+
+                      <Stack direction="row" spacing={1}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<CopyIcon fontSize="small" />}
+                          onClick={() => {
+                            navigator.clipboard.writeText(c.email);
+                            setToast(`Copied ${c.email}!`);
+                          }}
+                        >
+                          Copy
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="primary"
+                          startIcon={<SendIcon fontSize="small" />}
+                          onClick={() => navigate(`/outreach?email=${encodeURIComponent(c.email)}&name=${encodeURIComponent(c.name)}&jobId=${id}`)}
+                          sx={{ fontWeight: 700 }}
+                        >
+                          Draft Cold Email
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )
+          ) : emailTab === 1 ? (
+            // Dorks Tab
+            emailDorks.length === 0 ? (
+              <Alert severity="info">No dorks generated.</Alert>
+            ) : (
+              <Stack spacing={2}>
+                <Typography variant="caption" color="text.secondary">
+                  Targeted Google Boolean search operators designed to uncover unindexed employee emails and personal contact details:
+                </Typography>
+                {emailDorks.map((d, idx) => (
+                  <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: '12px', bgcolor: '#F8FAFC' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1.5}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="subtitle2" fontWeight={800} color="#0F172A">
+                          {d.dork_type.replace(/_/g, ' ').toUpperCase()}
+                        </Typography>
+                        <Paper variant="outlined" sx={{ p: 1.5, my: 1, bgcolor: '#FFFFFF', fontFamily: 'monospace', fontSize: '0.8rem', color: '#0F172A' }}>
+                          {d.query}
+                        </Paper>
+                        <Typography variant="caption" color="text.secondary">
+                          {d.description}
+                        </Typography>
+                      </Box>
+                      {d.url && (
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="warning"
+                          startIcon={<DorkIcon fontSize="small" />}
+                          onClick={() => window.open(d.url ?? undefined, '_blank', 'noopener,noreferrer')}
+                          sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}
+                        >
+                          Google Search
+                        </Button>
+                      )}
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )
+          ) : (
+            // Permutations Tab
+            <Box>
+              <Stack direction="row" spacing={1} sx={{ mb: 2.5 }}>
+                <TextField
+                  label="Target Person Name"
+                  size="small"
+                  fullWidth
+                  placeholder="e.g. John Doe"
+                  value={customPermName}
+                  onChange={(e) => setCustomPermName(e.target.value)}
+                />
+                <Button
+                  variant="contained"
+                  onClick={handleGenerateCustomPermutations}
+                  sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}
+                >
+                  Generate 12 Patterns
+                </Button>
+              </Stack>
+
+              <Stack spacing={1.5}>
+                {emailPermutations.map((p, idx) => (
+                  <Paper key={idx} variant="outlined" sx={{ p: 1.5, borderRadius: '10px' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <VerifiedMailIcon sx={{ color: '#2563EB' }} fontSize="small" />
+                        <Box>
+                          <Typography variant="body2" fontWeight={700} color="#0F172A">
+                            {p.email}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Pattern: <code>{p.pattern_name}</code> · Confidence: {Math.round(p.confidence_score)}%
+                          </Typography>
+                        </Box>
+                      </Stack>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<CopyIcon fontSize="small" />}
+                        onClick={() => {
+                          navigator.clipboard.writeText(p.email);
+                          setToast(`Copied ${p.email}!`);
+                        }}
+                      >
+                        Copy
+                      </Button>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setEmailDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* LinkedIn Referral Search Dialog */}
       <Dialog open={referralDialogOpen} onClose={() => setReferralDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ fontWeight: 800, color: '#0F172A' }}>
           LinkedIn Employee Referrals — {brief.job.company}
@@ -733,6 +1125,181 @@ const OpportunityBrief: React.FC = () => {
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setReferralDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* X (Twitter) Referral Dialog */}
+      <Dialog open={xDialogOpen} onClose={() => setXDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800, color: '#0F172A' }}>
+          X (Twitter) Referrals & Hiring Tweets — {brief.job.company}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Tabs value={xTab} onChange={(_, val) => setXTab(val)} sx={{ mb: 2.5 }}>
+            <Tab label={`Tech Leaders & Employees (${xProfiles.length})`} sx={{ fontWeight: 700 }} />
+            <Tab label={`Active Hiring Tweets (${xTweets.length})`} sx={{ fontWeight: 700 }} />
+          </Tabs>
+
+          {xLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 6, gap: 2 }}>
+              <CircularProgress />
+              <Typography variant="body2" color="text.secondary">Searching X developer network & hiring posts...</Typography>
+            </Box>
+          ) : xTab === 0 ? (
+            // Profiles Tab
+            xProfiles.length === 0 ? (
+              <Alert severity="info">No profiles found for {brief.job.company}.</Alert>
+            ) : (
+              <Stack spacing={2}>
+                {xProfiles.map((p, idx) => (
+                  <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: '12px' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1.5}>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Avatar sx={{ bgcolor: alpha('#0284C7', 0.1), color: '#0284C7', fontWeight: 800 }}>
+                          {p.name.split(' ').map((n) => n[0]).slice(0, 2).join('')}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="subtitle2" fontWeight={800} color="#0F172A">
+                            {p.name} <span style={{ color: '#64748B', fontWeight: 500 }}>@{p.username}</span>
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {p.title || 'Engineer'} · {p.company}
+                          </Typography>
+                          {p.description && (
+                            <Typography variant="caption" sx={{ color: '#475569', mt: 0.5, display: 'block', maxWidth: 500 }}>
+                              {p.description}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Stack>
+
+                      <Stack direction="row" spacing={1} flexWrap="wrap">
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => handleSyncXProfileToCRM(p)}
+                        >
+                          Save CRM
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => handleExecuteXAction(p, 'follow')}
+                        >
+                          Follow
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="info"
+                          onClick={() => handleGenerateXMessage(p, 'dm')}
+                          sx={{ fontWeight: 700 }}
+                        >
+                          Draft DM
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )
+          ) : (
+            // Tweets Tab
+            xTweets.length === 0 ? (
+              <Alert severity="info">No active hiring tweets found for {brief.job.company}.</Alert>
+            ) : (
+              <Stack spacing={2}>
+                {xTweets.map((t, idx) => (
+                  <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: '12px', bgcolor: '#F8FAFC' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1.5}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="subtitle2" fontWeight={800} color="#0F172A">
+                          {t.author_name || 'Hiring Lead'} <span style={{ color: '#64748B', fontWeight: 500 }}>@{t.author_username || 'team'}</span>
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#334155', my: 1, whiteSpace: 'pre-wrap' }}>
+                          "{t.text}"
+                        </Typography>
+                      </Box>
+                    </Stack>
+
+                    <Divider sx={{ my: 1.5 }} />
+
+                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<FavoriteIcon fontSize="small" />}
+                        onClick={() => handleExecuteXAction({ username: t.author_username || 'user', name: t.author_name || 'User', x_user_id: '0', followers_count: 0, verified: false }, 'like', t.tweet_id)}
+                      >
+                        Like
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<RepostIcon fontSize="small" />}
+                        onClick={() => handleExecuteXAction({ username: t.author_username || 'user', name: t.author_name || 'User', x_user_id: '0', followers_count: 0, verified: false }, 'repost', t.tweet_id)}
+                      >
+                        Repost
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="info"
+                        startIcon={<ReplyIcon fontSize="small" />}
+                        onClick={() => handleGenerateXMessage({ username: t.author_username || 'user', name: t.author_name || 'User', x_user_id: '0', followers_count: 0, verified: false }, 'reply', t)}
+                        sx={{ fontWeight: 700 }}
+                      >
+                        AI Reply
+                      </Button>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )
+          )}
+
+          {xGeneratedMessage && selectedXProfile && (
+            <Box sx={{ mt: 3, p: 2.5, borderRadius: '12px', bgcolor: '#FFFFFF', border: '1px solid #0284C7' }}>
+              <Typography variant="subtitle2" fontWeight={800} color="#0F172A" gutterBottom>
+                AI Generated {xGeneratedMessage.action_type.toUpperCase()} for @{selectedXProfile.username} ({xGeneratedMessage.char_count} / {xGeneratedMessage.action_type === 'dm' ? 1000 : 280} chars)
+              </Typography>
+              <TextField
+                multiline
+                rows={3}
+                fullWidth
+                value={xGeneratedMessage.message}
+                sx={{ mb: 2, bgcolor: '#F8FAFC' }}
+              />
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<CopyIcon fontSize="small" />}
+                  onClick={() => {
+                    navigator.clipboard.writeText(xGeneratedMessage.message);
+                    setToast('Message copied to clipboard!');
+                  }}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Copy Message
+                </Button>
+                {xGeneratedMessage.intent_url && (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    color="info"
+                    startIcon={<LaunchIcon fontSize="small" />}
+                    onClick={() => window.open(xGeneratedMessage.intent_url, '_blank', 'noopener,noreferrer')}
+                    sx={{ fontWeight: 700 }}
+                  >
+                    Open on X
+                  </Button>
+                )}
+              </Stack>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setXDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 

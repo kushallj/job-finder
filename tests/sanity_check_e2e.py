@@ -112,9 +112,84 @@ def run_all_checks():
     res = client.post("/api/providers/sync", json={"query": "python developer", "limit": 2})
     log_test("POST /api/providers/sync", res.status_code == 200, f"Sync Total={res.json().get('total_fetched')}")
 
+    # 16. X Auth URL
+    res = client.get("/api/x/auth/url")
+    log_test("GET /api/x/auth/url", res.status_code == 200, "Auth URL generated")
+
+    # 17. X Auth Callback (Mock)
+    res = client.post("/api/x/auth/callback", json={"code": "code_e2e", "state": "state_e2e"})
+    log_test("POST /api/x/auth/callback", res.status_code == 200, "X Auth saved")
+
+    # 18. X Targets
+    res = client.get("/api/x/targets")
+    log_test("GET /api/x/targets", res.status_code == 200, f"X Targets={res.json().get('total_targets')}")
+
+    # 19. X Search Profiles
+    res = client.post("/api/x/search", json={"company": "OpenAI", "limit": 3})
+    log_test("POST /api/x/search", res.status_code == 200, f"Found {res.json().get('count')} profiles")
+
+    # 20. X Search Tweets
+    res = client.post("/api/x/search-tweets", json={"company": "OpenAI", "limit": 3})
+    log_test("POST /api/x/search-tweets", res.status_code == 200, f"Found {res.json().get('count')} hiring tweets")
+
+    # 21. X Generate Message
+    res = client.post("/api/x/generate-message", json={
+        "action_type": "reply",
+        "username": "sama",
+        "company": "OpenAI",
+        "role_title": "Distributed Systems Engineer",
+    })
+    log_test("POST /api/x/generate-message", res.status_code == 200 and res.json().get("is_under_limit"), f"Len={res.json().get('char_count')}/280")
+
+    # 22. X Engage User (Like/Intent)
+    res = client.post("/api/x/engage", json={
+        "action_type": "like",
+        "target_username": f"x_user_{uid}",
+        "company": f"TestCorp-{uid}",
+        "tweet_id": "18001001",
+        "job_id": job_id,
+    })
+    log_test("POST /api/x/engage", res.status_code == 200, f"Outreach ID={res.json().get('outreach_id')}")
+
+    # 23. X Profile Sync
+    res = client.post("/api/x/sync", json={
+        "profiles": [
+            {
+                "name": f"E2E X User {uid}",
+                "username": f"e2e_x_{uid}",
+                "company": f"TestCorp-{uid}",
+                "title": "Staff Architect",
+            }
+        ]
+    })
+    log_test("POST /api/x/sync", res.status_code == 200, f"Synced={res.json().get('synced_count')} (New={res.json().get('new_contacts_count')})")
+
+    # 24. Email Intelligence Discovery
+    res = client.post("/api/email-intelligence/discover", json={
+        "company": "Stripe",
+        "job_title": "Senior Backend Engineer",
+        "target_name": "Patrick Collison",
+        "limit": 3,
+    })
+    log_test("POST /api/email-intelligence/discover", res.status_code == 200, f"Found {res.json().get('total_found')} contacts (Domain: {res.json().get('domain')})")
+
+    # 25. Email Intelligence Verify
+    res = client.post("/api/email-intelligence/verify", json={"email": "contact@stripe.com"})
+    log_test("POST /api/email-intelligence/verify", res.status_code == 200, f"Provider={res.json().get('mail_provider')}, Score={res.json().get('confidence_score')}%")
+
+    # 26. Email Intelligence Dorks
+    res = client.post("/api/email-intelligence/dorks", json={"company": "OpenAI", "domain": "openai.com"})
+    log_test("POST /api/email-intelligence/dorks", res.status_code == 200, f"Dorks Generated={res.json().get('total_dorks')}")
+
+    # 27. Email Intelligence Permutations
+    res = client.post("/api/email-intelligence/permutations", json={"full_name": "Sam Altman", "domain": "openai.com"})
+    log_test("POST /api/email-intelligence/permutations", res.status_code == 200, f"Permutations={res.json().get('total_permutations')}")
+
     print("=" * 60)
-    print("🎉 ALL 14 E2E API CHECKS PASSED PERFECTLY!")
+    print("🎉 ALL 27 E2E API CHECKS PASSED PERFECTLY!")
     print("=" * 60)
 
 if __name__ == "__main__":
     run_all_checks()
+
+

@@ -177,7 +177,8 @@ export const Contacts: React.FC = () => {
                   .join('')
                   .toUpperCase();
                 const score = contact.confidence_score || 75;
-                const isLinkedIn = contact.source === 'linkedin_referral' || !!contact.linkedin_url;
+                const isX = contact.source === 'x_referral' || (contact.linkedin_url && contact.linkedin_url.includes('x.com'));
+                const isLinkedIn = !isX && (contact.source === 'linkedin_referral' || !!contact.linkedin_url);
 
                 return (
                   <TableRow key={contact.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
@@ -185,8 +186,8 @@ export const Contacts: React.FC = () => {
                       <Stack direction="row" spacing={1.5} alignItems="center">
                         <Avatar
                           sx={{
-                            bgcolor: isLinkedIn ? alpha('#0077B5', 0.1) : alpha('#4F46E5', 0.1),
-                            color: isLinkedIn ? '#0077B5' : '#4F46E5',
+                            bgcolor: isX ? alpha('#0284C7', 0.1) : isLinkedIn ? alpha('#0077B5', 0.1) : alpha('#4F46E5', 0.1),
+                            color: isX ? '#0284C7' : isLinkedIn ? '#0077B5' : '#4F46E5',
                             fontWeight: 700,
                             fontSize: '0.85rem',
                           }}
@@ -254,17 +255,17 @@ export const Contacts: React.FC = () => {
                         </Stack>
                       ) : (
                         <Typography variant="caption" color="text.secondary">
-                          Direct LinkedIn profile
+                          {isX ? 'Direct X (Twitter) Profile' : 'Direct LinkedIn profile'}
                         </Typography>
                       )}
                     </TableCell>
 
                     <TableCell>
                       <Chip
-                        label={isLinkedIn ? 'LinkedIn Referral' : contact.source || 'Apollo / Hunter'}
+                        label={isX ? 'X (Twitter) Referral' : isLinkedIn ? 'LinkedIn Referral' : contact.source || 'Apollo / Hunter'}
                         size="small"
-                        color={isLinkedIn ? 'info' : 'default'}
-                        variant={isLinkedIn ? 'filled' : 'outlined'}
+                        color={isX ? 'info' : isLinkedIn ? 'primary' : 'default'}
+                        variant={isX || isLinkedIn ? 'filled' : 'outlined'}
                         sx={{ fontSize: '0.72rem', fontWeight: 700 }}
                       />
                     </TableCell>
@@ -272,7 +273,7 @@ export const Contacts: React.FC = () => {
                     <TableCell align="right">
                       <Stack direction="row" spacing={1} justifyContent="flex-end">
                         {contact.linkedin_url && (
-                          <Tooltip title="Open LinkedIn Profile">
+                          <Tooltip title={isX ? "Open X Profile" : "Open LinkedIn Profile"}>
                             <IconButton
                               size="small"
                               onClick={() => window.open(contact.linkedin_url ?? undefined, '_blank')}

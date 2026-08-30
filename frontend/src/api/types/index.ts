@@ -401,4 +401,106 @@ export interface ReferralActionLogRequest {
   job_id?: number;
 }
 
+export interface XProfile {
+  x_user_id: string;
+  username: string;
+  name: string;
+  description?: string | null;
+  company?: string | null;
+  title?: string | null;
+  location?: string | null;
+  followers_count: number;
+  following_count?: number;
+  tweet_count?: number;
+  verified: boolean;
+  profile_image_url?: string | null;
+  x_url?: string;
+  source?: string;
+}
+
+export interface XTweet {
+  tweet_id: string;
+  author_id?: string | null;
+  author_username?: string | null;
+  author_name?: string | null;
+  text: string;
+  created_at?: string;
+  like_count: number;
+  retweet_count: number;
+  reply_count?: number;
+  is_hiring_tweet?: boolean;
+  tweet_url?: string;
+}
+
+export interface XSearchResponse {
+  status: string;
+  company: string;
+  role?: string | null;
+  source: string;
+  count: number;
+  profiles: XProfile[];
+}
+
+export interface XTweetSearchResponse {
+  status: string;
+  company: string;
+  role?: string | null;
+  count: number;
+  tweets: XTweet[];
+}
+
+export interface XMessageGenerateRequest {
+  action_type: 'dm' | 'reply' | 'quote';
+  username: string;
+  company: string;
+  name?: string;
+  title?: string;
+  role_title?: string;
+  job_link?: string;
+  candidate_bio?: string;
+  highlight?: string;
+  target_topic?: string;
+  sender_name?: string;
+  tweet_id?: string;
+  tweet_text?: string;
+  max_length?: number;
+}
+
+export interface XMessageGenerateResponse {
+  status: string;
+  action_type: string;
+  message: string;
+  char_count: number;
+  is_under_limit: boolean;
+  intent_url?: string | null;
+}
+
+export interface XEngageRequest {
+  action_type: 'follow' | 'like' | 'repost' | 'reply' | 'dm' | 'quote';
+  target_username: string;
+  company: string;
+  target_user_id?: string;
+  tweet_id?: string;
+  message_text?: string;
+  job_id?: number;
+}
+
+export interface XEngageResponse {
+  status: string;
+  outreach_id: number;
+  action_type: string;
+  target: string;
+  intent_url?: string | null;
+  mode: string;
+  daily_usage?: Record<string, any>;
+}
+
+export interface XAuthStatusResponse {
+  connected: boolean;
+  username?: string | null;
+  expires_at?: string | null;
+  scopes?: string[];
+}
+
+
 

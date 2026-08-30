@@ -116,8 +116,33 @@ from src.api_models import (
     ReferralNoteGenerateResponse,
     ReferralActionLogRequest,
     ReferralActionLogResponse,
+    XAuthUrlResponse,
+    XAuthCallbackRequest,
+    XAuthCallbackResponse,
+    XAuthStatusResponse,
+    XTargetsResponse,
+    XSearchRequest,
+    XSearchResponse,
+    XTweetSearchRequest,
+    XTweetSearchResponse,
+    XMessageGenerateRequest,
+    XMessageGenerateResponse,
+    XEngageRequest,
+    XEngageResponse,
+    XProfileSyncRequest,
+    XProfileSyncResponse,
+    EmailDiscoveryRequest,
+    EmailDiscoveryResponse,
+    EmailVerifyRequest,
+    EmailVerifyResponse,
+    EmailDorksRequest,
+    EmailDorksResponse,
+    EmailPermutationsRequest,
+    EmailPermutationsResponse,
 )
 from src.referral import referral_service
+from src.x_referral import x_referral_service, x_oauth
+from src.email_intelligence import email_intelligence_service
 from src.api_error_handlers import (
     register_error_handlers,
     APIError,
@@ -3137,6 +3162,328 @@ async def log_referral_action(
     except Exception as exc:
         log.error("[%s] Failed to log referral action: %s", trace, exc, exc_info=True)
         raise APIError(f"Failed to log referral action: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# X (Twitter) Referral Automator & Engagement Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/x/auth/url", tags=["x-referral"], response_model=XAuthUrlResponse)
+async def get_x_auth_url(req: Request):
+    """Generates an OAuth 2.0 PKCE authorization link for connecting user's X account."""
+    try:
+        data = x_oauth.get_authorization_url()
+        return XAuthUrlResponse(
+            status="success",
+            authorization_url=data["authorization_url"],
+            state=data["state"],
+        )
+    except Exception as exc:
+        log.error("Failed to generate X auth URL: %s", exc, exc_info=True)
+        raise APIError(f"Failed to generate X auth URL: {str(exc)}")
+
+
+@app.post("/api/x/auth/callback", tags=["x-referral"], response_model=XAuthCallbackResponse)
+async def handle_x_auth_callback(
+    request: XAuthCallbackRequest,
+    req: Request,
+):
+    """Exchanges OAuth authorization code for tokens and persists in database."""
+    trace = req.state.trace_id
+    try:
+        token_data = await x_oauth.exchange_code_for_tokens(
+            code=request.code,
+            state=request.state,
+            verifier=request.code_verifier,
+        )
+        async with db_session() as db:
+            x_oauth.save_token(db, token_data, user_identifier="default_user")
+            log.info("[%s] Successfully authenticated X account for default_user", trace)
+            return XAuthCallbackResponse(
+                status="success",
+                connected=True,
+                message="X account connected successfully via OAuth 2.0 PKCE",
+            )
+    except Exception as exc:
+        log.error("[%s] X OAuth callback error: %s", trace, exc, exc_info=True)
+        raise APIError(f"X authentication failed: {str(exc)}")
+
+
+@app.get("/api/x/auth/status", tags=["x-referral"], response_model=XAuthStatusResponse)
+async def get_x_auth_status(req: Request):
+    """Returns connection status and expiration info of user's X account."""
+    try:
+        async with db_session() as db:
+            token = x_oauth.get_token(db, user_identifier="default_user")
+            if not token:
+                return XAuthStatusResponse(connected=False)
+            scopes_list = token.scopes.split(" ") if token.scopes else []
+            return XAuthStatusResponse(
+                connected=True,
+                username=token.x_username or "connected_user",
+                expires_at=token.expires_at,
+                scopes=scopes_list,
+            )
+    except Exception as exc:
+        log.error("Failed to get X auth status: %s", exc, exc_info=True)
+        raise APIError(f"Failed to get X auth status: {str(exc)}")
+
+
+@app.get("/api/x/targets", tags=["x-referral"], response_model=XTargetsResponse)
+async def get_x_targets(limit: int = 30, req: Request = None):
+    """Retrieves target companies and roles currently in the pipeline for X networking."""
+    try:
+        async with db_session() as db:
+            targets = x_referral_service.get_active_targets(db, limit=limit)
+            return XTargetsResponse(
+                status="success",
+                total_targets=len(targets),
+                targets=targets,
+            )
+    except Exception as exc:
+        log.error("Failed to get X targets: %s", exc, exc_info=True)
+        raise APIError(f"Failed to get X targets: {str(exc)}")
+
+
+@app.post("/api/x/search", tags=["x-referral"], response_model=XSearchResponse)
+async def search_x_profiles(request: XSearchRequest, req: Request):
+    """Searches tech employees, recruiters, and engineering managers on X for a company."""
+    trace = req.state.trace_id
+    try:
+        result = x_referral_service.search_company_referrals(
+            company=request.company, role=request.role, limit=request.limit
+        )
+        return XSearchResponse(
+            status="success",
+            company=result["company"],
+            role=result["role"],
+            source=result["source"],
+            count=result["count"],
+            profiles=result["profiles"],
+        )
+    except Exception as exc:
+        log.error("[%s] X profile search failed: %s", trace, exc, exc_info=True)
+        raise APIError(f"X profile search failed: {str(exc)}")
+
+
+@app.post("/api/x/search-tweets", tags=["x-referral"], response_model=XTweetSearchResponse)
+async def search_x_hiring_tweets(request: XTweetSearchRequest, req: Request):
+    """Searches active hiring announcements and referral tweets for a company on X."""
+    trace = req.state.trace_id
+    try:
+        result = x_referral_service.search_hiring_tweets(
+            company=request.company, role=request.role, limit=request.limit
+        )
+        return XTweetSearchResponse(
+            status="success",
+            company=result["company"],
+            role=result["role"],
+            count=result["count"],
+            tweets=result["tweets"],
+        )
+    except Exception as exc:
+        log.error("[%s] X tweet search failed: %s", trace, exc, exc_info=True)
+        raise APIError(f"X tweet search failed: {str(exc)}")
+
+
+@app.post("/api/x/generate-message", tags=["x-referral"], response_model=XMessageGenerateResponse)
+async def generate_x_message(request: XMessageGenerateRequest, req: Request):
+    """Generates AI-crafted contextual tweet replies, quote tweets, or DMs."""
+    try:
+        profile_data = {
+            "x_user_id": "0",
+            "username": request.username,
+            "name": request.name or request.username,
+            "company": request.company,
+            "title": request.title,
+        }
+        context_data = {
+            "company": request.company,
+            "role_title": request.role_title or "Engineer",
+            "job_link": request.job_link,
+            "candidate_bio": request.candidate_bio,
+            "highlight": request.highlight,
+            "target_topic": request.target_topic,
+            "sender_name": request.sender_name or "Candidate",
+        }
+        tweet_data = None
+        if request.tweet_id and request.tweet_text:
+            tweet_data = {
+                "tweet_id": request.tweet_id,
+                "text": request.tweet_text,
+                "author_username": request.username,
+            }
+
+        result = x_referral_service.generate_message(
+            action_type=request.action_type,
+            profile_data=profile_data,
+            context_data=context_data,
+            tweet_data=tweet_data,
+            max_length=request.max_length,
+        )
+        return XMessageGenerateResponse(
+            status="success",
+            action_type=result["action_type"],
+            message=result["message"],
+            char_count=result["char_count"],
+            is_under_limit=result["is_under_limit"],
+            intent_url=result.get("intent_url"),
+        )
+    except Exception as exc:
+        log.error("X message generation error: %s", exc, exc_info=True)
+        raise APIError(f"X message generation failed: {str(exc)}")
+
+
+@app.post("/api/x/engage", tags=["x-referral"], response_model=XEngageResponse)
+async def engage_x_user(request: XEngageRequest, req: Request):
+    """Executes follow, like, repost, reply, or DM, and logs action to OutreachRecord."""
+    trace = req.state.trace_id
+    try:
+        async with db_session() as db:
+            result = await x_referral_service.engage_user(
+                db=db,
+                action_type=request.action_type,
+                target_username=request.target_username,
+                company=request.company,
+                target_user_id=request.target_user_id,
+                tweet_id=request.tweet_id,
+                message_text=request.message_text,
+                job_id=request.job_id,
+            )
+            log.info("[%s] Executed X action '%s' for @%s (outreach #%d)", trace, request.action_type, request.target_username, result["outreach_id"])
+            return XEngageResponse(
+                status="success",
+                outreach_id=result["outreach_id"],
+                action_type=result["action_type"],
+                target=result["target"],
+                intent_url=result.get("intent_url"),
+                mode=result.get("mode", "api"),
+                daily_usage=result.get("daily_usage", {}),
+            )
+    except Exception as exc:
+        log.error("[%s] X engagement error: %s", trace, exc, exc_info=True)
+        raise APIError(f"X engagement failed: {str(exc)}")
+
+
+@app.post("/api/x/sync", tags=["x-referral"], response_model=XProfileSyncResponse)
+async def sync_x_profiles(request: XProfileSyncRequest, req: Request):
+    """Batch ingests discovered X profiles into Contacts CRM."""
+    trace = req.state.trace_id
+    try:
+        async with db_session() as db:
+            result = x_referral_service.sync_profiles_to_contacts(db, request.profiles)
+            log.info("[%s] Synced %d X contacts (%d new)", trace, result["synced_count"], result["new_contacts_count"])
+            return XProfileSyncResponse(
+                status="success",
+                synced_count=result["synced_count"],
+                new_contacts_count=result["new_contacts_count"],
+            )
+    except Exception as exc:
+        log.error("[%s] X profile sync failed: %s", trace, exc, exc_info=True)
+        raise APIError(f"X profile sync failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Email Intelligence & Google Boolean Dorking Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/email-intelligence/discover", tags=["email-intelligence"], response_model=EmailDiscoveryResponse)
+async def discover_emails(request: EmailDiscoveryRequest, req: Request):
+    """
+    Executes the multi-provider waterfall (Google Boolean Dorks, Clearbit domain resolution,
+    GitHub commit harvesting, and pattern synthesis) to discover verified decision-maker emails.
+    """
+    trace = req.state.trace_id
+    try:
+        async with db_session() as db:
+            result = await email_intelligence_service.discover_company_decision_makers(
+                db=db,
+                company=request.company,
+                job_title=request.job_title,
+                website_hint=request.website_hint,
+                target_name=request.target_name,
+                limit=request.limit,
+            )
+            log.info("[%s] Discovered %d verified decision-makers for %s (%s)", trace, result["total_found"], request.company, result["domain"])
+            return EmailDiscoveryResponse(
+                status="success",
+                company=result["company"],
+                domain=result["domain"],
+                has_mx=result["has_mx"],
+                mail_provider=result["mail_provider"],
+                total_found=result["total_found"],
+                contacts=result["contacts"],
+                recommended_contact=result["recommended_contact"],
+            )
+    except Exception as exc:
+        log.error("[%s] Email discovery failed: %s", trace, exc, exc_info=True)
+        raise APIError(f"Email discovery failed: {str(exc)}")
+
+
+@app.post("/api/email-intelligence/verify", tags=["email-intelligence"], response_model=EmailVerifyResponse)
+async def verify_email_address(request: EmailVerifyRequest, req: Request):
+    """Executes live RFC 5322 syntax validation, disposable email filter, and DNS MX checks."""
+    try:
+        res = email_intelligence_service.verify_email(request.email)
+        return EmailVerifyResponse(
+            status="success",
+            email=res.email,
+            is_valid_syntax=res.is_valid_syntax,
+            is_disposable=res.is_disposable,
+            is_free_mail=res.is_free_mail,
+            has_mx_records=res.has_mx_records,
+            mx_records=res.mx_records,
+            mail_provider=res.mail_provider,
+            confidence_score=res.confidence_score,
+            verification_status=res.status,
+            reason=res.reason,
+        )
+    except Exception as exc:
+        log.error("Email verification error: %s", exc, exc_info=True)
+        raise APIError(f"Email verification failed: {str(exc)}")
+
+
+@app.post("/api/email-intelligence/dorks", tags=["email-intelligence"], response_model=EmailDorksResponse)
+async def generate_email_dorks(request: EmailDorksRequest, req: Request):
+    """Generates targeted Google Boolean Search Dorks for uncovering emails and decision-makers."""
+    try:
+        dorks = email_intelligence_service.generate_dorks(
+            company=request.company,
+            domain=request.domain,
+            person_name=request.person_name,
+            role_title=request.role_title,
+        )
+        return EmailDorksResponse(
+            status="success",
+            company=request.company,
+            domain=request.domain or f"{request.company.lower().replace(' ', '')}.com",
+            total_dorks=len(dorks),
+            dorks=[d.model_dump() for d in dorks],
+        )
+    except Exception as exc:
+        log.error("Dork generation error: %s", exc, exc_info=True)
+        raise APIError(f"Dork generation failed: {str(exc)}")
+
+
+@app.post("/api/email-intelligence/permutations", tags=["email-intelligence"], response_model=EmailPermutationsResponse)
+async def generate_email_permutations(request: EmailPermutationsRequest, req: Request):
+    """Generates 12 standard corporate email permutations for a person and domain with MX checks."""
+    try:
+        perms = email_intelligence_service.generate_permutations(
+            full_name=request.full_name,
+            domain=request.domain,
+        )
+        return EmailPermutationsResponse(
+            status="success",
+            full_name=request.full_name,
+            domain=request.domain,
+            has_mx=perms[0].has_mx if perms else True,
+            total_permutations=len(perms),
+            permutations=[p.model_dump() for p in perms],
+        )
+    except Exception as exc:
+        log.error("Permutation generation error: %s", exc, exc_info=True)
+        raise APIError(f"Permutation generation failed: {str(exc)}")
 
 
 # =============================================================================
