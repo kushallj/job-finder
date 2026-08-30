@@ -167,6 +167,11 @@ from src.api_models import (
     CopilotChatResponse,
     CopilotDorksRequest,
     CopilotDorksResponse,
+    HiregramStartSessionRequest,
+    HiregramStartSessionResponse,
+    HiregramSubmitTurnRequest,
+    HiregramSubmitTurnResponse,
+    HiregramFinalizeResponse,
 )
 from src.referral import referral_service
 from src.x_referral import x_referral_service, x_oauth
@@ -184,7 +189,9 @@ from src.resume_generator import (
 )
 from src.community_intel import community_intel_service
 from src.copilot import copilot_service, ChatTurnRequest, DorkGenerateRequest
+from src.hiregram import hiregram_service, InterviewerPersona
 from src.api_error_handlers import (
+
     register_error_handlers,
     APIError,
     ResourceNotFoundError,
@@ -3979,12 +3986,101 @@ async def generate_osint_dorks(request: CopilotDorksRequest, req: Request = None
         raise APIError(f"Dork generation failed: {str(exc)}")
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Hiregram Voice AI Mock Interview Integration Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/hiregram/start-session", tags=["hiregram"], response_model=HiregramStartSessionResponse)
+async def start_hiregram_session(request: HiregramStartSessionRequest, req: Request = None):
+    """Initializes a multi-persona Hiregram live voice mock interview session."""
+    try:
+        try:
+            persona_enum = InterviewerPersona(request.persona or "recruiter_sara")
+        except ValueError:
+            persona_enum = InterviewerPersona.RECRUITER_SARA
+
+        result = hiregram_service.start_session(
+            company=request.company,
+            role_title=request.role_title,
+            persona=persona_enum,
+            job_description=request.job_description,
+            candidate_resume_summary=request.candidate_resume_summary,
+            total_questions_target=request.total_questions_target or 4,
+        )
+        return HiregramStartSessionResponse(
+            status="success",
+            session_id=result["session_id"],
+            company=result["company"],
+            role_title=result["role_title"],
+            persona=result["persona"].value if hasattr(result["persona"], "value") else str(result["persona"]),
+            total_questions=result["total_questions"],
+            current_turn=result["current_turn"],
+        )
+    except Exception as exc:
+        log.error("Hiregram session initialization failed: %s", exc, exc_info=True)
+        raise APIError(f"Hiregram session initialization failed: {str(exc)}")
+
+
+@app.post("/api/hiregram/submit-turn", tags=["hiregram"], response_model=HiregramSubmitTurnResponse)
+async def submit_hiregram_turn(request: HiregramSubmitTurnRequest, req: Request = None):
+    """Submits candidate audio/text response, returning speech cadence, STAR critique, and next question."""
+    try:
+        result = hiregram_service.submit_turn(
+            session_id=request.session_id,
+            answer_text=request.answer_text,
+            duration_seconds=request.duration_seconds or 30.0,
+        )
+        return HiregramSubmitTurnResponse(
+            status="success",
+            session_id=result["session_id"],
+            evaluated_turn=result["evaluated_turn"],
+            next_turn=result["next_turn"],
+            is_finished=result["is_finished"],
+            current_question_number=result["current_question_number"],
+            total_questions=result["total_questions"],
+        )
+    except KeyError:
+        raise ResourceNotFoundError("Hiregram session", request.session_id)
+    except Exception as exc:
+        log.error("Hiregram turn evaluation failed: %s", exc, exc_info=True)
+        raise APIError(f"Hiregram turn evaluation failed: {str(exc)}")
+
+
+@app.post("/api/hiregram/finalize-session", tags=["hiregram"], response_model=HiregramFinalizeResponse)
+async def finalize_hiregram_session(session_id: str, req: Request = None):
+    """Finalizes session and generates full Hiregram multi-competency diagnostic scorecard."""
+    try:
+        scorecard = hiregram_service.finalize_session(session_id=session_id)
+        return HiregramFinalizeResponse(
+            status="success",
+            scorecard=scorecard.model_dump(),
+        )
+    except KeyError:
+        raise ResourceNotFoundError("Hiregram session", session_id)
+    except Exception as exc:
+        log.error("Hiregram session finalization failed: %s", exc, exc_info=True)
+        raise APIError(f"Hiregram session finalization failed: {str(exc)}")
+
+
+@app.get("/api/hiregram/sessions/{session_id}", tags=["hiregram"], response_model=HiregramFinalizeResponse)
+async def get_hiregram_session_scorecard(session_id: str, req: Request = None):
+    """Retrieves completed Hiregram scorecard for a session."""
+    scorecard = hiregram_service.get_scorecard(session_id=session_id)
+    if not scorecard:
+        raise ResourceNotFoundError("Hiregram scorecard", session_id)
+    return HiregramFinalizeResponse(
+        status="success",
+        scorecard=scorecard.model_dump(),
+    )
+
+
 # =============================================================================
 # Dev entry point
 # =============================================================================
 
 if __name__ == "__main__":
     import uvicorn
+
 
 
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

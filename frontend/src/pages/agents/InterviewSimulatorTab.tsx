@@ -17,6 +17,8 @@ import { useInterviewQuestions, useScoreAnswer } from '../../hooks/useAgents';
 import { voiceInterviewerApi } from '../../api';
 import type { InterviewQuestion, InterviewScore } from '../../api/types';
 import type { VoiceFeedbackResponse } from '../../api/endpoints/voice_interviewer';
+import { HiregramStudio } from '../../components/hiregram/HiregramStudio';
+
 
 const typeColor: Record<InterviewQuestion['type'], 'secondary' | 'info' | 'default'> = {
   company_specific: 'secondary', technical: 'info', behavioral: 'default',
@@ -252,6 +254,7 @@ const QuestionCard: React.FC<{ question: InterviewQuestion }> = ({ question }) =
 };
 
 export const InterviewSimulatorTab: React.FC = () => {
+  const [activeMode, setActiveMode] = useState<'hiregram' | 'drill'>('hiregram');
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
   const [jd, setJd] = useState('');
@@ -260,68 +263,97 @@ export const InterviewSimulatorTab: React.FC = () => {
 
   return (
     <Box>
-      <Card sx={{ mb: 3, border: '1px solid #E2E8F0', borderRadius: 3 }}>
-        <CardContent sx={{ p: 2.5 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }} gutterBottom>
-            🎙️ Live Voice & Audio AI Mock Interview Simulator
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Practice company-tailored technical + behavioral questions. Listen to questions spoken aloud in natural AI voice,
-            record your spoken answers in real-time, and get instant feedback on verbal delivery, filler words, speech cadence (WPM),
-            and STAR framework completeness.
-          </Typography>
-          <Stack spacing={2}>
-            <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
-              <CompanySelect value={company} onChange={setCompany} />
-              <TextField
-                label="Role title (optional)"
-                placeholder="e.g. Senior Backend Engineer"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                sx={{ flex: 1, minWidth: 200 }}
-              />
-              <TextField
-                label="# Questions"
-                type="number"
-                value={numQuestions}
-                onChange={(e) => setNumQuestions(Number(e.target.value))}
-                sx={{ width: 130 }}
-                inputProps={{ min: 1, max: 10 }}
-              />
-            </Stack>
-            <TextField
-              label="Paste Job Description (optional)"
-              placeholder="Paste actual JD text for target-specific system design & challenge questions…"
-              multiline
-              minRows={2}
-              value={jd}
-              onChange={(e) => setJd(e.target.value)}
-            />
-            <Button
-              variant="contained"
-              startIcon={getQuestions.isPending ? <CircularProgress size={16} color="inherit" /> : <QuestionIcon />}
-              onClick={() => getQuestions.mutate({ company, roleTitle: role, jobDescription: jd, numQuestions })}
-              disabled={!company || getQuestions.isPending}
-              sx={{ alignSelf: 'flex-start', fontWeight: 700, borderRadius: 2 }}
-            >
-              Generate Live Voice Interview Questions
-            </Button>
-          </Stack>
-        </CardContent>
-      </Card>
+      {/* Mode Switcher */}
+      <Stack direction="row" spacing={1.5} sx={{ mb: 3 }}>
+        <Button
+          variant={activeMode === 'hiregram' ? 'contained' : 'outlined'}
+          color="primary"
+          startIcon={<VoiceIcon />}
+          onClick={() => setActiveMode('hiregram')}
+          sx={{ fontWeight: 800, borderRadius: 2 }}
+        >
+          🎙️ Hiregram Voice AI Studio
+        </Button>
+        <Button
+          variant={activeMode === 'drill' ? 'contained' : 'outlined'}
+          color="secondary"
+          startIcon={<QuestionIcon />}
+          onClick={() => setActiveMode('drill')}
+          sx={{ fontWeight: 800, borderRadius: 2 }}
+        >
+          📝 Custom Question Drill & STAR Scorer
+        </Button>
+      </Stack>
 
-      {getQuestions.data && (
+      {activeMode === 'hiregram' ? (
+        <HiregramStudio />
+      ) : (
         <Box>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-            Generated Questions ({getQuestions.data.data.questions.length})
-          </Typography>
-          {getQuestions.data.data.questions.map((q, idx) => (
-            <QuestionCard key={idx} question={q} />
-          ))}
+          <Card sx={{ mb: 3, border: '1px solid #E2E8F0', borderRadius: 3 }}>
+            <CardContent sx={{ p: 2.5 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700 }} gutterBottom>
+                📝 Custom Question Drill & Verbal Delivery Analyzer
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Practice company-tailored technical + behavioral questions. Listen to questions spoken aloud in natural AI voice,
+                record your spoken answers in real-time, and get instant feedback on verbal delivery, filler words, speech cadence (WPM),
+                and STAR framework completeness.
+              </Typography>
+              <Stack spacing={2}>
+                <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+                  <CompanySelect value={company} onChange={setCompany} />
+                  <TextField
+                    label="Role title (optional)"
+                    placeholder="e.g. Senior Backend Engineer"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    sx={{ flex: 1, minWidth: 200 }}
+                  />
+                  <TextField
+                    label="# Questions"
+                    type="number"
+                    value={numQuestions}
+                    onChange={(e) => setNumQuestions(Number(e.target.value))}
+                    sx={{ width: 130 }}
+                    inputProps={{ min: 1, max: 10 }}
+                  />
+                </Stack>
+                <TextField
+                  label="Paste Job Description (optional)"
+                  placeholder="Paste actual JD text for target-specific system design & challenge questions…"
+                  multiline
+                  minRows={2}
+                  value={jd}
+                  onChange={(e) => setJd(e.target.value)}
+                />
+                <Button
+                  variant="contained"
+                  startIcon={getQuestions.isPending ? <CircularProgress size={16} color="inherit" /> : <QuestionIcon />}
+                  onClick={() => getQuestions.mutate({ company, roleTitle: role, jobDescription: jd, numQuestions })}
+                  disabled={!company || getQuestions.isPending}
+                  sx={{ alignSelf: 'flex-start', fontWeight: 700, borderRadius: 2 }}
+                >
+                  Generate Voice Interview Questions
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+
+          {getQuestions.data && (
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
+                Generated Questions ({getQuestions.data.data.questions.length})
+              </Typography>
+              {getQuestions.data.data.questions.map((q, idx) => (
+                <QuestionCard key={idx} question={q} />
+              ))}
+            </Box>
+          )}
         </Box>
       )}
     </Box>
   );
 };
+
 
 export default InterviewSimulatorTab;

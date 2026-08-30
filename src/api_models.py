@@ -1543,6 +1543,56 @@ class CopilotDorksResponse(BaseModel):
     timestamp: str = Field(...)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Hiregram Voice AI Mock Interview Integration API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class HiregramStartSessionRequest(BaseModel):
+    """Request model to initiate a Hiregram voice interview session."""
+    company: str = Field(..., min_length=1)
+    role_title: str = Field(..., min_length=1)
+    persona: Optional[str] = Field(default="recruiter_sara")
+    job_description: Optional[str] = Field(default=None)
+    candidate_resume_summary: Optional[str] = Field(default=None)
+    total_questions_target: Optional[int] = Field(default=4, ge=2, le=8)
+
+
+class HiregramStartSessionResponse(BaseModel):
+    """Response model with initialized session and first question."""
+    status: str = Field(default="success")
+    session_id: str = Field(...)
+    company: str = Field(...)
+    role_title: str = Field(...)
+    persona: str = Field(...)
+    total_questions: int = Field(...)
+    current_turn: Dict[str, Any] = Field(...)
+
+
+class HiregramSubmitTurnRequest(BaseModel):
+    """Request model for submitting an audio/text answer in a Hiregram session."""
+    session_id: str = Field(..., min_length=1)
+    answer_text: str = Field(..., min_length=1)
+    duration_seconds: Optional[float] = Field(default=30.0)
+
+
+class HiregramSubmitTurnResponse(BaseModel):
+    """Response model with turn diagnostics and next question."""
+    status: str = Field(default="success")
+    session_id: str = Field(...)
+    evaluated_turn: Dict[str, Any] = Field(...)
+    next_turn: Optional[Dict[str, Any]] = Field(default=None)
+    is_finished: bool = Field(...)
+    current_question_number: int = Field(...)
+    total_questions: int = Field(...)
+
+
+class HiregramFinalizeResponse(BaseModel):
+    """Response model with full diagnostic scorecard."""
+    status: str = Field(default="success")
+    scorecard: Dict[str, Any] = Field(...)
+
+
+
 
 
 

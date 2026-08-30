@@ -18,6 +18,8 @@ export { compSimulatorApi } from './endpoints/comp_simulator';
 export { resumeGeneratorApi } from './endpoints/resume_generator';
 export { communityIntelApi } from './endpoints/community_intel';
 export { copilotApi } from './endpoints/copilot';
+export { hiregramApi } from './endpoints/hiregram';
+
 
 
 

@@ -29,6 +29,7 @@ import {
   Typography,
   Paper,
   alpha,
+  IconButton,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -58,7 +59,10 @@ import {
   PictureAsPdf as PdfIcon,
   Article as ArticleIcon,
   Print as PrintIcon,
+  Close as CloseIcon,
+  RecordVoiceOver as InterviewIcon,
 } from '@mui/icons-material';
+
 import { opportunitiesApi } from '../api/endpoints/opportunities';
 import { lifecycleApi } from '../api/endpoints/lifecycle';
 import { referralsApi } from '../api/endpoints/referrals';
@@ -71,7 +75,9 @@ import { AttentionHeatmap } from '../components/attention/AttentionHeatmap';
 import { GhostBadge } from '../components/ghost_hunter/GhostBadge';
 import { SpamHeatmapSandbox } from '../components/deliverability/SpamHeatmapSandbox';
 import { CommunityIntelPanel } from '../components/community_intel/CommunityIntelPanel';
+import { HiregramStudio } from '../components/hiregram/HiregramStudio';
 import type { DiscoveredContactItem, SearchDorkItem, EmailPermutationItem } from '../api/endpoints/email_intelligence';
+
 
 import type { OpportunityBrief as OpportunityBriefData, ReferralProfile, XProfile, XTweet } from '../api/types';
 
@@ -157,7 +163,11 @@ const OpportunityBrief: React.FC = () => {
   const [activeDocType, setActiveDocType] = useState<'ats_resume' | 'cover_letter'>('ats_resume');
   const [resumeDoc, setResumeDoc] = useState<ResumeDocumentResponse | null>(null);
 
+  // Hiregram Voice AI Mock Interview modal state
+  const [hiregramModalOpen, setHiregramModalOpen] = useState(false);
+
   const brief = briefQuery.data as OpportunityBriefData | undefined;
+
 
   const handleOpenResumeModal = async (docType: 'ats_resume' | 'cover_letter' = 'ats_resume') => {
     if (!brief) return;
@@ -575,6 +585,17 @@ const OpportunityBrief: React.FC = () => {
               >
                 Export Tailored ATS Resume
               </Button>
+
+              <Button
+                variant="contained"
+                sx={{ bgcolor: '#6366F1', '&:hover': { bgcolor: '#4F46E5' }, fontWeight: 700 }}
+                startIcon={<InterviewIcon />}
+                onClick={() => setHiregramModalOpen(true)}
+                fullWidth
+              >
+                🎙️ Voice AI Mock (Hiregram)
+              </Button>
+
 
 
               {brief.application_status === 'ready' && (
@@ -1594,7 +1615,33 @@ const OpportunityBrief: React.FC = () => {
         </DialogActions>
       </Dialog>
 
+      {/* Hiregram Voice AI Mock Interview Simulation Dialog */}
+      <Dialog
+        open={hiregramModalOpen}
+        onClose={() => setHiregramModalOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <InterviewIcon sx={{ color: '#6366F1' }} />
+            <span>🎙️ Hiregram Voice AI Mock Simulation — {brief.job.title} @ {brief.job.company}</span>
+          </Stack>
+          <IconButton size="small" onClick={() => setHiregramModalOpen(false)}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: { xs: 1.5, md: 3 }, bgcolor: '#F8FAFC' }}>
+          <HiregramStudio
+            initialCompany={brief.job.company || 'Company'}
+            initialRole={brief.job.title || 'Software Engineer'}
+            jobDescription={brief.job.description || undefined}
+          />
+        </DialogContent>
+      </Dialog>
+
       <Snackbar
+
         open={Boolean(toast)}
         autoHideDuration={4000}
         onClose={() => setToast('')}
