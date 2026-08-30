@@ -503,4 +503,72 @@ export interface XAuthStatusResponse {
 }
 
 
+// ── Agents (src/agents/, 15-agent target-company system) ──────────────────
+
+export interface CompanySignal { type: string; detail: string; source: string; date: string; }
+export interface CompBenchmark { min?: number; median?: number; max?: number; source?: string; as_of?: string; }
+export interface TargetCompany {
+  name: string; aka?: string[]; domain: string; industry: string; hq: string; tier: number;
+  hiring_probability: 'High' | 'Medium-High' | 'Medium' | 'Low-Medium' | 'Low';
+  ats_hint: string; signals: CompanySignal[]; comp_benchmark_inr_lpa: CompBenchmark; why_target_now: string;
+}
+export interface CompaniesResponse { companies: TargetCompany[]; sector_context: Record<string, { note: string }>; }
+
+export interface AgentResult<T = Record<string, unknown>> {
+  agent: string; ok: boolean; summary: string; data: T; warnings: string[]; duration_ms: number;
+}
+
+export interface DailyPipelineResult {
+  signals: Record<string, unknown>;
+  roles_found: number;
+  scored: Record<string, unknown>;
+  queue: Array<{ company: string; title: string; url: string; priority_score: number; recommendation: string }>;
+  drafts: Array<{
+    company: string; title: string; url: string; priority_score: number; headline: string;
+    top_contact: Record<string, unknown>; subject: string; body: string;
+  }>;
+  report_path: string;
+}
+
+export interface BooleanQuery { id: string; category: string; query: string; purpose: string; }
+export interface LeadsResult {
+  executed: boolean;
+  leads: Array<{ query_id: string; category: string; title: string; url: string; snippet: string }>;
+  rendered_queries: BooleanQuery[];
+}
+export interface BooleanLead {
+  id: number; query_id: string; category: string; title: string; url: string; snippet: string;
+  status: 'new' | 'reviewed' | 'converted'; discovered_at: number;
+}
+
+export interface NetworkerResult {
+  challenge: {
+    identified_challenge: string; evidence: string[]; matched_proof_points: string[]; solution_sketch: string;
+  };
+  content_drafts: { platform_drafts: { linkedin: string; x: string }; reminder: string };
+}
+
+export interface PitchResult { win_markdown: string; problem: string; solution_points: string[]; narrative: string; }
+
+export interface InterviewQuestion {
+  id: string; text: string; type: 'company_specific' | 'technical' | 'behavioral'; focus_area: string;
+}
+export interface InterviewScore {
+  star_scores: { situation: number; task: number; action: number; result: number };
+  specificity_score: number; overall: number; feedback: string; used_llm: boolean;
+}
+
+export interface NegotiateBenchmark { band: CompBenchmark; suggested_ask_lpa: number | null; position: string; }
+export interface NegotiateCounter {
+  position_in_band: string; counter_ask_lpa: number; script: string; confidence_note: string;
+}
+
+export interface OutreachDraftResult {
+  tailor: AgentResult<{ headline: string; ordered_bullets: string[]; used_llm: boolean }>;
+  contacts: AgentResult<{ top_contact: Record<string, unknown> | null; outreach_order: unknown[] }>;
+  outreach: AgentResult<{ subject: string; body: string; hooks_used: string[]; used_full_stack: boolean }>;
+}
+
+
+
 
