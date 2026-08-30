@@ -23,6 +23,8 @@ import {
   ListItemText,
   Snackbar,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Typography,
   Paper,
@@ -45,11 +47,16 @@ import {
   Search as SearchIcon,
   PersonAdd as PersonAddIcon,
   Share as ReferralIcon,
+  Favorite as FavoriteIcon,
+  Repeat as RepostIcon,
+  ChatBubbleOutline as ReplyIcon,
+  AlternateEmail as XIcon,
 } from '@mui/icons-material';
 import { opportunitiesApi } from '../api/endpoints/opportunities';
 import { lifecycleApi } from '../api/endpoints/lifecycle';
 import { referralsApi } from '../api/endpoints/referrals';
-import type { OpportunityBrief as OpportunityBriefData, ReferralProfile } from '../api/types';
+import { xReferralsApi } from '../api/endpoints/x_referrals';
+import type { OpportunityBrief as OpportunityBriefData, ReferralProfile, XProfile, XTweet } from '../api/types';
 
 const lifecycleStages = ['saved', 'ready', 'applied', 'interview', 'offer', 'negotiation', 'accepted'];
 const stageLabel: Record<string, string> = {
@@ -84,13 +91,22 @@ const OpportunityBrief: React.FC = () => {
   const [advanceStage, setAdvanceStage] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Referral search state
+  // LinkedIn Referral search state
   const [referralDialogOpen, setReferralDialogOpen] = useState(false);
   const [referralLoading, setReferralLoading] = useState(false);
   const [referralProfiles, setReferralProfiles] = useState<ReferralProfile[]>([]);
   const [selectedReferral, setSelectedReferral] = useState<ReferralProfile | null>(null);
   const [generatedNote, setGeneratedNote] = useState<any>(null);
   const [generatingNote, setGeneratingNote] = useState(false);
+
+  // X (Twitter) Referral & Tweets state
+  const [xDialogOpen, setXDialogOpen] = useState(false);
+  const [xTab, setXTab] = useState(0);
+  const [xLoading, setXLoading] = useState(false);
+  const [xProfiles, setXProfiles] = useState<XProfile[]>([]);
+  const [xTweets, setXTweets] = useState<XTweet[]>([]);
+  const [xGeneratedMessage, setXGeneratedMessage] = useState<any>(null);
+  const [selectedXProfile, setSelectedXProfile] = useState<XProfile | null>(null);
 
   const brief = briefQuery.data as OpportunityBriefData | undefined;
 
@@ -171,6 +187,7 @@ const OpportunityBrief: React.FC = () => {
     }
   };
 
+  // LinkedIn handlers
   const handleOpenReferralSearch = async () => {
     if (!brief?.job.company) return;
     setReferralDialogOpen(true);
@@ -214,6 +231,77 @@ const OpportunityBrief: React.FC = () => {
       setToast(`Saved ${profile.full_name} to Contacts CRM!`);
     } catch {
       setToast('Failed to sync contact to CRM.');
+    }
+  };
+
+  // X (Twitter) Handlers
+  const handleOpenXSearch = async () => {
+    if (!brief?.job.company) return;
+    setXDialogOpen(true);
+    setXLoading(true);
+    try {
+      const [profilesRes, tweetsRes] = await Promise.all([
+        xReferralsApi.search(brief.job.company, brief.job.title, 8),
+        xReferralsApi.searchTweets(brief.job.company, brief.job.title, 6),
+      ]);
+      setXProfiles(profilesRes.profiles || []);
+      setXTweets(tweetsRes.tweets || []);
+    } catch {
+      setToast('Could not fetch X referrals/tweets for this company.');
+    } finally {
+      setXLoading(false);
+    }
+  };
+
+  const handleGenerateXMessage = async (profile: XProfile, actionType: 'reply' | 'dm' | 'quote', tweet?: XTweet) => {
+    if (!brief) return;
+    setSelectedXProfile(profile);
+    try {
+      const res = await xReferralsApi.generateMessage({
+        action_type: actionType,
+        username: profile.username,
+        company: profile.company || brief.job.company || '',
+        name: profile.name,
+        title: profile.title || undefined,
+        role_title: brief.job.title,
+        job_link: brief.job.url || undefined,
+        tweet_id: tweet?.tweet_id,
+        tweet_text: tweet?.text,
+        max_length: actionType === 'dm' ? 1000 : 280,
+      });
+      setXGeneratedMessage(res);
+    } catch {
+      setToast('Failed to generate X message.');
+    }
+  };
+
+  const handleExecuteXAction = async (profile: XProfile, actionType: 'follow' | 'like' | 'repost' | 'reply' | 'dm', tweetId?: string, messageText?: string) => {
+    try {
+      const res = await xReferralsApi.engage({
+        action_type: actionType,
+        target_username: profile.username,
+        company: profile.company || brief?.job.company || 'Company',
+        tweet_id: tweetId,
+        message_text: messageText,
+        job_id: id,
+      });
+      if (res.intent_url) {
+        window.open(res.intent_url, '_blank', 'noopener,noreferrer');
+      }
+      await refresh();
+      setToast(`Executed ${actionType} on @${profile.username} (Logged to CRM) ✓`);
+    } catch {
+      setToast(`Failed to execute ${actionType}.`);
+    }
+  };
+
+  const handleSyncXProfileToCRM = async (profile: XProfile) => {
+    try {
+      await xReferralsApi.sync([profile]);
+      await refresh();
+      setToast(`Saved @${profile.username} to Contacts CRM!`);
+    } catch {
+      setToast('Failed to sync X contact.');
     }
   };
 
@@ -312,16 +400,28 @@ const OpportunityBrief: React.FC = () => {
                 {working ? 'Processing…' : brief.next_action.label}
               </Button>
 
-              <Button
-                variant="outlined"
-                color="secondary"
-                startIcon={<ReferralIcon />}
-                onClick={handleOpenReferralSearch}
-                fullWidth
-                sx={{ fontWeight: 700 }}
-              >
-                Find LinkedIn Referrals
-              </Button>
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  startIcon={<ReferralIcon />}
+                  onClick={handleOpenReferralSearch}
+                  fullWidth
+                  sx={{ fontWeight: 700 }}
+                >
+                  LinkedIn
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="info"
+                  startIcon={<XIcon />}
+                  onClick={handleOpenXSearch}
+                  fullWidth
+                  sx={{ fontWeight: 700 }}
+                >
+                  X (Twitter)
+                </Button>
+              </Stack>
 
               {brief.application_status === 'ready' && (
                 <Button
@@ -553,23 +653,35 @@ const OpportunityBrief: React.FC = () => {
                     Hiring Decision-Makers
                   </Typography>
                 </Stack>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<SearchIcon fontSize="small" />}
-                  onClick={handleOpenReferralSearch}
-                  sx={{ fontWeight: 700 }}
-                >
-                  Find Referrals
-                </Button>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<SearchIcon fontSize="small" />}
+                    onClick={handleOpenReferralSearch}
+                    sx={{ fontWeight: 700 }}
+                  >
+                    LinkedIn
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="info"
+                    startIcon={<XIcon fontSize="small" />}
+                    onClick={handleOpenXSearch}
+                    sx={{ fontWeight: 700 }}
+                  >
+                    X (Twitter)
+                  </Button>
+                </Stack>
               </Stack>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Identified contacts and LinkedIn referrals who can open doors for this role.
+                Identified contacts, recruiters, and tech leaders who can open doors for this role.
               </Typography>
 
               {brief.people.length === 0 ? (
                 <Alert severity="info" sx={{ borderRadius: '10px' }}>
-                  No contacts indexed yet for {brief.job.company || 'this company'}. Click "Find Referrals" to search alumni and employees.
+                  No contacts indexed yet for {brief.job.company || 'this company'}. Click "LinkedIn" or "X (Twitter)" to search alumni and employees.
                 </Alert>
               ) : (
                 <Stack spacing={1.5}>
@@ -733,6 +845,181 @@ const OpportunityBrief: React.FC = () => {
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setReferralDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* X (Twitter) Referral & Tweets Dialog */}
+      <Dialog open={xDialogOpen} onClose={() => setXDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800, color: '#0F172A' }}>
+          X (Twitter) Referrals & Hiring Tweets — {brief.job.company}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Tabs value={xTab} onChange={(_, val) => setXTab(val)} sx={{ mb: 2.5 }}>
+            <Tab label={`Tech Leaders & Employees (${xProfiles.length})`} sx={{ fontWeight: 700 }} />
+            <Tab label={`Active Hiring Tweets (${xTweets.length})`} sx={{ fontWeight: 700 }} />
+          </Tabs>
+
+          {xLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 6, gap: 2 }}>
+              <CircularProgress />
+              <Typography variant="body2" color="text.secondary">Searching X developer network & hiring posts...</Typography>
+            </Box>
+          ) : xTab === 0 ? (
+            // Profiles Tab
+            xProfiles.length === 0 ? (
+              <Alert severity="info">No profiles found for {brief.job.company}.</Alert>
+            ) : (
+              <Stack spacing={2}>
+                {xProfiles.map((p, idx) => (
+                  <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: '12px' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1.5}>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Avatar sx={{ bgcolor: alpha('#0284C7', 0.1), color: '#0284C7', fontWeight: 800 }}>
+                          {p.name.split(' ').map((n) => n[0]).slice(0, 2).join('')}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="subtitle2" fontWeight={800} color="#0F172A">
+                            {p.name} <span style={{ color: '#64748B', fontWeight: 500 }}>@{p.username}</span>
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {p.title || 'Engineer'} · {p.company}
+                          </Typography>
+                          {p.description && (
+                            <Typography variant="caption" sx={{ color: '#475569', mt: 0.5, display: 'block', maxWidth: 500 }}>
+                              {p.description}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Stack>
+
+                      <Stack direction="row" spacing={1} flexWrap="wrap">
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => handleSyncXProfileToCRM(p)}
+                        >
+                          Save CRM
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => handleExecuteXAction(p, 'follow')}
+                        >
+                          Follow
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="info"
+                          onClick={() => handleGenerateXMessage(p, 'dm')}
+                          sx={{ fontWeight: 700 }}
+                        >
+                          Draft DM
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )
+          ) : (
+            // Tweets Tab
+            xTweets.length === 0 ? (
+              <Alert severity="info">No active hiring tweets found for {brief.job.company}.</Alert>
+            ) : (
+              <Stack spacing={2}>
+                {xTweets.map((t, idx) => (
+                  <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: '12px', bgcolor: '#F8FAFC' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1.5}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="subtitle2" fontWeight={800} color="#0F172A">
+                          {t.author_name || 'Hiring Lead'} <span style={{ color: '#64748B', fontWeight: 500 }}>@{t.author_username || 'team'}</span>
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#334155', my: 1, whiteSpace: 'pre-wrap' }}>
+                          "{t.text}"
+                        </Typography>
+                      </Box>
+                    </Stack>
+
+                    <Divider sx={{ my: 1.5 }} />
+
+                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<FavoriteIcon fontSize="small" />}
+                        onClick={() => handleExecuteXAction({ username: t.author_username || 'user', name: t.author_name || 'User', x_user_id: '0', followers_count: 0, verified: false }, 'like', t.tweet_id)}
+                      >
+                        Like
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<RepostIcon fontSize="small" />}
+                        onClick={() => handleExecuteXAction({ username: t.author_username || 'user', name: t.author_name || 'User', x_user_id: '0', followers_count: 0, verified: false }, 'repost', t.tweet_id)}
+                      >
+                        Repost
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="info"
+                        startIcon={<ReplyIcon fontSize="small" />}
+                        onClick={() => handleGenerateXMessage({ username: t.author_username || 'user', name: t.author_name || 'User', x_user_id: '0', followers_count: 0, verified: false }, 'reply', t)}
+                        sx={{ fontWeight: 700 }}
+                      >
+                        AI Reply
+                      </Button>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )
+          )}
+
+          {xGeneratedMessage && selectedXProfile && (
+            <Box sx={{ mt: 3, p: 2.5, borderRadius: '12px', bgcolor: '#FFFFFF', border: '1px solid #0284C7' }}>
+              <Typography variant="subtitle2" fontWeight={800} color="#0F172A" gutterBottom>
+                AI Generated {xGeneratedMessage.action_type.toUpperCase()} for @{selectedXProfile.username} ({xGeneratedMessage.char_count} / {xGeneratedMessage.action_type === 'dm' ? 1000 : 280} chars)
+              </Typography>
+              <TextField
+                multiline
+                rows={3}
+                fullWidth
+                value={xGeneratedMessage.message}
+                sx={{ mb: 2, bgcolor: '#F8FAFC' }}
+              />
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<CopyIcon fontSize="small" />}
+                  onClick={() => {
+                    navigator.clipboard.writeText(xGeneratedMessage.message);
+                    setToast('Message copied to clipboard!');
+                  }}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Copy Message
+                </Button>
+                {xGeneratedMessage.intent_url && (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    color="info"
+                    startIcon={<LaunchIcon fontSize="small" />}
+                    onClick={() => window.open(xGeneratedMessage.intent_url, '_blank', 'noopener,noreferrer')}
+                    sx={{ fontWeight: 700 }}
+                  >
+                    Open on X
+                  </Button>
+                )}
+              </Stack>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setXDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 
