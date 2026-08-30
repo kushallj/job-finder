@@ -7,6 +7,8 @@ export { lifecycleApi } from './endpoints/lifecycle';
 export { providersApi } from './endpoints/providers';
 export { referralsApi } from './endpoints/referrals';
 export { xReferralsApi } from './endpoints/x_referrals';
+export { emailIntelligenceApi } from './endpoints/email_intelligence';
+
 
 
 

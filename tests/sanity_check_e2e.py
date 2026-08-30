@@ -164,10 +164,32 @@ def run_all_checks():
     })
     log_test("POST /api/x/sync", res.status_code == 200, f"Synced={res.json().get('synced_count')} (New={res.json().get('new_contacts_count')})")
 
+    # 24. Email Intelligence Discovery
+    res = client.post("/api/email-intelligence/discover", json={
+        "company": "Stripe",
+        "job_title": "Senior Backend Engineer",
+        "target_name": "Patrick Collison",
+        "limit": 3,
+    })
+    log_test("POST /api/email-intelligence/discover", res.status_code == 200, f"Found {res.json().get('total_found')} contacts (Domain: {res.json().get('domain')})")
+
+    # 25. Email Intelligence Verify
+    res = client.post("/api/email-intelligence/verify", json={"email": "contact@stripe.com"})
+    log_test("POST /api/email-intelligence/verify", res.status_code == 200, f"Provider={res.json().get('mail_provider')}, Score={res.json().get('confidence_score')}%")
+
+    # 26. Email Intelligence Dorks
+    res = client.post("/api/email-intelligence/dorks", json={"company": "OpenAI", "domain": "openai.com"})
+    log_test("POST /api/email-intelligence/dorks", res.status_code == 200, f"Dorks Generated={res.json().get('total_dorks')}")
+
+    # 27. Email Intelligence Permutations
+    res = client.post("/api/email-intelligence/permutations", json={"full_name": "Sam Altman", "domain": "openai.com"})
+    log_test("POST /api/email-intelligence/permutations", res.status_code == 200, f"Permutations={res.json().get('total_permutations')}")
+
     print("=" * 60)
-    print("🎉 ALL 23 E2E API CHECKS PASSED PERFECTLY!")
+    print("🎉 ALL 27 E2E API CHECKS PASSED PERFECTLY!")
     print("=" * 60)
 
 if __name__ == "__main__":
     run_all_checks()
+
 

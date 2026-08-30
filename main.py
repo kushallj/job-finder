@@ -131,9 +131,18 @@ from src.api_models import (
     XEngageResponse,
     XProfileSyncRequest,
     XProfileSyncResponse,
+    EmailDiscoveryRequest,
+    EmailDiscoveryResponse,
+    EmailVerifyRequest,
+    EmailVerifyResponse,
+    EmailDorksRequest,
+    EmailDorksResponse,
+    EmailPermutationsRequest,
+    EmailPermutationsResponse,
 )
 from src.referral import referral_service
 from src.x_referral import x_referral_service, x_oauth
+from src.email_intelligence import email_intelligence_service
 from src.api_error_handlers import (
     register_error_handlers,
     APIError,
@@ -3372,6 +3381,109 @@ async def sync_x_profiles(request: XProfileSyncRequest, req: Request):
     except Exception as exc:
         log.error("[%s] X profile sync failed: %s", trace, exc, exc_info=True)
         raise APIError(f"X profile sync failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Email Intelligence & Google Boolean Dorking Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/email-intelligence/discover", tags=["email-intelligence"], response_model=EmailDiscoveryResponse)
+async def discover_emails(request: EmailDiscoveryRequest, req: Request):
+    """
+    Executes the multi-provider waterfall (Google Boolean Dorks, Clearbit domain resolution,
+    GitHub commit harvesting, and pattern synthesis) to discover verified decision-maker emails.
+    """
+    trace = req.state.trace_id
+    try:
+        async with db_session() as db:
+            result = await email_intelligence_service.discover_company_decision_makers(
+                db=db,
+                company=request.company,
+                job_title=request.job_title,
+                website_hint=request.website_hint,
+                target_name=request.target_name,
+                limit=request.limit,
+            )
+            log.info("[%s] Discovered %d verified decision-makers for %s (%s)", trace, result["total_found"], request.company, result["domain"])
+            return EmailDiscoveryResponse(
+                status="success",
+                company=result["company"],
+                domain=result["domain"],
+                has_mx=result["has_mx"],
+                mail_provider=result["mail_provider"],
+                total_found=result["total_found"],
+                contacts=result["contacts"],
+                recommended_contact=result["recommended_contact"],
+            )
+    except Exception as exc:
+        log.error("[%s] Email discovery failed: %s", trace, exc, exc_info=True)
+        raise APIError(f"Email discovery failed: {str(exc)}")
+
+
+@app.post("/api/email-intelligence/verify", tags=["email-intelligence"], response_model=EmailVerifyResponse)
+async def verify_email_address(request: EmailVerifyRequest, req: Request):
+    """Executes live RFC 5322 syntax validation, disposable email filter, and DNS MX checks."""
+    try:
+        res = email_intelligence_service.verify_email(request.email)
+        return EmailVerifyResponse(
+            status="success",
+            email=res.email,
+            is_valid_syntax=res.is_valid_syntax,
+            is_disposable=res.is_disposable,
+            is_free_mail=res.is_free_mail,
+            has_mx_records=res.has_mx_records,
+            mx_records=res.mx_records,
+            mail_provider=res.mail_provider,
+            confidence_score=res.confidence_score,
+            verification_status=res.status,
+            reason=res.reason,
+        )
+    except Exception as exc:
+        log.error("Email verification error: %s", exc, exc_info=True)
+        raise APIError(f"Email verification failed: {str(exc)}")
+
+
+@app.post("/api/email-intelligence/dorks", tags=["email-intelligence"], response_model=EmailDorksResponse)
+async def generate_email_dorks(request: EmailDorksRequest, req: Request):
+    """Generates targeted Google Boolean Search Dorks for uncovering emails and decision-makers."""
+    try:
+        dorks = email_intelligence_service.generate_dorks(
+            company=request.company,
+            domain=request.domain,
+            person_name=request.person_name,
+            role_title=request.role_title,
+        )
+        return EmailDorksResponse(
+            status="success",
+            company=request.company,
+            domain=request.domain or f"{request.company.lower().replace(' ', '')}.com",
+            total_dorks=len(dorks),
+            dorks=[d.model_dump() for d in dorks],
+        )
+    except Exception as exc:
+        log.error("Dork generation error: %s", exc, exc_info=True)
+        raise APIError(f"Dork generation failed: {str(exc)}")
+
+
+@app.post("/api/email-intelligence/permutations", tags=["email-intelligence"], response_model=EmailPermutationsResponse)
+async def generate_email_permutations(request: EmailPermutationsRequest, req: Request):
+    """Generates 12 standard corporate email permutations for a person and domain with MX checks."""
+    try:
+        perms = email_intelligence_service.generate_permutations(
+            full_name=request.full_name,
+            domain=request.domain,
+        )
+        return EmailPermutationsResponse(
+            status="success",
+            full_name=request.full_name,
+            domain=request.domain,
+            has_mx=perms[0].has_mx if perms else True,
+            total_permutations=len(perms),
+            permutations=[p.model_dump() for p in perms],
+        )
+    except Exception as exc:
+        log.error("Permutation generation error: %s", exc, exc_info=True)
+        raise APIError(f"Permutation generation failed: {str(exc)}")
 
 
 # =============================================================================

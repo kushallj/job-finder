@@ -51,11 +51,17 @@ import {
   Repeat as RepostIcon,
   ChatBubbleOutline as ReplyIcon,
   AlternateEmail as XIcon,
+  Email as EmailIcon,
+  FindInPage as DorkIcon,
+  MarkEmailRead as VerifiedMailIcon,
+  Security as SecurityIcon,
 } from '@mui/icons-material';
 import { opportunitiesApi } from '../api/endpoints/opportunities';
 import { lifecycleApi } from '../api/endpoints/lifecycle';
 import { referralsApi } from '../api/endpoints/referrals';
 import { xReferralsApi } from '../api/endpoints/x_referrals';
+import { emailIntelligenceApi } from '../api/endpoints/email_intelligence';
+import type { DiscoveredContactItem, SearchDorkItem, EmailPermutationItem } from '../api/endpoints/email_intelligence';
 import type { OpportunityBrief as OpportunityBriefData, ReferralProfile, XProfile, XTweet } from '../api/types';
 
 const lifecycleStages = ['saved', 'ready', 'applied', 'interview', 'offer', 'negotiation', 'accepted'];
@@ -91,7 +97,7 @@ const OpportunityBrief: React.FC = () => {
   const [advanceStage, setAdvanceStage] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // LinkedIn Referral search state
+  // LinkedIn Referral state
   const [referralDialogOpen, setReferralDialogOpen] = useState(false);
   const [referralLoading, setReferralLoading] = useState(false);
   const [referralProfiles, setReferralProfiles] = useState<ReferralProfile[]>([]);
@@ -107,6 +113,20 @@ const OpportunityBrief: React.FC = () => {
   const [xTweets, setXTweets] = useState<XTweet[]>([]);
   const [xGeneratedMessage, setXGeneratedMessage] = useState<any>(null);
   const [selectedXProfile, setSelectedXProfile] = useState<XProfile | null>(null);
+
+  // Email Intelligence & Google Boolean Dorking state
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailTab, setEmailTab] = useState(0);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [discoveredContacts, setDiscoveredContacts] = useState<DiscoveredContactItem[]>([]);
+  const [emailDorks, setEmailDorks] = useState<SearchDorkItem[]>([]);
+  const [emailPermutations, setEmailPermutations] = useState<EmailPermutationItem[]>([]);
+  const [domainInfo, setDomainInfo] = useState<{ domain: string; has_mx: boolean; mail_provider: string }>({
+    domain: '',
+    has_mx: true,
+    mail_provider: '',
+  });
+  const [customPermName, setCustomPermName] = useState('');
 
   const brief = briefQuery.data as OpportunityBriefData | undefined;
 
@@ -305,6 +325,46 @@ const OpportunityBrief: React.FC = () => {
     }
   };
 
+  // Email Intelligence Handlers
+  const handleOpenEmailIntelligence = async () => {
+    if (!brief?.job.company) return;
+    setEmailDialogOpen(true);
+    setEmailLoading(true);
+    try {
+      const [discoveryRes, dorksRes] = await Promise.all([
+        emailIntelligenceApi.discover(brief.job.company, brief.job.title, brief.job.company_website || undefined),
+        emailIntelligenceApi.getDorks(brief.job.company, undefined, undefined, brief.job.title),
+      ]);
+      setDiscoveredContacts(discoveryRes.contacts || []);
+      setDomainInfo({
+        domain: discoveryRes.domain,
+        has_mx: discoveryRes.has_mx,
+        mail_provider: discoveryRes.mail_provider,
+      });
+      setEmailDorks(dorksRes.dorks || []);
+      if (discoveryRes.contacts.length > 0) {
+        const topName = discoveryRes.contacts[0].name;
+        const permsRes = await emailIntelligenceApi.getPermutations(topName, discoveryRes.domain);
+        setEmailPermutations(permsRes.permutations || []);
+      }
+    } catch {
+      setToast('Email Intelligence discovery encountered an issue.');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const handleGenerateCustomPermutations = async () => {
+    if (!customPermName.trim() || !domainInfo.domain) return;
+    try {
+      const res = await emailIntelligenceApi.getPermutations(customPermName.trim(), domainInfo.domain);
+      setEmailPermutations(res.permutations || []);
+      setToast(`Generated 12 permutations for ${customPermName}!`);
+    } catch {
+      setToast('Could not generate permutations.');
+    }
+  };
+
   if (briefQuery.isLoading) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', py: 12, gap: 2 }}>
@@ -403,6 +463,16 @@ const OpportunityBrief: React.FC = () => {
               <Stack direction="row" spacing={1}>
                 <Button
                   variant="outlined"
+                  color="warning"
+                  startIcon={<EmailIcon />}
+                  onClick={handleOpenEmailIntelligence}
+                  fullWidth
+                  sx={{ fontWeight: 700 }}
+                >
+                  Emails & Dorks
+                </Button>
+                <Button
+                  variant="outlined"
                   color="secondary"
                   startIcon={<ReferralIcon />}
                   onClick={handleOpenReferralSearch}
@@ -419,7 +489,7 @@ const OpportunityBrief: React.FC = () => {
                   fullWidth
                   sx={{ fontWeight: 700 }}
                 >
-                  X (Twitter)
+                  X
                 </Button>
               </Stack>
 
@@ -657,6 +727,16 @@ const OpportunityBrief: React.FC = () => {
                   <Button
                     size="small"
                     variant="outlined"
+                    color="warning"
+                    startIcon={<EmailIcon fontSize="small" />}
+                    onClick={handleOpenEmailIntelligence}
+                    sx={{ fontWeight: 700 }}
+                  >
+                    Email Dorks
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
                     startIcon={<SearchIcon fontSize="small" />}
                     onClick={handleOpenReferralSearch}
                     sx={{ fontWeight: 700 }}
@@ -671,7 +751,7 @@ const OpportunityBrief: React.FC = () => {
                     onClick={handleOpenXSearch}
                     sx={{ fontWeight: 700 }}
                   >
-                    X (Twitter)
+                    X
                   </Button>
                 </Stack>
               </Stack>
@@ -681,7 +761,7 @@ const OpportunityBrief: React.FC = () => {
 
               {brief.people.length === 0 ? (
                 <Alert severity="info" sx={{ borderRadius: '10px' }}>
-                  No contacts indexed yet for {brief.job.company || 'this company'}. Click "LinkedIn" or "X (Twitter)" to search alumni and employees.
+                  No contacts indexed yet for {brief.job.company || 'this company'}. Click "Email Dorks", "LinkedIn", or "X" to search hiring leads.
                 </Alert>
               ) : (
                 <Stack spacing={1.5}>
@@ -756,7 +836,207 @@ const OpportunityBrief: React.FC = () => {
         </Grid>
       </Grid>
 
-      {/* LinkedIn Referral Search & Generator Dialog */}
+      {/* Email Intelligence & Google Boolean Dorking Dialog */}
+      <Dialog open={emailDialogOpen} onClose={() => setEmailDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800, color: '#0F172A' }}>
+          Email Intelligence & Google Boolean Dorks — {brief.job.company}
+        </DialogTitle>
+        <DialogContent dividers>
+          {/* Domain & MX Header Banner */}
+          <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: '12px', bgcolor: '#F0FDF4', borderColor: '#BBF7D0' }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} gap={1.5}>
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <SecurityIcon sx={{ color: '#16A34A' }} />
+                <Box>
+                  <Typography variant="subtitle2" fontWeight={800} color="#14532D">
+                    Corporate Domain: <code>{domainInfo.domain || 'resolving...'}</code>
+                  </Typography>
+                  <Typography variant="caption" color="#166534">
+                    Mail Provider: <strong>{domainInfo.mail_provider || 'Active'}</strong> · MX Verified: {domainInfo.has_mx ? 'Yes ✓' : 'No'}
+                  </Typography>
+                </Box>
+              </Stack>
+              <Chip
+                label={domainInfo.has_mx ? "Deliverability High" : "Standard"}
+                size="small"
+                color={domainInfo.has_mx ? "success" : "warning"}
+                sx={{ fontWeight: 700 }}
+              />
+            </Stack>
+          </Paper>
+
+          <Tabs value={emailTab} onChange={(_, val) => setEmailTab(val)} sx={{ mb: 2.5 }}>
+            <Tab label={`Verified Decision-Makers (${discoveredContacts.length})`} sx={{ fontWeight: 700 }} />
+            <Tab label={`Google Boolean Dorks (${emailDorks.length})`} sx={{ fontWeight: 700 }} />
+            <Tab label={`12-Pattern Permutations (${emailPermutations.length})`} sx={{ fontWeight: 700 }} />
+          </Tabs>
+
+          {emailLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 6, gap: 2 }}>
+              <CircularProgress />
+              <Typography variant="body2" color="text.secondary">Running multi-provider waterfall & Google Dork analysis...</Typography>
+            </Box>
+          ) : emailTab === 0 ? (
+            // Contacts Tab
+            discoveredContacts.length === 0 ? (
+              <Alert severity="info">No emails discovered yet. Run Google Dorks or Permutations below.</Alert>
+            ) : (
+              <Stack spacing={2}>
+                {discoveredContacts.map((c, idx) => (
+                  <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: '12px' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1.5}>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Avatar sx={{ bgcolor: alpha('#16A34A', 0.1), color: '#16A34A', fontWeight: 800 }}>
+                          {c.name.split(' ').map((n) => n[0]).slice(0, 2).join('')}
+                        </Avatar>
+                        <Box>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="subtitle2" fontWeight={800} color="#0F172A">
+                              {c.name}
+                            </Typography>
+                            <Chip
+                              label={c.title}
+                              size="small"
+                              sx={{ fontWeight: 700, fontSize: '0.7rem', bgcolor: '#F1F5F9' }}
+                            />
+                          </Stack>
+                          <Typography variant="body2" fontWeight={600} color="#2563EB" sx={{ my: 0.25 }}>
+                            {c.email}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Confidence: {Math.round(c.confidence_score)}% · Source: {c.source} · {c.mail_provider || 'Verified MX'}
+                          </Typography>
+                        </Box>
+                      </Stack>
+
+                      <Stack direction="row" spacing={1}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<CopyIcon fontSize="small" />}
+                          onClick={() => {
+                            navigator.clipboard.writeText(c.email);
+                            setToast(`Copied ${c.email}!`);
+                          }}
+                        >
+                          Copy
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="primary"
+                          startIcon={<SendIcon fontSize="small" />}
+                          onClick={() => navigate(`/outreach?email=${encodeURIComponent(c.email)}&name=${encodeURIComponent(c.name)}&jobId=${id}`)}
+                          sx={{ fontWeight: 700 }}
+                        >
+                          Draft Cold Email
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )
+          ) : emailTab === 1 ? (
+            // Dorks Tab
+            emailDorks.length === 0 ? (
+              <Alert severity="info">No dorks generated.</Alert>
+            ) : (
+              <Stack spacing={2}>
+                <Typography variant="caption" color="text.secondary">
+                  Targeted Google Boolean search operators designed to uncover unindexed employee emails and personal contact details:
+                </Typography>
+                {emailDorks.map((d, idx) => (
+                  <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: '12px', bgcolor: '#F8FAFC' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1.5}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="subtitle2" fontWeight={800} color="#0F172A">
+                          {d.dork_type.replace(/_/g, ' ').toUpperCase()}
+                        </Typography>
+                        <Paper variant="outlined" sx={{ p: 1.5, my: 1, bgcolor: '#FFFFFF', fontFamily: 'monospace', fontSize: '0.8rem', color: '#0F172A' }}>
+                          {d.query}
+                        </Paper>
+                        <Typography variant="caption" color="text.secondary">
+                          {d.description}
+                        </Typography>
+                      </Box>
+                      {d.url && (
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="warning"
+                          startIcon={<DorkIcon fontSize="small" />}
+                          onClick={() => window.open(d.url ?? undefined, '_blank', 'noopener,noreferrer')}
+                          sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}
+                        >
+                          Google Search
+                        </Button>
+                      )}
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )
+          ) : (
+            // Permutations Tab
+            <Box>
+              <Stack direction="row" spacing={1} sx={{ mb: 2.5 }}>
+                <TextField
+                  label="Target Person Name"
+                  size="small"
+                  fullWidth
+                  placeholder="e.g. John Doe"
+                  value={customPermName}
+                  onChange={(e) => setCustomPermName(e.target.value)}
+                />
+                <Button
+                  variant="contained"
+                  onClick={handleGenerateCustomPermutations}
+                  sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}
+                >
+                  Generate 12 Patterns
+                </Button>
+              </Stack>
+
+              <Stack spacing={1.5}>
+                {emailPermutations.map((p, idx) => (
+                  <Paper key={idx} variant="outlined" sx={{ p: 1.5, borderRadius: '10px' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <VerifiedMailIcon sx={{ color: '#2563EB' }} fontSize="small" />
+                        <Box>
+                          <Typography variant="body2" fontWeight={700} color="#0F172A">
+                            {p.email}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Pattern: <code>{p.pattern_name}</code> · Confidence: {Math.round(p.confidence_score)}%
+                          </Typography>
+                        </Box>
+                      </Stack>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<CopyIcon fontSize="small" />}
+                        onClick={() => {
+                          navigator.clipboard.writeText(p.email);
+                          setToast(`Copied ${p.email}!`);
+                        }}
+                      >
+                        Copy
+                      </Button>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setEmailDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* LinkedIn Referral Search Dialog */}
       <Dialog open={referralDialogOpen} onClose={() => setReferralDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ fontWeight: 800, color: '#0F172A' }}>
           LinkedIn Employee Referrals — {brief.job.company}
@@ -848,7 +1128,7 @@ const OpportunityBrief: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* X (Twitter) Referral & Tweets Dialog */}
+      {/* X (Twitter) Referral Dialog */}
       <Dialog open={xDialogOpen} onClose={() => setXDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ fontWeight: 800, color: '#0F172A' }}>
           X (Twitter) Referrals & Hiring Tweets — {brief.job.company}

@@ -101,14 +101,33 @@ class ContactFinder:
         self, company_name: str, job_title: str = ""
     ) -> List[Contact]:
         """
-        Main entry point. Returns contacts ranked by confidence score.
-        Always returns at least the generic fallback contacts.
+        Main entry point. Uses EmailIntelligenceService (Google Boolean dorking,
+        Clearbit domain resolution, GitHub commit harvesting, and pattern synthesis),
+        then falls back to website scraping and DNS pattern generation.
         """
         all_contacts: List[Contact] = []
 
+        # Strategy 0: High-accuracy Email Intelligence Waterfall
+        try:
+            from src.email_intelligence import email_intelligence_service
+            intel_res = await email_intelligence_service.discover_company_decision_makers(
+                db=None, company=company_name, job_title=job_title, limit=5
+            )
+            for c_data in intel_res.get("contacts", []):
+                all_contacts.append(Contact(
+                    name=c_data.get("name") or "Engineering Leader",
+                    title=c_data.get("title") or "Engineering Leader",
+                    email=c_data.get("email"),
+                    company=company_name,
+                    confidence_score=float(c_data.get("confidence_score") or 75.0),
+                ))
+        except Exception as exc:
+            log.debug("EmailIntelligenceService waterfall error: %s", exc)
+
         # Strategy 1: website scrape
-        website_contacts = await self._search_company_website(company_name)
-        all_contacts.extend(website_contacts)
+        if not all_contacts:
+            website_contacts = await self._search_company_website(company_name)
+            all_contacts.extend(website_contacts)
 
         # Strategy 2: DNS MX + pattern generation
         if not all_contacts:

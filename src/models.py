@@ -223,3 +223,21 @@ class XOAuthToken(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
+class DiscoveredEmailCache(Base):
+    """Caches discovered and verified emails, MX records, and corporate patterns."""
+    __tablename__ = "discovered_email_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company = Column(String(255), index=True)
+    domain = Column(String(255), index=True)
+    person_name = Column(String(255))
+    email = Column(String(255), index=True)
+    title = Column(String(255))
+    confidence_score = Column(Float, default=70.0)
+    source = Column(String(100))  # dorking, github, hunter, apollo, pattern, clearbit
+    mail_provider = Column(String(100))  # Google Workspace, Microsoft 365, Custom
+    verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+

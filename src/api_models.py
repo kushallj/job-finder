@@ -1143,3 +1143,86 @@ class XProfileSyncResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Email Intelligence & Google Boolean Dorking API Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class EmailDiscoveryRequest(BaseModel):
+    """Request model for waterfall decision-maker and email discovery."""
+    company: str = Field(..., min_length=1, max_length=255)
+    job_title: Optional[str] = Field(default=None, max_length=255)
+    website_hint: Optional[str] = Field(default=None, max_length=2000)
+    target_name: Optional[str] = Field(default=None, max_length=255)
+    limit: int = Field(default=6, ge=1, le=20)
+
+
+class EmailDiscoveryResponse(BaseModel):
+    """Response model for discovered decision-makers and emails."""
+    status: str = Field(default="success")
+    company: str = Field(...)
+    domain: str = Field(...)
+    has_mx: bool = Field(default=True)
+    mail_provider: str = Field(default="Unknown")
+    total_found: int = Field(...)
+    contacts: List[Dict[str, Any]] = Field(default_factory=list)
+    recommended_contact: Optional[Dict[str, Any]] = Field(None)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class EmailVerifyRequest(BaseModel):
+    """Request model for live email verification and MX check."""
+    email: str = Field(..., min_length=3, max_length=255)
+
+
+class EmailVerifyResponse(BaseModel):
+    """Response model for email verification."""
+    status: str = Field(default="success")
+    email: str = Field(...)
+    is_valid_syntax: bool = Field(...)
+    is_disposable: bool = Field(...)
+    is_free_mail: bool = Field(...)
+    has_mx_records: bool = Field(...)
+    mx_records: List[str] = Field(default_factory=list)
+    mail_provider: str = Field(...)
+    confidence_score: float = Field(...)
+    verification_status: str = Field(...)
+    reason: Optional[str] = Field(None)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class EmailDorksRequest(BaseModel):
+    """Request model for generating Google Boolean Dorks."""
+    company: str = Field(..., min_length=1, max_length=255)
+    domain: Optional[str] = Field(default=None, max_length=255)
+    person_name: Optional[str] = Field(default=None, max_length=255)
+    role_title: Optional[str] = Field(default=None, max_length=255)
+
+
+class EmailDorksResponse(BaseModel):
+    """Response containing generated Google Boolean Dorks."""
+    status: str = Field(default="success")
+    company: str = Field(...)
+    domain: str = Field(...)
+    total_dorks: int = Field(...)
+    dorks: List[Dict[str, Any]] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class EmailPermutationsRequest(BaseModel):
+    """Request model for 12 corporate email permutations."""
+    full_name: str = Field(..., min_length=1, max_length=255)
+    domain: str = Field(..., min_length=1, max_length=255)
+
+
+class EmailPermutationsResponse(BaseModel):
+    """Response model containing 12 corporate permutations with MX score."""
+    status: str = Field(default="success")
+    full_name: str = Field(...)
+    domain: str = Field(...)
+    has_mx: bool = Field(...)
+    total_permutations: int = Field(...)
+    permutations: List[Dict[str, Any]] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+
