@@ -15,6 +15,9 @@ from src.agents.agent_01_signal_scout import SignalScoutAgent
 from src.agents.agent_03_fit_scorer import FitScorerAgent, APPLY_THRESHOLD, FLOOR_THRESHOLD
 from src.agents.agent_04_resume_tailor import ResumeTailorAgent
 from src.agents.agent_07_priority_scheduler import PriorityScheduleAgent
+from src.agents.agent_10_challenge_solver import ChallengeSolverAgent
+from src.agents.agent_11_query_hunter import QueryHunterAgent
+from src.agents.agent_12_influencer import InfluencerAgent
 
 
 @pytest.fixture(scope="module")
@@ -112,3 +115,55 @@ def test_priority_scheduler_caps_daily_queue(ctx):
     ]
     result = PriorityScheduleAgent(ctx).run(roles, [])
     assert len(result.data["queue"]) <= MAX_DAILY_SENDS
+
+
+def test_challenge_solver_extracts_grounded_challenge_from_jd(ctx):
+    jd = ("We need to scale our microservices and improve API reliability while "
+          "maintaining strict compliance and audit trails for BFSI customers.")
+    result = ChallengeSolverAgent(ctx).run(company="Perfios", job_description=jd)
+    assert result.ok
+    assert result.data["identified_challenge"]
+    # Every matched proof point must come verbatim from config/profile.yml —
+    # never invented.
+    proof_values = set(ctx.profile["narrative"]["proof_points_by_theme"].values())
+    diffs = set(ctx.profile["positioning"]["differentiators"])
+    for point in result.data["matched_proof_points"]:
+        assert point in proof_values or point in diffs
+
+
+def test_challenge_solver_falls_back_to_signal_when_no_jd(ctx):
+    result = ChallengeSolverAgent(ctx).run(company="SolarSquare", job_description="")
+    assert result.ok
+    # SolarSquare has a "funding" signal in target_companies.yml, so a
+    # signal-derived challenge should be found even with no JD text.
+    assert result.data["identified_challenge"] or result.warnings
+
+
+def test_query_hunter_renders_queries_without_backend_configured(ctx, monkeypatch):
+    import src.agents.agent_11_query_hunter as qh_mod
+    monkeypatch.setattr(qh_mod, "settings", None)  # force "no backend" path
+    result = QueryHunterAgent(ctx).run(categories=["funding"])
+    assert result.ok
+    assert result.data["executed"] is False
+    assert len(result.data["rendered_queries"]) >= 5
+
+
+def test_query_hunter_bank_has_at_least_25_queries():
+    from src.agents.agent_11_query_hunter import _load_query_bank
+    bank = _load_query_bank()
+    assert len(bank) >= 25
+    assert all("query" in q and "purpose" in q and "category" in q for q in bank)
+
+
+def test_influencer_never_exceeds_x_char_limit(ctx):
+    from src.agents.agent_12_influencer import X_CHAR_LIMIT
+    result = InfluencerAgent(ctx).run(angle="signal_reaction", company="SolarSquare")
+    assert result.ok
+    assert len(result.data["platform_drafts"]["x"]) <= X_CHAR_LIMIT
+
+
+def test_influencer_draft_reflects_real_signal_not_generic(ctx):
+    result = InfluencerAgent(ctx).run(angle="signal_reaction", company="SolarSquare")
+    company_cfg = ctx.company("SolarSquare")
+    signal_detail = company_cfg["signals"][0]["detail"]
+    assert signal_detail in result.data["platform_drafts"]["linkedin"]

@@ -16,6 +16,13 @@ extended with the target-company-specific agents):
                                   once a company moves to "Interview" status.
     9  FeedbackStrategistAgent — run weekly (or via /nexus digest), not daily;
                                   needs enough sent history to be meaningful.
+   11  QueryHunterAgent        — run via --stage leads; executes the boolean/
+                                  X-ray query bank (config/boolean_queries.yml)
+                                  through a ToS-compliant search backend.
+   10  ChallengeSolverAgent    — run via --stage networker, paired with
+   12  InfluencerAgent           InfluencerAgent: finds a real, evidenced
+                                  challenge and drafts topical LinkedIn/X
+                                  content from it. Never auto-posts.
 
 Never auto-sends anything (CLAUDE.md hard rule) — this orchestrator only
 produces `data/agent_run_report.md` for human review, same contract as
@@ -39,6 +46,9 @@ from .agent_06_outreach_composer import OutreachComposerAgent
 from .agent_07_priority_scheduler import PriorityScheduleAgent
 from .agent_08_interview_prepper import InterviewPrepAgent
 from .agent_09_feedback_strategist import FeedbackStrategistAgent
+from .agent_10_challenge_solver import ChallengeSolverAgent
+from .agent_11_query_hunter import QueryHunterAgent
+from .agent_12_influencer import InfluencerAgent
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("nexus.agents.orchestrator")
@@ -111,6 +121,27 @@ def run_interview_prep(ctx: AgentContext, company: str, role_title: str = "") ->
     return result.data.get("dossier_markdown", "")
 
 
+def run_leads_sourcing(ctx: AgentContext, categories: List[str] = None) -> Dict[str, Any]:
+    """Runs the boolean/X-ray query bank (config/boolean_queries.yml) via
+    QueryHunterAgent — this is the CRM-lead-generation stage. Separate from
+    the daily pipeline because it may cost search-API quota."""
+    result = QueryHunterAgent(ctx).run(categories=categories)
+    return result.data
+
+
+def run_challenge_and_content(ctx: AgentContext, company: str, job_description: str = "") -> Dict[str, Any]:
+    """Chains ChallengeSolverAgent -> InfluencerAgent so a real, evidenced
+    challenge feeds directly into a topical LinkedIn/X content draft,
+    instead of generic outreach or generic posts."""
+    challenge_result = ChallengeSolverAgent(ctx).run(company=company, job_description=job_description)
+    content_result = InfluencerAgent(ctx).run(
+        angle="challenge" if challenge_result.data.get("identified_challenge") else "signal_reaction",
+        company=company,
+        challenge_data=challenge_result.data,
+    )
+    return {"challenge": challenge_result.data, "content_drafts": content_result.data}
+
+
 def run_weekly_learning(ctx: AgentContext) -> Dict[str, Any]:
     result = FeedbackStrategistAgent(ctx).run()
     return result.data
@@ -143,10 +174,14 @@ def _render_report(signal_result, hunt_result, fit_result, priority_result, draf
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run the NEXUS 9-agent target-company pipeline.")
-    parser.add_argument("--stage", choices=["daily", "interview-prep", "weekly-learning"], default="daily")
-    parser.add_argument("--company", help="Required for --stage interview-prep")
+    parser = argparse.ArgumentParser(description="Run the NEXUS 12-agent target-company pipeline.")
+    parser.add_argument("--stage", choices=["daily", "interview-prep", "weekly-learning", "leads", "networker"],
+                         default="daily")
+    parser.add_argument("--company", help="Required for --stage interview-prep/networker")
     parser.add_argument("--role", default="", help="Optional role title for --stage interview-prep")
+    parser.add_argument("--jd", default="", help="Job description text for --stage networker (much stronger result)")
+    parser.add_argument("--categories", nargs="*", default=None,
+                         help="Restrict --stage leads to these boolean_queries.yml categories")
     parser.add_argument("--tiers", nargs="*", type=int, default=None, help="Restrict daily pipeline to these tiers")
     args = parser.parse_args()
 
@@ -160,6 +195,21 @@ def main():
         if not args.company:
             parser.error("--company is required for --stage interview-prep")
         print(run_interview_prep(ctx, args.company, args.role))
+    elif args.stage == "leads":
+        result = run_leads_sourcing(ctx, categories=args.categories)
+        if result.get("executed"):
+            print(f"Executed queries, found {len(result['leads'])} leads (see data/agent_state.db -> boolean_leads).")
+        else:
+            print(f"No search backend configured — {len(result['rendered_queries'])} queries rendered below.\n")
+            for q in result["rendered_queries"]:
+                print(f"[{q['category']}] {q['query']}\n  -> {q['purpose']}\n")
+    elif args.stage == "networker":
+        if not args.company:
+            parser.error("--company is required for --stage networker")
+        result = run_challenge_and_content(ctx, args.company, args.jd)
+        print("CHALLENGE:\n" + result["challenge"].get("solution_sketch", "(none found — paste a JD for better results)"))
+        print("\nLINKEDIN DRAFT:\n" + result["content_drafts"]["platform_drafts"]["linkedin"])
+        print("\nX DRAFT:\n" + result["content_drafts"]["platform_drafts"]["x"])
     elif args.stage == "weekly-learning":
         result = run_weekly_learning(ctx)
         print(result)

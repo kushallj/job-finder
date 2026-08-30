@@ -51,17 +51,29 @@ python outreach_cli.py outreach
 
 ## 🎯 Target-Company Agent Strategies (`src/agents/`)
 
-Nine purpose-built agents that run against a researched, ranked list of
+Twelve purpose-built agents that run against a researched, ranked list of
 target companies (`config/target_companies.yml`) instead of the generic
-job-board firehose — for fit-scoring, signal-aware timing, and
-personalized outreach specifically tuned to *this* candidate's positioning
-(`config/profile.yml`).
+job-board firehose — for fit-scoring, signal-aware timing, X-ray/boolean
+lead sourcing, and personalized outreach specifically tuned to *this*
+candidate's positioning (`config/profile.yml`).
 
 ```bash
 # Run the full daily pipeline: signal check -> live ATS job discovery ->
 # fit scoring -> priority queue -> tailored resume framing -> contact
 # ranking -> signal-seeded outreach drafts. Nothing is auto-sent.
 python -m src.agents.orchestrator --stage daily
+
+# X-ray/boolean sourcing across ATS platforms, YC/Wellfound, funding press,
+# Medium/Substack, GitHub, YouTube, and search-indexed X/LinkedIn posts —
+# 30 queries in config/boolean_queries.yml. Runs through the Google Custom
+# Search API or Serper.dev (never raw scraping); without a key, it prints
+# the queries for manual use instead of failing.
+python -m src.agents.orchestrator --stage leads
+
+# Find a real, evidenced challenge at a company (from the JD or funding
+# signal — never invented) and draft LinkedIn/X content from it. You
+# copy-paste and post it yourself; nothing here logs into any platform.
+python -m src.agents.orchestrator --stage networker --company "Perfios" --jd "<paste JD>"
 
 # Once a target company replies and you land an interview
 python -m src.agents.orchestrator --stage interview-prep --company "Perfios"
@@ -70,7 +82,7 @@ python -m src.agents.orchestrator --stage interview-prep --company "Perfios"
 python -m src.agents.orchestrator --stage weekly-learning
 ```
 
-See `docs/AGENT_STRATEGIES.md` for the strategy behind each of the 9 agents,
+See `docs/AGENT_STRATEGIES.md` for the strategy behind each of the 12 agents,
 and `CLAUDE.md` for the `/nexus agents` slash-command routing.
 
 ## 📖 Documentation

@@ -13,6 +13,9 @@ config/target_companies.yml for the researched company list they operate on.
     7. PriorityScheduleAgent     — agent_07_priority_scheduler.py
     8. InterviewPrepAgent        — agent_08_interview_prepper.py
     9. FeedbackStrategistAgent   — agent_09_feedback_strategist.py
+   10. ChallengeSolverAgent      — agent_10_challenge_solver.py   ("Networker" — fixes a real problem)
+   11. QueryHunterAgent          — agent_11_query_hunter.py       ("Hunter" — X-ray/boolean sourcing + lead CRM)
+   12. InfluencerAgent           — agent_12_influencer.py         ("Influencer" — content drafts, never auto-posts)
 
 Run the full pipeline: `python -m src.agents.orchestrator`
 """
@@ -27,6 +30,9 @@ from .agent_06_outreach_composer import OutreachComposerAgent
 from .agent_07_priority_scheduler import PriorityScheduleAgent
 from .agent_08_interview_prepper import InterviewPrepAgent
 from .agent_09_feedback_strategist import FeedbackStrategistAgent
+from .agent_10_challenge_solver import ChallengeSolverAgent
+from .agent_11_query_hunter import QueryHunterAgent
+from .agent_12_influencer import InfluencerAgent
 
 __all__ = [
     "AgentContext", "AgentResult", "BaseAgent",
@@ -39,4 +45,7 @@ __all__ = [
     "PriorityScheduleAgent",
     "InterviewPrepAgent",
     "FeedbackStrategistAgent",
+    "ChallengeSolverAgent",
+    "QueryHunterAgent",
+    "InfluencerAgent",
 ]

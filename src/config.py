@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     apollo_api_key: Optional[str] = None
     signalhire_api_key: Optional[str] = None
     signalhire_callback_url: Optional[str] = None  # Your ngrok URL + /api/signalhire/callback
+
+    # Boolean/X-ray lead sourcing (src/agents/agent_11_query_hunter.py) —
+    # ToS-compliant search backends only, never raw scraping of Google/
+    # LinkedIn/X results pages. Configure ONE of the two below.
+    google_cse_api_key: Optional[str] = None   # Google Custom Search JSON API key
+    google_cse_id: Optional[str] = None        # Programmable Search Engine ID (cx=)
+    serper_api_key: Optional[str] = None       # serper.dev — alternative to Google CSE
     
     # Cloudflare Browser Rendering
     cloudflare_account_id: Optional[str] = None
