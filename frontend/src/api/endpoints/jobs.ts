@@ -4,6 +4,8 @@ import type {
   QueryResponse,
   PendingOutreachResponse,
   Job,
+  JobsResponse,
+  OpportunityBrief,
 } from '../types';
 
 export const jobsApi = {
@@ -19,8 +21,8 @@ export const jobsApi = {
   /**
    * Get all jobs with pagination, sorted by recently fetched
    */
-  getAllJobs: async (page: number = 1, limit: number = 50): Promise<PendingOutreachResponse> => {
-    const response = await api.get<PendingOutreachResponse>('/api/jobs', {
+  getAllJobs: async (page: number = 1, limit: number = 50): Promise<JobsResponse> => {
+    const response = await api.get<JobsResponse>('/api/jobs', {
       params: { page, limit },
     });
     return response.data;
@@ -41,6 +43,14 @@ export const jobsApi = {
    */
   getJob: async (jobId: number): Promise<Job> => {
     const response = await api.get<Job>(`/api/jobs/${jobId}`);
+    return response.data;
+  },
+
+  /**
+   * Get opportunity brief for decision-ready overview
+   */
+  getOpportunityBrief: async (jobId: number): Promise<OpportunityBrief> => {
+    const response = await api.get<OpportunityBrief>(`/api/opportunities/${jobId}/brief`);
     return response.data;
   },
 

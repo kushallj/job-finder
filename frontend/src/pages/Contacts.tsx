@@ -219,7 +219,7 @@ export const Contacts: React.FC = () => {
                               {contact.email && (
                                 <IconButton
                                   size="small"
-                                  onClick={() => handleCopyEmail(contact.email)}
+                                  onClick={() => contact.email && handleCopyEmail(contact.email)}
                                   title="Copy email"
                                 >
                                   {copiedEmail === contact.email ? (

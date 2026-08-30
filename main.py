@@ -43,6 +43,8 @@ from sqlalchemy.orm import Session
 from src.job_processor import JobProcessor
 from src.database import init_db, SessionLocal
 from src.models import Application, Job, OutreachRecord, Contact
+from src.lifecycle import next_action, require_transition, normalize_status, sort_actions, KNOWN_STATUSES
+from src.job_data_providers import JobDataAPIClient, AIDevBoardClient, search_all
 from src.config import settings
 try:
     from src.api.routers.agents_router import router as agents_router
@@ -87,6 +89,22 @@ from src.api_models import (
     SignalHireResultResponse,
     StartupDiscoveryRequest,
     StartupDiscoveryResponse,
+    OpportunitySignal,
+    OpportunityPerson,
+    OpportunityResume,
+    OpportunityOutreach,
+    OpportunityNextAction,
+    OpportunityBriefResponse,
+    ActionQueueResponse,
+    ActionQueueItem,
+    LifecycleActionData,
+    LifecycleTransitionRequest,
+    SubmissionProofRequest,
+    ProviderSyncRequest,
+    ProviderSyncResponse,
+    ProviderSyncSource,
+    MarketIntelligenceResponse,
+    ApplicationUpdateRequest,
 )
 from src.api_error_handlers import (
     register_error_handlers,
@@ -320,7 +338,9 @@ _state: Optional[AppState] = None
 
 
 def get_state() -> AppState:
-    if _state is None: raise RuntimeError("AppState not initialised")
+    global _state
+    if _state is None:
+        _state = AppState()
     return _state
 
 
@@ -1819,6 +1839,127 @@ async def send_followup(
         raise APIError(f"Follow-up send failed: {str(exc)}")
 
 
+def _to_job_data(j: Job, match_score: Optional[float] = None, application_status: Optional[str] = None) -> JobData:
+    tags = []
+    if j.tags:
+        try:
+            tags = json.loads(j.tags) if isinstance(j.tags, str) else j.tags
+        except Exception:
+            tags = []
+    provider_sources = []
+    if j.provider_sources:
+        try:
+            provider_sources = json.loads(j.provider_sources) if isinstance(j.provider_sources, str) else j.provider_sources
+        except Exception:
+            provider_sources = [j.source] if j.source else []
+    elif j.source:
+        provider_sources = [j.source]
+
+    return JobData(
+        id=j.id,
+        job_id=j.job_id,
+        title=j.title,
+        company=j.company,
+        location=j.location,
+        description=j.description,
+        url=j.url,
+        source=j.source or "other",
+        posted_date=j.posted_date,
+        fetched_at=j.fetched_at,
+        match_score=match_score,
+        application_status=application_status,
+        provider_id=j.provider_id,
+        company_website=j.company_website,
+        salary_min=j.salary_min,
+        salary_max=j.salary_max,
+        salary_currency=j.salary_currency,
+        has_remote=j.has_remote,
+        work_mode=j.work_mode,
+        experience_level=j.experience_level,
+        tags=tags,
+        provider_sources=provider_sources,
+    )
+
+
+# ── External job intelligence providers ──────────────────────────────────────
+
+@app.post("/api/providers/sync", tags=["providers"], response_model=ProviderSyncResponse)
+async def sync_external_providers(request: ProviderSyncRequest):
+    """Fetch structured jobs from both providers and upsert into the local catalog."""
+    results = await search_all(query=request.query, location=request.location,
+                               max_age=request.max_age_days, limit=request.limit)
+    source_results: List[ProviderSyncSource] = []
+    inserted = updated = 0
+    async with db_session() as db:
+        for provider, rows in results.items():
+            ins = upd = 0
+            try:
+                for row in rows:
+                    existing = None
+                    if row.get("provider_id"):
+                        existing = db.query(Job).filter(Job.job_id == row["job_id"]).first()
+                    if existing is None and row.get("url"):
+                        existing = db.query(Job).filter(Job.url == row["url"]).first()
+                    if existing is None:
+                        existing = db.query(Job).filter(Job.title == row["title"], Job.company == row.get("company"), Job.url == row.get("url")).first()
+                    if existing:
+                        current_sources = []
+                        try:
+                            current_sources = json.loads(existing.provider_sources) if existing.provider_sources else []
+                        except Exception:
+                            current_sources = [existing.source] if existing.source else []
+                        current_sources = list(dict.fromkeys([x for x in (current_sources + [provider]) if x]))
+                        existing.provider_sources = json.dumps(current_sources)
+                        existing.title = row["title"]
+                        existing.company = row.get("company") or existing.company
+                        existing.location = row.get("location") or existing.location
+                        existing.description = row.get("description") or existing.description
+                        existing.url = row.get("url") or existing.url
+                        existing.source = provider
+                        existing.posted_date = row.get("posted_date") or existing.posted_date
+                        existing.provider_id = row.get("provider_id") or existing.provider_id
+                        existing.company_website = row.get("company_website") or existing.company_website
+                        existing.salary_min = row.get("salary_min")
+                        existing.salary_max = row.get("salary_max")
+                        existing.salary_currency = row.get("salary_currency")
+                        existing.has_remote = row.get("has_remote")
+                        existing.work_mode = row.get("work_mode")
+                        existing.experience_level = row.get("experience_level")
+                        existing.tags = json.dumps(row.get("tags", []))
+                        existing.expired_at = row.get("expired_at")
+                        existing.provider_payload = json.dumps(row.get("provider_payload", {}), default=str)
+                        upd += 1
+                    else:
+                        db.add(Job(job_id=row["job_id"], title=row["title"], company=row.get("company"),
+                                   location=row.get("location"), description=row.get("description"), url=row.get("url"),
+                                   source=provider, posted_date=row.get("posted_date"), provider_id=row.get("provider_id"),
+                                   company_website=row.get("company_website"), salary_min=row.get("salary_min"), salary_max=row.get("salary_max"),
+                                   salary_currency=row.get("salary_currency"), has_remote=row.get("has_remote"), work_mode=row.get("work_mode"),
+                                   experience_level=row.get("experience_level"), tags=json.dumps(row.get("tags", [])), expired_at=row.get("expired_at"),
+                                   provider_payload=json.dumps(row.get("provider_payload", {}), default=str),
+                                   provider_sources=json.dumps([provider])))
+                        ins += 1
+                db.commit()
+            except Exception as exc:
+                db.rollback()
+                source_results.append(ProviderSyncSource(provider=provider, fetched=len(rows), inserted=0, updated=0, failed=True, error=str(exc)))
+                continue
+            inserted += ins; updated += upd
+            source_results.append(ProviderSyncSource(provider=provider, fetched=len(rows), inserted=ins, updated=upd))
+    return ProviderSyncResponse(status="success", total_fetched=sum(len(v) for v in results.values()),
+                                total_inserted=inserted, total_updated=updated, sources=source_results)
+
+
+@app.get("/api/market-intelligence", tags=["providers"], response_model=MarketIntelligenceResponse)
+async def market_intelligence():
+    """Expose current AI-dev market statistics through our backend without leaking provider credentials."""
+    try:
+        data = await AIDevBoardClient().stats()
+        return MarketIntelligenceResponse(status="success", provider="aidevboard", data=data)
+    except Exception as exc:
+        return MarketIntelligenceResponse(status="degraded", provider="aidevboard", stale=True, error=str(exc))
+
+
 # ── Jobs ──────────────────────────────────────────────────────────────────────
 
 @app.get("/api/jobs", tags=["jobs"], response_model=JobsResponse)
@@ -1842,21 +1983,7 @@ async def get_jobs(
                 .all()
             )
             
-            job_data = [
-                JobData(
-                    id=j.id,
-                    job_id=j.job_id,
-                    title=j.title,
-                    company=j.company,
-                    location=j.location,
-                    description=j.description,
-                    url=j.url,
-                    source=j.source,
-                    posted_date=j.posted_date,
-                    fetched_at=j.fetched_at,
-                )
-                for j in jobs
-            ]
+            job_data = [_to_job_data(j) for j in jobs]
             
             return JobsResponse(
                 status="success",
@@ -1922,37 +2049,401 @@ async def pending_outreach(
 
 @app.get("/api/jobs/{job_id}", tags=["jobs"], response_model=JobData)
 async def get_job_by_id(job_id: int):
-    """
-    Get a single job by ID.
-
-    Wired for frontend's jobsApi.getJob (frontend/src/api/endpoints/jobs.ts),
-    which was calling this route even though it didn't exist on the backend.
-    Registered after the more specific /api/jobs/pending-outreach route so
-    that literal path doesn't get swallowed by this int-typed path param.
-    """
+    """Get a single job by ID."""
     try:
         async with db_session() as db:
             j = db.query(Job).filter(Job.id == job_id).first()
             if not j:
                 raise ResourceNotFoundError("Job", job_id)
 
-            return JobData(
-                id=j.id,
-                job_id=j.job_id,
-                title=j.title,
-                company=j.company,
-                location=j.location,
-                description=j.description,
-                url=j.url,
-                source=j.source,
-                posted_date=j.posted_date,
-                fetched_at=j.fetched_at,
-            )
+            app_rec = db.query(Application).filter(Application.job_id == job_id).order_by(Application.id.desc()).first()
+            match_score = app_rec.match_score if app_rec else None
+            app_status = app_rec.status if app_rec else None
+            return _to_job_data(j, match_score=match_score, application_status=app_status)
     except ResourceNotFoundError:
         raise
     except Exception as exc:
         log.error("Failed to retrieve job %s: %s", job_id, exc, exc_info=True)
         raise DatabaseError(f"Failed to retrieve job: {str(exc)}")
+
+
+# ── Opportunities & Applications ──────────────────────────────────────────────
+
+@app.put("/api/jobs/{job_id}/application", tags=["applications"])
+async def update_job_application_status(job_id: int, request: ApplicationUpdateRequest):
+    """Update or create application record for a job with lifecycle validation."""
+    try:
+        async with db_session() as db:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            if not job:
+                raise ResourceNotFoundError("Job", job_id)
+
+            application = db.query(Application).filter(Application.job_id == job_id).order_by(Application.id.desc()).first()
+            if application is None:
+                if request.status not in ("saved", "ready", "rejected"):
+                    raise HTTPException(status_code=409, detail=f"Cannot create an application directly in state: {request.status}")
+                application = Application(job_id=job_id, status=request.status)
+                db.add(application)
+            else:
+                try:
+                    require_transition(application.status, request.status)
+                except ValueError as exc:
+                    raise HTTPException(status_code=409, detail=str(exc))
+                application.status = request.status
+
+            if request.status == "applied" and application.applied_at is None:
+                application.applied_at = datetime.utcnow()
+
+            db.commit()
+            db.refresh(application)
+            return {
+                "status": "success",
+                "application_id": application.id,
+                "job_id": job_id,
+                "application_status": application.status,
+            }
+    except (ResourceNotFoundError, HTTPException):
+        raise
+    except Exception as exc:
+        log.error("Failed to update application for job %s: %s", job_id, exc, exc_info=True)
+        raise DatabaseError(f"Failed to update application: {str(exc)}")
+
+
+@app.post("/api/applications/{application_id}/transition", tags=["applications"])
+async def transition_application(application_id: int, request: LifecycleTransitionRequest):
+    """Perform a validated lifecycle state transition."""
+    try:
+        async with db_session() as db:
+            application = db.query(Application).filter(Application.id == application_id).first()
+            if not application:
+                raise ResourceNotFoundError("Application", application_id)
+            try:
+                require_transition(application.status, request.status)
+            except ValueError as exc:
+                raise HTTPException(status_code=409, detail=str(exc))
+            application.status = request.status
+            if request.status == "applied" and application.applied_at is None:
+                application.applied_at = datetime.utcnow()
+            db.commit()
+            db.refresh(application)
+            return {"status": "success", "application_id": application.id, "job_id": application.job_id, "application_status": application.status}
+    except (ResourceNotFoundError, HTTPException):
+        raise
+    except Exception as exc:
+        log.error("Failed to transition application %s: %s", application_id, exc, exc_info=True)
+        raise DatabaseError(f"Failed to transition application: {str(exc)}")
+
+
+@app.post("/api/applications/{application_id}/proof", tags=["applications"])
+async def record_application_proof(application_id: int, request: SubmissionProofRequest):
+    """Record proof of external submission and transition application to applied."""
+    try:
+        async with db_session() as db:
+            application = db.query(Application).filter(Application.id == application_id).first()
+            if not application:
+                raise ResourceNotFoundError("Application", application_id)
+            application.status = "applied"
+            application.applied_at = datetime.utcnow()
+            if request.proof_url:
+                application.proof_url = request.proof_url
+            if request.proof_notes:
+                application.proof_notes = request.proof_notes
+            db.commit()
+            db.refresh(application)
+            return {"status": "success", "application_id": application.id, "job_id": application.job_id, "application_status": application.status}
+    except (ResourceNotFoundError, HTTPException):
+        raise
+    except Exception as exc:
+        log.error("Failed to record proof for application %s: %s", application_id, exc, exc_info=True)
+        raise DatabaseError(f"Failed to record proof: {str(exc)}")
+
+
+@app.get("/api/action-queue", tags=["opportunities"], response_model=ActionQueueResponse)
+async def get_action_queue(limit: int = Query(default=12, ge=1, le=1000)):
+    """Return the highest-value next actions across the entire career pipeline."""
+    try:
+        async with db_session() as db:
+            applications = db.query(Application).join(Job).order_by(Application.updated_at.desc()).all()
+            current_by_job = {}
+            for application in applications:
+                if application.job_id not in current_by_job:
+                    current_by_job[application.job_id] = application
+            actions = []
+            for application in current_by_job.values():
+                if normalize_status(application.status) in {"accepted", "rejected"}:
+                    continue
+                job = application.job
+                records = (db.query(OutreachRecord)
+                           .filter(OutreachRecord.job_id == job.id)
+                           .order_by(OutreachRecord.sent_at.desc())
+                           .all())
+                contacts = (db.query(Contact)
+                            .filter(Contact.company.ilike(f"%{job.company or ''}%"))
+                            .order_by(Contact.confidence_score.desc())
+                            .limit(10).all()) if job.company else []
+                replied = any(r.status == "replied" or r.replied_at for r in records)
+                pending = any(r.status in ("no_response", "queued") for r in records)
+                has_proof = bool(getattr(application, "proof_url", None) or getattr(application, "proof_notes", None))
+                action = next_action(
+                    application.status,
+                    has_reply=replied,
+                    has_contacts=bool(contacts),
+                    has_outreach=bool(records),
+                    followup_due=pending,
+                    has_application_proof=has_proof,
+                )
+                actions.append({
+                    "job_id": job.id,
+                    "application_id": application.id,
+                    "title": job.title,
+                    "company": job.company,
+                    "fit_score": application.match_score,
+                    "stage": normalize_status(application.status),
+                    "status": normalize_status(application.status),
+                    "action": {"key": action.key, "label": action.label, "reason": action.reason, "priority": action.priority, "route": action.route, "external": action.external, "requires_confirmation": action.requires_confirmation},
+                    "url": job.url,
+                    "updated_at": application.updated_at,
+                })
+            ranked = sort_actions(actions)[:limit]
+            return ActionQueueResponse(status="success", actions=ranked, total=len(actions))
+    except Exception as exc:
+        log.error("Failed to build action queue: %s", exc, exc_info=True)
+        raise DatabaseError(f"Failed to build action queue: {str(exc)}")
+
+
+@app.post("/api/opportunities/{job_id}/do-next", tags=["opportunities"])
+async def do_next_opportunity_action(job_id: int):
+    """Execute the safest internal step and return the next human action."""
+    try:
+        async with db_session() as db:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            if not job:
+                raise ResourceNotFoundError("Job", job_id)
+            records = (db.query(OutreachRecord)
+                       .filter(OutreachRecord.job_id == job_id)
+                       .order_by(OutreachRecord.sent_at.desc())
+                       .all())
+            contacts = (db.query(Contact)
+                        .filter(Contact.company.ilike(f"%{job.company or ''}%"))
+                        .order_by(Contact.confidence_score.desc())
+                        .limit(10).all()) if job.company else []
+            application = (db.query(Application)
+                           .filter(Application.job_id == job_id)
+                           .order_by(Application.id.desc())
+                           .first())
+
+            if application is None:
+                application = Application(job_id=job_id, status="saved")
+                db.add(application); db.commit(); db.refresh(application)
+                return {"status": "success", "action": "save", "application_id": application.id, "application_status": application.status, "open_url": f"/opportunities/{job_id}", "message": "Saved to your tracker. The next action is now available in Do This Next.", "requires_confirmation": False}
+            replied = any(r.status == "replied" or r.replied_at for r in records)
+            pending = any(r.status in ("no_response", "queued") for r in records)
+            has_proof = bool(getattr(application, "proof_url", None) or getattr(application, "proof_notes", None))
+            action = next_action(
+                application.status,
+                has_reply=replied,
+                has_contacts=bool(contacts),
+                has_outreach=bool(records),
+                followup_due=pending,
+                has_application_proof=has_proof,
+            )
+
+            if action.key == "prepare_application":
+                require_transition(application.status, "ready")
+                application.status = "ready"
+                db.commit(); db.refresh(application)
+                return {"status": "success", "action": "apply", "application_id": application.id, "application_status": application.status, "open_url": job.url, "message": "Application packet is ready. Review it, then submit on the employer site.", "requires_confirmation": False}
+            if action.key == "apply":
+                return {"status": "success", "action": "apply", "application_id": application.id, "application_status": application.status, "open_url": job.url, "message": "Application packet is ready. Submit on the employer site, then log proof."}
+            if action.key in {"outreach", "followup", "respond"}:
+                return {"status": "success", "action": action.key, "application_id": application.id, "application_status": application.status, "open_url": action.route + f"?jobId={job_id}" if action.route else f"/outreach?jobId={job_id}", "message": action.reason}
+            if action.key == "interview_prep":
+                return {"status": "success", "action": "interview_prep", "application_id": application.id, "application_status": application.status, "open_url": f"/opportunities/{job_id}", "message": action.reason}
+            if action.key == "negotiate":
+                require_transition(application.status, "negotiation")
+                application.status = "negotiation"
+                db.commit(); db.refresh(application)
+                return {"status": "success", "action": "negotiate", "application_id": application.id, "application_status": application.status, "open_url": f"/opportunities/{job_id}", "message": "Negotiation stage started. Review the offer and record your target terms.", "requires_confirmation": False}
+            if action.key == "accept_offer":
+                return {"status": "success", "action": "accept_offer", "application_id": application.id, "application_status": application.status, "open_url": f"/opportunities/{job_id}", "message": "Confirm that you want to mark this offer as accepted.", "requires_confirmation": True}
+            return {"status": "success", "action": "complete", "application_id": application.id, "application_status": application.status, "open_url": None, "message": "No further action is required for this opportunity."}
+    except ResourceNotFoundError:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except Exception as exc:
+        log.error("Failed to perform next action for job %s: %s", job_id, exc, exc_info=True)
+        raise DatabaseError(f"Failed to perform next action: {str(exc)}")
+
+
+@app.get("/api/opportunities/{job_id}/brief", tags=["opportunities"], response_model=OpportunityBriefResponse)
+async def get_opportunity_brief(job_id: int, state: AppState = Depends(get_state)):
+    """Build a single, decision-ready view from the existing job-search data."""
+    try:
+        async with db_session() as db:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            if not job:
+                raise ResourceNotFoundError("Job", job_id)
+
+            application = (db.query(Application)
+                           .filter(Application.job_id == job_id)
+                           .order_by(Application.id.desc())
+                           .first())
+
+            contacts = (db.query(Contact)
+                        .filter(Contact.company.ilike(f"%{job.company or ''}%"))
+                        .filter(~Contact.do_not_contact.is_(True))
+                        .order_by(Contact.confidence_score.desc(), Contact.found_at.desc())
+                        .limit(6).all()) if job.company else []
+
+            outreach_records = (db.query(OutreachRecord)
+                                .filter(OutreachRecord.job_id == job_id)
+                                .order_by(OutreachRecord.sent_at.desc())
+                                .all())
+
+            company_jobs = (db.query(Job)
+                            .filter(Job.company.ilike(f"%{job.company or ''}%"))
+                            .count()) if job.company else 1
+            company_sources = (db.query(Job.source)
+                               .filter(Job.company.ilike(f"%{job.company or ''}%"))
+                               .filter(Job.source.isnot(None)).distinct().all()) if job.company else []
+
+            resume_text = ""
+            master_label = None
+            try:
+                resume_path = state.resume_router.route(job.title)
+                resume_text = _read_resume(resume_path)
+                master_label = Path(resume_path).name
+            except Exception:
+                pass
+
+            fit_score = application.match_score if application and application.match_score is not None else None
+            fit_reasons: List[str] = []
+            missing_keywords: List[str] = []
+            if fit_score is None:
+                import re
+                jd_words = {w for w in re.findall(r"[A-Za-z][A-Za-z0-9+#.-]{2,}", f"{job.title} {job.description or ''}".lower())}
+                stop = {"the","and","for","with","from","this","that","you","your","are","our","will","have","has","into","about","job","role","team","years"}
+                jd_words = {w for w in jd_words if w not in stop and len(w) >= 4}
+                resume_words = set(re.findall(r"[A-Za-z][A-Za-z0-9+#.-]{2,}", resume_text.lower()))
+                overlap = len(jd_words & resume_words)
+                fit_score = min(95.0, max(35.0, 35.0 + overlap * 2.5)) if jd_words else 50.0
+                if overlap:
+                    fit_reasons.append(f"Your resume overlaps with {overlap} role-relevant terms in the indexed job description.")
+                missing_keywords = sorted(jd_words - resume_words, key=lambda x: (len(x), x), reverse=True)[:8]
+            else:
+                fit_score = float(fit_score)
+                matched = []
+                if application.skills_matched:
+                    try:
+                        matched = json.loads(application.skills_matched) if isinstance(application.skills_matched, str) else application.skills_matched
+                    except Exception:
+                        matched = []
+                fit_reasons.append("Stored AI match score from the job-processing pipeline.")
+                if matched:
+                    fit_reasons.append(f"{len(matched)} skills are already marked as matched.")
+                if application.skills_missing:
+                    try:
+                        missing_keywords = json.loads(application.skills_missing) if isinstance(application.skills_missing, str) else application.skills_missing
+                    except Exception:
+                        missing_keywords = [str(application.skills_missing)]
+            fit_label = "Excellent fit" if fit_score >= 85 else "Strong fit" if fit_score >= 70 else "Possible fit" if fit_score >= 55 else "Weak fit"
+
+            now = datetime.utcnow()
+            age_days = None
+            if job.posted_date:
+                age_days = max(0, (now - job.posted_date).days)
+            signal_data = []
+            signal_data.append(OpportunitySignal(
+                label="Hiring activity", value=f"{company_jobs} indexed role{'s' if company_jobs != 1 else ''}",
+                strength="strong" if company_jobs >= 3 else "medium" if company_jobs == 2 else "info",
+                detail="Based on roles already indexed for this company in your workspace."))
+            if age_days is not None:
+                signal_data.append(OpportunitySignal(
+                    label="Role freshness", value=f"{age_days}d old", strength="strong" if age_days <= 3 else "medium" if age_days <= 10 else "weak",
+                    detail="Newer postings generally deserve faster action."))
+            signal_data.append(OpportunitySignal(
+                label="Network access", value=f"{len(contacts)} contact{'s' if len(contacts) != 1 else ''} found", strength="strong" if contacts else "weak",
+                detail="Contacts discovered in your existing contact intelligence store."))
+            if company_sources:
+                signal_data.append(OpportunitySignal(
+                    label="Source breadth", value=f"{len(company_sources)} source{'s' if len(company_sources) != 1 else ''}", strength="medium" if len(company_sources) > 1 else "info",
+                    detail="Multiple indexed sources can increase confidence that the role is worth reviewing."))
+
+            corroborated = []
+            try:
+                corroborated = json.loads(job.provider_sources) if job.provider_sources else []
+            except Exception:
+                corroborated = [job.source] if job.source else []
+            if len(corroborated) > 1:
+                signal_data.append(OpportunitySignal(label="Provider corroboration", value=f"{len(corroborated)} independent feeds", strength="strong",
+                    detail="This role was independently found by multiple structured job providers."))
+
+            if getattr(job, "salary_min", None) or getattr(job, "salary_max", None):
+                salary_text = f"${job.salary_min:,.0f}" if job.salary_min is not None else "Salary disclosed"
+                if job.salary_max is not None:
+                    salary_text += f"–${job.salary_max:,.0f}"
+                signal_data.append(OpportunitySignal(label="Compensation", value=salary_text,
+                    strength="strong", detail=f"Provider salary data ({job.salary_currency or 'USD/base'}) stored with this listing."))
+            if getattr(job, "has_remote", None) is not None:
+                signal_data.append(OpportunitySignal(label="Work model", value=("Remote-capable" if job.has_remote else "On-site / hybrid"),
+                    strength="medium", detail="Normalized from external job intelligence."))
+            if getattr(job, "source", None) in ("jobdataapi", "aidevboard"):
+                signal_data.append(OpportunitySignal(label="Data provenance", value=job.source, strength="medium",
+                    detail="Structured provider data is cached in your local catalog for repeatable ranking."))
+
+            people = []
+            for c in contacts:
+                hint = "Likely hiring contact" if c.title and any(k in c.title.lower() for k in ("manager", "director", "head", "recruit", "talent", "people", "hr")) else "Potential internal contact"
+                people.append(OpportunityPerson(id=c.id, name=c.name, title=c.title, email=c.email, linkedin_url=c.linkedin_url, confidence_score=c.confidence_score or 0, relationship_hint=hint))
+
+            total = len(outreach_records)
+            sent = sum(1 for r in outreach_records if r.status in ("sent", "followed_up", "replied"))
+            replied = sum(1 for r in outreach_records if r.status == "replied" or r.replied_at)
+            pending = sum(1 for r in outreach_records if r.status in ("no_response", "queued"))
+            latest_status = outreach_records[0].status if outreach_records else None
+            if replied:
+                msg = "Someone replied. Stop automation and take the conversation personally."
+            elif total and pending:
+                msg = "A follow-up is the highest-value next move; avoid starting another cold thread."
+            elif contacts:
+                msg = "Lead with the strongest relevant contact and personalize around this role before applying."
+            else:
+                msg = "Find the hiring manager or an internal referral before spending time on a low-context application."
+
+            resume = OpportunityResume(
+                has_master_resume=bool(resume_text),
+                master_resume_label=master_label,
+                has_tailored_resume=bool(application and application.resume_version),
+                tailored_resume_label=(application.resume_version[:120] if application and application.resume_version else None),
+                cover_letter_preview=(application.cover_letter[:400] if application and application.cover_letter else None),
+                missing_keywords=[str(x) for x in missing_keywords[:8]],
+            )
+
+            has_proof = bool(application and (getattr(application, "proof_url", None) or getattr(application, "proof_notes", None)))
+            action = next_action(
+                application.status if application else "saved",
+                has_reply=bool(replied),
+                has_contacts=bool(contacts),
+                has_outreach=bool(outreach_records),
+                followup_due=bool(pending),
+                has_application_proof=has_proof,
+            )
+
+            job_data = _to_job_data(job, match_score=fit_score, application_status=(application.status if application else None))
+            return OpportunityBriefResponse(
+                status="success", job=job_data, fit_score=fit_score, fit_label=fit_label,
+                fit_reasons=fit_reasons, company_signals=signal_data, people=people,
+                resume=resume, outreach=OpportunityOutreach(total=total, sent=sent, replied=replied, pending=pending,
+                                                            latest_status=latest_status, recommended_message=msg),
+                next_action=OpportunityNextAction(key=action.key, label=action.label, reason=action.reason, priority=action.priority, route=action.route, external=action.external, requires_confirmation=action.requires_confirmation),
+                application_status=(application.status if application else None),
+            )
+    except ResourceNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("Failed to build opportunity brief for job %s: %s", job_id, exc, exc_info=True)
+        raise DatabaseError(f"Failed to build opportunity brief: {str(exc)}")
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────

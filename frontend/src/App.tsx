@@ -10,6 +10,7 @@ import Contacts from './pages/Contacts';
 import Outreach from './pages/Outreach';
 import Stats from './pages/Stats';
 import Settings from './pages/Settings';
+import OpportunityBrief from './pages/OpportunityBrief';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -32,6 +33,7 @@ const App: React.FC = () => {
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
               <Route path="jobs" element={<Jobs />} />
+              <Route path="opportunities/:jobId" element={<OpportunityBrief />} />
               <Route path="contacts" element={<Contacts />} />
               <Route path="outreach" element={<Outreach />} />
               <Route path="stats" element={<Stats />} />

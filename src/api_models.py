@@ -10,7 +10,7 @@ Requirements: 23.2 (Validate request parameters), 23.3 (Return processing statis
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Literal
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
@@ -34,6 +34,8 @@ class JobSource(str, Enum):
     FIRECRAWL_NEWS = "firecrawl_news"
     NEWSAPI = "newsapi"
     OTHER = "other"
+    JOBDATAAPI = "jobdataapi"
+    AIDEVBOARD = "aidevboard"
 
 
 class OutreachStatus(str, Enum):
@@ -436,6 +438,18 @@ class JobData(BaseModel):
     source: str = Field(..., description="Job source")
     posted_date: Optional[datetime] = Field(None, description="Job posting date")
     fetched_at: Optional[datetime] = Field(None, description="Fetch timestamp")
+    match_score: Optional[float] = Field(None, ge=0, le=100, description="AI match score")
+    application_status: Optional[str] = Field(None, description="Current application pipeline status")
+    provider_id: Optional[str] = None
+    company_website: Optional[str] = None
+    salary_min: Optional[float] = None
+    salary_max: Optional[float] = None
+    salary_currency: Optional[str] = None
+    has_remote: Optional[bool] = None
+    work_mode: Optional[str] = None
+    experience_level: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    provider_sources: List[str] = Field(default_factory=list)
 
 
 class PaginationData(BaseModel):
@@ -735,3 +749,140 @@ class SignalHireResultResponse(BaseModel):
     status: str = Field(..., description="Lookup status")
     contact: Optional[Dict[str, Any]] = Field(None, description="Contact data if found")
     message: Optional[str] = Field(None, description="Status message")
+
+
+class ApplicationUpdateRequest(BaseModel):
+    """Update the user's pipeline status for a job opportunity."""
+    status: Literal["saved", "ready", "applied", "interview", "offer", "negotiation", "accepted", "rejected"]
+
+
+class LifecycleActionData(BaseModel):
+    key: str
+    label: str
+    reason: str
+    priority: Literal["high", "medium", "low"]
+    route: Optional[str] = None
+    external: bool = False
+    requires_confirmation: bool = False
+
+
+class ActionQueueItem(BaseModel):
+    job_id: int
+    application_id: Optional[int] = None
+    title: str
+    company: Optional[str] = None
+    fit_score: Optional[float] = None
+    stage: str
+    status: Optional[str] = None
+    action: LifecycleActionData
+    url: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+
+class ActionQueueResponse(BaseModel):
+    status: str
+    actions: List[ActionQueueItem] = Field(default_factory=list)
+    total: int
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class LifecycleTransitionRequest(BaseModel):
+    status: Literal["ready", "applied", "interview", "offer", "negotiation", "accepted", "rejected"]
+
+
+class SubmissionProofRequest(BaseModel):
+    proof_url: Optional[str] = None
+    proof_notes: Optional[str] = None
+
+
+class OpportunitySignal(BaseModel):
+    label: str
+    value: str
+    strength: str = Field(..., pattern=r"^(strong|medium|weak|info)$")
+    detail: str
+
+
+class OpportunityPerson(BaseModel):
+    id: int
+    name: str
+    title: Optional[str] = None
+    email: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    confidence_score: int = 0
+    relationship_hint: str
+
+
+class OpportunityResume(BaseModel):
+    has_master_resume: bool
+    master_resume_label: Optional[str] = None
+    has_tailored_resume: bool
+    tailored_resume_label: Optional[str] = None
+    cover_letter_preview: Optional[str] = None
+    missing_keywords: List[str] = Field(default_factory=list)
+
+
+class OpportunityOutreach(BaseModel):
+    total: int = 0
+    sent: int = 0
+    replied: int = 0
+    pending: int = 0
+    latest_status: Optional[str] = None
+    recommended_message: str
+
+
+class OpportunityNextAction(BaseModel):
+    key: str
+    label: str
+    reason: str
+    priority: str = Field(..., pattern=r"^(high|medium|low)$")
+    route: Optional[str] = None
+    external: bool = False
+    requires_confirmation: bool = False
+
+
+class OpportunityBriefResponse(BaseModel):
+    status: str
+    job: JobData
+    fit_score: float = Field(..., ge=0, le=100)
+    fit_label: str
+    fit_reasons: List[str] = Field(default_factory=list)
+    company_signals: List[OpportunitySignal] = Field(default_factory=list)
+    people: List[OpportunityPerson] = Field(default_factory=list)
+    resume: OpportunityResume
+    outreach: OpportunityOutreach
+    next_action: OpportunityNextAction
+    application_status: Optional[str] = None
+    generated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ProviderSyncRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=200)
+    location: Optional[str] = Field(None, max_length=200)
+    max_age_days: int = Field(default=30, ge=1, le=999)
+    limit: int = Field(default=50, ge=1, le=100)
+
+
+class ProviderSyncSource(BaseModel):
+    provider: str
+    fetched: int = 0
+    inserted: int = 0
+    updated: int = 0
+    failed: bool = False
+    error: Optional[str] = None
+
+
+class ProviderSyncResponse(BaseModel):
+    status: str
+    total_fetched: int
+    total_inserted: int
+    total_updated: int
+    sources: List[ProviderSyncSource] = Field(default_factory=list)
+
+
+class MarketIntelligenceResponse(BaseModel):
+    status: str
+    provider: str
+    data: Dict[str, Any] = Field(default_factory=dict)
+    stale: bool = False
+    error: Optional[str] = None
+    generated_at: datetime = Field(default_factory=datetime.utcnow)

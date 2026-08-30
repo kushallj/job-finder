@@ -16,7 +16,7 @@ import {
   TextField,
   InputAdornment,
   Slider,
-
+  Alert,
 } from '@mui/material';
 import {
   Work as JobsIcon,
@@ -33,7 +33,9 @@ import { useStats } from '../hooks/useStats';
 import { useJobs } from '../hooks/useJobs';
 import { useNavigate } from 'react-router-dom';
 import { formatRelativeTime, formatPercentage, formatNumber } from '../utils/formatters';
-import type { RecentOutreach } from '../api/types';
+import type { RecentOutreach, ProviderSyncResponse, MarketIntelligenceResponse } from '../api/types';
+import ActionQueue from '../components/lifecycle/ActionQueue';
+import { providersApi } from '../api/endpoints/providers';
 
 // Stat Card Component
 interface StatCardProps {
@@ -49,13 +51,13 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color, loading 
     <CardContent>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box>
-          <Typography color="text.secondary" gutterBottom variant="body2">
+          <Typography variant="body2" color="text.secondary" gutterBottom>
             {title}
           </Typography>
           {loading ? (
-            <Skeleton width={60} height={40} />
+            <Skeleton variant="text" width={80} height={40} />
           ) : (
-            <Typography variant="h4" fontWeight={700}>
+            <Typography variant="h4" fontWeight={700} color={`${color}.main`}>
               {value}
             </Typography>
           )}
@@ -78,42 +80,59 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color, loading 
   </Card>
 );
 
-// Quick Action Button
+// Quick Action Card Component
 interface QuickActionProps {
   title: string;
   description: string;
   icon: React.ReactNode;
   onClick: () => void;
-  color: 'primary' | 'success' | 'secondary';
-  loading?: boolean;
+  color?: 'primary' | 'secondary' | 'success';
 }
 
-const QuickAction: React.FC<QuickActionProps> = ({ title, description, icon, onClick, color, loading }) => (
-  <Button
-    variant="outlined"
-    onClick={onClick}
-    disabled={loading}
+const QuickAction: React.FC<QuickActionProps> = ({
+  title,
+  description,
+  icon,
+  onClick,
+  color = 'primary',
+}) => (
+  <Card
     sx={{
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 1,
-      p: 2,
-      borderColor: 'divider',
+      cursor: 'pointer',
+      transition: 'transform 0.2s, box-shadow 0.2s',
       '&:hover': {
-        borderColor: `${color}.main`,
-        backgroundColor: `${color}.light`,
+        transform: 'translateY(-4px)',
+        boxShadow: 4,
       },
     }}
+    onClick={onClick}
   >
-    <Box sx={{ color: `${color}.main` }}>{icon}</Box>
-    <Typography variant="subtitle1" fontWeight={600}>
-      {title}
-    </Typography>
-    <Typography variant="caption" color="text.secondary" textAlign="center">
-      {description}
-    </Typography>
-  </Button>
+    <CardContent>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box
+          sx={{
+            p: 1.5,
+            borderRadius: 2,
+            backgroundColor: `${color}.light`,
+            color: `${color}.main`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {icon}
+        </Box>
+        <Box>
+          <Typography variant="subtitle1" fontWeight={600}>
+            {title}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {description}
+          </Typography>
+        </Box>
+      </Box>
+    </CardContent>
+  </Card>
 );
 
 export const Dashboard: React.FC = () => {
@@ -124,6 +143,9 @@ export const Dashboard: React.FC = () => {
   // Search state for job fetching
   const [searchQuery, setSearchQuery] = useState('python developer');
   const [minScore, setMinScore] = useState(50);
+  const [providerSync, setProviderSync] = useState<ProviderSyncResponse | null>(null);
+  const [market, setMarket] = useState<MarketIntelligenceResponse | null>(null);
+  const [providerWorking, setProviderWorking] = useState(false);
 
   const handleFetchJobs = () => {
     if (searchQuery.trim()) {
@@ -134,6 +156,26 @@ export const Dashboard: React.FC = () => {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleFetchJobs();
+    }
+  };
+
+  const handleProviderSync = async () => {
+    if (!searchQuery.trim()) return;
+    setProviderWorking(true);
+    try {
+      const result = await providersApi.sync(searchQuery.trim(), undefined, 30, 50);
+      setProviderSync(result);
+      await refetchStats();
+    } finally {
+      setProviderWorking(false);
+    }
+  };
+
+  const handleLoadMarket = async () => {
+    try {
+      setMarket(await providersApi.market());
+    } catch {
+      // dashboard remains usable
     }
   };
 
@@ -156,6 +198,9 @@ export const Dashboard: React.FC = () => {
           Here's what's happening with your job search and outreach campaign.
         </Typography>
       </Box>
+
+      {/* Career Lifecycle Action Queue */}
+      <ActionQueue />
 
       {/* Stats Grid */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -201,7 +246,7 @@ export const Dashboard: React.FC = () => {
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
-            Search Jobs
+            Search Jobs & Data Sync
           </Typography>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <TextField
@@ -243,6 +288,14 @@ export const Dashboard: React.FC = () => {
             </Button>
             <Button
               variant="outlined"
+              onClick={() => void handleProviderSync()}
+              disabled={providerWorking || !searchQuery.trim()}
+              startIcon={<FetchIcon />}
+            >
+              {providerWorking ? 'Enriching...' : 'Enrich from job sources'}
+            </Button>
+            <Button
+              variant="outlined"
               onClick={() => void refetchStats()}
               disabled={isLoadingStats}
               startIcon={<RefreshIcon />}
@@ -253,6 +306,36 @@ export const Dashboard: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Market Intelligence */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 1 }}>
+            <Box>
+              <Typography variant="h6" fontWeight={600}>Market Intelligence</Typography>
+              <Typography variant="body2" color="text.secondary">
+                JobDataAPI provides broad structured coverage; AI Dev Jobs adds AI-specific matching and market signals.
+              </Typography>
+            </Box>
+            <Button variant="text" onClick={() => void handleLoadMarket()}>Refresh market</Button>
+          </Box>
+          {providerSync && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              Synced {providerSync.total_fetched} external roles · {providerSync.total_inserted} new · {providerSync.total_updated} updated.
+            </Alert>
+          )}
+          {market?.data && (
+            <Grid container spacing={2}>
+              {Object.entries(market.data).slice(0, 4).map(([key, value]) => (
+                <Grid key={key} size={{ xs: 6, sm: 3 }}>
+                  <Typography variant="caption" color="text.secondary">{key.replaceAll('_', ' ')}</Typography>
+                  <Typography fontWeight={800}>{String(value)}</Typography>
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Quick Actions */}
       <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
         Quick Actions
@@ -260,11 +343,11 @@ export const Dashboard: React.FC = () => {
       <Grid container spacing={2} sx={{ mb: 4 }}>
         <Grid size={{ xs: 12, md: 4 }}>
           <QuickAction
-            title="Run Outreach"
-            description="Send personalized outreach emails"
-            icon={<OutreachRunIcon />}
-            onClick={handleRunOutreach}
-            color="success"
+            title="Find Jobs"
+            description="Open your indexed opportunities"
+            icon={<JobsIcon />}
+            onClick={() => navigate('/jobs')}
+            color="primary"
           />
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
@@ -361,7 +444,7 @@ export const Dashboard: React.FC = () => {
                       <ListItem
                         disablePadding
                         sx={{ py: 1.5, cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
-                        onClick={() => navigate('/jobs')}
+                        onClick={() => navigate(`/opportunities/${job.id}`)}
                       >
                         <ListItemIcon sx={{ minWidth: 36 }}>
                           <JobsIcon color="action" fontSize="small" />
@@ -391,4 +474,3 @@ export const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
-

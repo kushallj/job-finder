@@ -18,6 +18,20 @@ class Job(Base):
     source = Column(String(100))
     posted_date = Column(DateTime)
     fetched_at = Column(DateTime, default=datetime.utcnow)
+
+    # External job intelligence metadata (JobDataAPI / AI Dev Jobs)
+    provider_id = Column(String(255))
+    company_website = Column(Text)
+    salary_min = Column(Float)
+    salary_max = Column(Float)
+    salary_currency = Column(String(10))
+    has_remote = Column(Boolean)
+    work_mode = Column(String(50))
+    experience_level = Column(String(20))
+    tags = Column(Text)  # JSON array
+    expired_at = Column(DateTime)
+    provider_payload = Column(Text)  # JSON provider record for traceability
+    provider_sources = Column(Text)  # JSON array of all providers that corroborated this role
     
     # Relationships
     applications = relationship("Application", back_populates="job")
@@ -37,9 +51,17 @@ class Application(Base):
     resume_version = Column(Text)
     cover_letter = Column(Text)
     
-    # Status
-    status = Column(String(50), default="pending")  # pending, applied, rejected, interview
+    # Status & Lifecycle
+    status = Column(String(50), default="pending")  # saved, ready, applied, interview, offer, negotiation, accepted, rejected
     applied_at = Column(DateTime)
+
+    # Submission packet & proof
+    ats_detected = Column(String(100))
+    customized_resume_path = Column(Text)
+    cover_letter_path = Column(Text)
+    submission_notes = Column(Text)
+    proof_url = Column(Text)
+    proof_notes = Column(Text)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
