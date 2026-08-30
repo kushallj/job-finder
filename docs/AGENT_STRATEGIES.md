@@ -127,6 +127,63 @@ touching weights (`MIN_SAMPLE_SIZE`), and dampens each update
 priorities. Writes `tier:N` multipliers straight into the table Agent 7
 reads.
 
+## 10. Challenge Solver — `agent_10_challenge_solver.py`
+
+**Problem it solves:** this is the direct answer to "networking should fix a
+real challenge, not just flatter." Generic cold outreach ("I saw you're
+hiring") is forgettable. Outreach anchored to a specific, evidenced problem
+gets forwarded internally.
+
+**What it does:** never invents a challenge. It only surfaces one that's
+already stated publicly — first choice is the actual job description text
+(via the existing `src/resume_engine/jd_analyzer.py` pain-point extraction),
+second choice is inferred from the company's funding/leadership/expansion
+signal type in `config/target_companies.yml` (e.g. "just raised for overseas
+expansion" implies multi-region/compliance challenges). It then matches
+*only* your real differentiators from `config/profile.yml` against that
+challenge and drafts a short "here's how I'd approach this" opener — usable
+in an outreach email, an interview, or a LinkedIn post (Agent 12 below).
+Every claimed proof point is traceable back to your actual resume text —
+tested explicitly in `tests/test_agents.py`.
+
+## 11. Query Hunter — `agent_11_query_hunter.py`
+
+**Problem it solves:** this is the "Hunter" archetype extended beyond ATS
+APIs into full X-ray/boolean sourcing — the same technique CRM sourcing
+tools (SeekOut, hireEZ) use — built into a lead-CRM table instead of a
+one-off search.
+
+**What it does:** executes the 30-query bank in `config/boolean_queries.yml`
+(ATS platforms, YC/Wellfound directories, funding press, Medium/Substack
+engineering blogs, GitHub, YouTube, and search-indexed X/LinkedIn posts)
+through a **ToS-compliant search backend only** — Google Custom Search JSON
+API or Serper.dev, both official and key-based. It never scrapes Google,
+LinkedIn, or X result pages directly (all three explicitly forbid that and
+actively detect/block it). Every result lands in a `boolean_leads` table in
+`data/agent_state.db` with a `status` column (`new` → `reviewed` →
+`converted`) — this table is the seed of a lead CRM, separate from the
+`open_roles` table Agent 2 already populates. Without an API key configured,
+it still runs — it just renders the queries for you to paste into Google
+manually, rather than failing.
+
+Run standalone or via: `python -m src.agents.orchestrator --stage leads --categories funding ats`
+
+## 12. Influencer — `agent_12_influencer.py`
+
+**Problem it solves:** recruiters and hiring managers often check a
+candidate's recent posts before replying to a cold email. A thin trail of
+generic "excited to announce" content actively hurts; a few specific,
+technical posts help.
+
+**What it does — and does NOT do:** drafts LinkedIn and X post pairs built
+only from real material (a proof point, or Agent 10's challenge/solution
+sketch), timed to a target company's actual signal so the post is topical
+rather than generic. **It never logs into any platform, never scrapes a
+feed, and never auto-posts** — LinkedIn and X both explicitly prohibit
+automated posting/engagement outside their official partner APIs, and
+account-level automation risks a ban. You copy-paste and post it yourself,
+same review gate as every outreach email in this system.
+
 ---
 
 ## Running it
@@ -145,6 +202,16 @@ python -m src.agents.orchestrator --stage interview-prep --company Perfios --rol
 # Run weekly (or via a cron alongside scripts/nexus_cron.sh) to recalibrate
 # tier weights from real reply-rate data
 python -m src.agents.orchestrator --stage weekly-learning
+
+# X-ray/boolean lead sourcing (config/boolean_queries.yml, 30 queries) --
+# renders queries for manual use unless google_cse_* or serper_api_key is
+# set in .env
+python -m src.agents.orchestrator --stage leads
+python -m src.agents.orchestrator --stage leads --categories funding ats yc
+
+# Find a real evidenced challenge at a company + draft LinkedIn/X content
+# from it (never auto-posts — copy-paste only)
+python -m src.agents.orchestrator --stage networker --company Perfios --jd "<paste JD text>"
 ```
 
 Every agent is also runnable standalone for debugging:
@@ -158,3 +225,9 @@ Every agent is also runnable standalone for debugging:
 - Does not scrape company signals live by default — `config/target_companies.yml`
   is the source of truth until you refresh it (manually, or via
   `/nexus deep <company>` + `SignalScoutAgent.ingest_signal()`).
+- Does not scrape Google, LinkedIn, or X result/feed pages directly, and
+  never logs into or automates any social platform. Lead sourcing goes
+  through official, key-based search APIs (Google CSE / Serper.dev); social
+  content is drafted for manual copy-paste only. All three platforms treat
+  scraping/automation as a ToS violation with real account-ban risk — this
+  system stays on the compliant side of that line by design, not by accident.
