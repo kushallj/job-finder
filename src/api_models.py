@@ -382,7 +382,7 @@ class ContactData(BaseModel):
     id: Optional[int] = Field(None, description="Contact database ID")
     name: str = Field(..., description="Contact name")
     title: Optional[str] = Field(None, description="Job title")
-    email: str = Field(..., description="Email address")
+    email: Optional[str] = Field(None, description="Email address")
     linkedin_url: Optional[str] = Field(None, description="LinkedIn profile URL")
     company: str = Field(..., description="Company name")
     department: Optional[str] = Field(None, description="Department")
