@@ -11,7 +11,21 @@ export interface Job {
   source: string | null;
   posted_date: string | null;
   fetched_at: string;
+  match_score?: number | null;
+  application_status?: string | null;
+  provider_id?: string | null;
+  company_website?: string | null;
+  salary_min?: number | null;
+  salary_max?: number | null;
+  salary_currency?: string | null;
+  has_remote?: boolean | null;
+  work_mode?: string | null;
+  experience_level?: string | null;
+  tags?: string[];
+  provider_sources?: string[];
 }
+
+export type LifecycleStatus = 'saved' | 'ready' | 'applied' | 'interview' | 'offer' | 'negotiation' | 'accepted' | 'rejected';
 
 export interface Application {
   id: number;
@@ -21,10 +35,16 @@ export interface Application {
   skills_missing: string | null;
   resume_version: string | null;
   cover_letter: string | null;
-  status: 'pending' | 'applied' | 'rejected' | 'interview';
+  status: LifecycleStatus | 'pending';
   applied_at: string | null;
   created_at: string;
   updated_at: string;
+  ats_detected?: string | null;
+  customized_resume_path?: string | null;
+  cover_letter_path?: string | null;
+  submission_notes?: string | null;
+  proof_url?: string | null;
+  proof_notes?: string | null;
   job?: Job;
 }
 
@@ -165,6 +185,7 @@ export interface StatsResponse {
   source: 'live' | 'db_fallback';
   stats: OutreachStats;
   recent_outreach?: RecentOutreach[];
+  timestamp?: string;
 }
 
 export interface HealthStatus {
@@ -182,5 +203,126 @@ export interface RootResponse {
   status: string;
   service: string;
   version: string;
+}
+
+export interface JobsResponse {
+  status: 'success' | 'error';
+  jobs: Job[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+}
+
+export interface OpportunitySignal {
+  label: string;
+  value: string;
+  strength: 'strong' | 'medium' | 'weak' | 'info';
+  detail: string;
+}
+
+export interface OpportunityPerson {
+  id: number;
+  name: string;
+  title: string | null;
+  email: string | null;
+  linkedin_url: string | null;
+  confidence_score: number;
+  relationship_hint: string;
+}
+
+export interface OpportunityResume {
+  has_master_resume: boolean;
+  master_resume_label: string | null;
+  has_tailored_resume: boolean;
+  tailored_resume_label: string | null;
+  cover_letter_preview: string | null;
+  missing_keywords: string[];
+}
+
+export interface OpportunityOutreach {
+  total: number;
+  sent: number;
+  replied: number;
+  pending: number;
+  latest_status: string | null;
+  recommended_message: string;
+}
+
+export interface OpportunityNextAction {
+  key: string;
+  label: string;
+  reason: string;
+  priority: 'high' | 'medium' | 'low';
+  route?: string | null;
+  external?: boolean;
+  requires_confirmation?: boolean;
+}
+
+export interface OpportunityBrief {
+  status: string;
+  job: Job;
+  fit_score: number;
+  fit_label: string;
+  fit_reasons: string[];
+  company_signals: OpportunitySignal[];
+  people: OpportunityPerson[];
+  resume: OpportunityResume;
+  outreach: OpportunityOutreach;
+  next_action: OpportunityNextAction;
+  application_id?: number | null;
+  application_status?: LifecycleStatus | string | null;
+  confirmation_number?: string | null;
+  proof_note?: string | null;
+  proof_url?: string | null;
+  proof_logged_at?: string | null;
+  generated_at?: string;
+}
+
+export interface ActionQueueItem {
+  job_id: number;
+  application_id: number | null;
+  title: string;
+  company: string | null;
+  fit_score: number | null;
+  stage: LifecycleStatus | string;
+  status: LifecycleStatus | string | null;
+  action: OpportunityNextAction;
+  url: string | null;
+  updated_at: string | null;
+}
+
+export interface ActionQueueResponse {
+  status: string;
+  actions: ActionQueueItem[];
+  total: number;
+  timestamp?: string;
+}
+
+export interface ProviderSyncSource {
+  provider: string;
+  fetched: number;
+  inserted: number;
+  updated: number;
+  failed?: boolean;
+  error?: string | null;
+}
+
+export interface ProviderSyncResponse {
+  status: string;
+  total_fetched: number;
+  total_inserted: number;
+  total_updated: number;
+  sources: ProviderSyncSource[];
+}
+
+export interface MarketIntelligenceResponse {
+  status: string;
+  provider: string;
+  stale?: boolean;
+  error?: string | null;
+  data?: Record<string, any>;
 }
 

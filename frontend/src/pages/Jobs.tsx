@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -8,11 +9,6 @@ import {
   Button,
   Chip,
   IconButton,
-  Drawer,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
   CircularProgress,
   Alert,
   InputAdornment,
@@ -22,22 +18,19 @@ import {
   Search as SearchIcon,
   OpenInNew as OpenInNewIcon,
   Send as SendIcon,
-  Close as CloseIcon,
   LocationOn as LocationIcon,
   Business as CompanyIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { useJobs } from '../hooks/useJobs';
-import { useOutreach } from '../hooks/useOutreach';
 import { formatSource, formatRelativeTime } from '../utils/formatters';
-import type { PendingOutreachJob } from '../api/types';
+import type { Job } from '../api/types';
 
 const Jobs: React.FC = () => {
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
-  const [jobsPerPage] = useState(50);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedJob, setSelectedJob] = useState<PendingOutreachJob | null>(null);
+  const jobsPerPage = 50;
+  const navigate = useNavigate();
 
   const {
     allJobs,
@@ -48,22 +41,8 @@ const Jobs: React.FC = () => {
     refetchAllJobs,
   } = useJobs(page, jobsPerPage);
 
-  const { isSendingOutreach } = useOutreach();
-
-  const handleJobClick = (job: PendingOutreachJob) => {
-    setSelectedJob(job);
-    setDrawerOpen(true);
-  };
-
-  const handleCloseDrawer = () => {
-    setDrawerOpen(false);
-    setSelectedJob(null);
-  };
-
-  const handleSendOutreach = () => {
-    if (selectedJob) {
-      console.log('Send outreach for job:', selectedJob.id);
-    }
+  const handleJobClick = (job: Job) => {
+    navigate(`/opportunities/${job.id}`);
   };
 
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
@@ -73,7 +52,7 @@ const Jobs: React.FC = () => {
 
   const filteredJobs = allJobs.filter((job) =>
     job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    job.company.toLowerCase().includes(searchQuery.toLowerCase())
+    (job.company && job.company.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -149,7 +128,7 @@ const Jobs: React.FC = () => {
         </Card>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {filteredJobs.map((job: PendingOutreachJob) => (
+          {filteredJobs.map((job: Job) => (
             <Card
               key={job.id}
               sx={{
@@ -163,15 +142,15 @@ const Jobs: React.FC = () => {
               onClick={() => handleJobClick(job)}
             >
               <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                   <Box sx={{ flex: 1 }}>
-                    <Typography variant="h6" fontWeight={600}>
+                    <Typography variant="h6" fontWeight={600} gutterBottom>
                       {job.title}
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 1, flexWrap: 'wrap' }}>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
                       <Chip
                         icon={<CompanyIcon />}
-                        label={job.company}
+                        label={job.company || 'Unknown Company'}
                         size="small"
                         variant="outlined"
                       />
@@ -184,9 +163,15 @@ const Jobs: React.FC = () => {
                       <Chip
                         label={formatSource(job.source)}
                         size="small"
-                        color="primary"
-                        variant="outlined"
+                        color="default"
                       />
+                      {job.application_status && (
+                        <Chip
+                          label={job.application_status}
+                          size="small"
+                          color="primary"
+                        />
+                      )}
                     </Box>
                   </Box>
                   <Box sx={{ display: 'flex', gap: 1 }}>
@@ -195,8 +180,9 @@ const Jobs: React.FC = () => {
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
-                          window.open(job.url, '_blank');
+                          window.open(job.url ?? undefined, '_blank');
                         }}
+                        title="Open job posting"
                       >
                         <OpenInNewIcon fontSize="small" />
                       </IconButton>
@@ -206,12 +192,38 @@ const Jobs: React.FC = () => {
                       color="primary"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleJobClick(job);
+                        navigate(`/opportunities/${job.id}`);
                       }}
+                      title="Open opportunity brief"
                     >
                       <SendIcon fontSize="small" />
                     </IconButton>
                   </Box>
+                </Box>
+
+                {job.description && (
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      mb: 1.5,
+                    }}
+                  >
+                    {job.description}
+                  </Typography>
+                )}
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Posted: {formatRelativeTime(job.posted_date || null)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Fetched: {formatRelativeTime(job.fetched_at)}
+                  </Typography>
                 </Box>
               </CardContent>
             </Card>
@@ -220,98 +232,21 @@ const Jobs: React.FC = () => {
       )}
 
       {/* Pagination */}
-      {!isAllJobsLoading && allJobsPages > 1 && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4, mb: 4 }}>
+      {allJobsPages > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4, mb: 2 }}>
           <Pagination
             count={allJobsPages}
             page={page}
             onChange={handlePageChange}
             color="primary"
             size="large"
+            showFirstButton
+            showLastButton
           />
         </Box>
       )}
-
-      {/* Job Details Drawer */}
-      <Drawer
-        anchor="right"
-        open={drawerOpen}
-        onClose={handleCloseDrawer}
-        PaperProps={{ sx: { width: { xs: '100%', sm: 450 } } }}
-      >
-        {selectedJob && (
-          <Box sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-              <Typography variant="h6" fontWeight={600}>
-                Job Details
-              </Typography>
-              <IconButton onClick={handleCloseDrawer}>
-                <CloseIcon />
-              </IconButton>
-            </Box>
-
-            <Divider sx={{ mb: 3 }} />
-
-            <Typography variant="h6" fontWeight={600} gutterBottom>
-              {selectedJob.title}
-            </Typography>
-
-            <Box sx={{ display: 'flex', gap: 1, mb: 3, flexWrap: 'wrap' }}>
-              <Chip icon={<CompanyIcon />} label={selectedJob.company} size="small" />
-              <Chip icon={<LocationIcon />} label={selectedJob.location || 'Remote'} size="small" />
-            </Box>
-
-            <List dense>
-              <ListItem>
-                <ListItemText
-                  primary="Source"
-                  secondary={formatSource(selectedJob.source)}
-                />
-              </ListItem>
-              <ListItem>
-                <ListItemText
-                  primary="Posted"
-                  secondary={formatRelativeTime(selectedJob.posted_date || null)}
-                />
-              </ListItem>
-              <ListItem>
-                <ListItemText
-                  primary="Fetched"
-                  secondary={formatRelativeTime(selectedJob.fetched_at)}
-                />
-              </ListItem>
-            </List>
-
-            {selectedJob.url && (
-              <Box sx={{ mt: 3 }}>
-                <Button
-                  variant="contained"
-                  fullWidth
-                  startIcon={<OpenInNewIcon />}
-                  onClick={() => window.open(selectedJob.url, '_blank')}
-                  sx={{ mb: 2 }}
-                >
-                  View Original Listing
-                </Button>
-              </Box>
-            )}
-
-            <Button
-              variant="outlined"
-              color="primary"
-              fullWidth
-              startIcon={<SendIcon />}
-              onClick={handleSendOutreach}
-              disabled={isSendingOutreach}
-            >
-              Send Outreach
-            </Button>
-          </Box>
-        )}
-      </Drawer>
     </Box>
   );
 };
 
 export default Jobs;
-

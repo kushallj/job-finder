@@ -22,8 +22,12 @@ class Settings(BaseSettings):
     google_sheet_worksheet: Optional[str] = None
     
     # Job APIs
-    adzuna_app_id: str
-    adzuna_app_key: str
+    adzuna_app_id: str = ""
+    adzuna_app_key: str = ""
+    jobdata_api_key: Optional[str] = None
+    aidevboard_api_key: Optional[str] = None
+    provider_sync_limit: int = 50
+    provider_sync_max_age_days: int = 30
     
     # Database
     database_url: str
