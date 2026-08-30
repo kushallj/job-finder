@@ -56,6 +56,115 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
         return yaml.safe_load(fh) or {}
 
 
+def _classify_theme(text: str) -> str:
+    """Keyword heuristic used to bucket a proof point under the theme keys
+    agents look up (security/performance/ownership/scale). Pure keyword
+    matching on the person's own text — never invents new claims."""
+    text_l = text.lower()
+    if any(k in text_l for k in ("security", "auth", "access", "rbac", "compliance", "audit")):
+        return "security"
+    if any(k in text_l for k in ("ms", "query", "sql", "latency", "performance", "optimi")):
+        return "performance"
+    if any(k in text_l for k in ("transaction", "uptime", "dau", "scal", "volume")):
+        return "scale"
+    return "ownership"
+
+
+def _normalize_profile(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Adapts config/profile.yml (whichever schema is currently on disk)
+    into the shape src/agents/*.py expects, by computing compatibility keys
+    from whatever real fields are present. Never fabricates content —
+    every derived value is a direct transform/aggregation of something
+    already in the file. Existing keys are never overwritten, so a future
+    profile.yml written in the "old" flat schema keeps working unchanged.
+    """
+    profile = dict(raw)  # shallow copy — don't mutate the loaded YAML in place
+
+    candidate = dict(profile.get("candidate", {}))
+    if "name" not in candidate and "full_name" in candidate:
+        candidate["name"] = candidate["full_name"]
+    profile["candidate"] = candidate
+
+    narrative_raw = profile.get("narrative", {})
+    proof_points_raw = narrative_raw.get("proof_points", [])
+    # New schema: list of {name, metric, stack?, url?} dicts.
+    # Old schema: proof_points_by_theme dict already — leave untouched if present.
+    differentiators = narrative_raw.get("differentiators")
+    if differentiators is None and proof_points_raw:
+        differentiators = [
+            f"{p.get('name', '')}: {p.get('metric', '')}".strip(": ").strip()
+            for p in proof_points_raw if p.get("name") or p.get("metric")
+        ]
+
+    proof_points_by_theme = narrative_raw.get("proof_points_by_theme")
+    if proof_points_by_theme is None and proof_points_raw:
+        proof_points_by_theme = {}
+        for p in proof_points_raw:
+            sentence = f"{p.get('name', '')}: {p.get('metric', '')}".strip(": ").strip()
+            if not sentence:
+                continue
+            theme = _classify_theme(f"{p.get('name', '')} {p.get('metric', '')}")
+            proof_points_by_theme.setdefault(theme, sentence)
+
+    one_liner = narrative_raw.get("one_liner")
+    if one_liner is None:
+        summary = narrative_raw.get("summary", "")
+        one_liner = summary.strip().split(". ")[0].strip()
+        if one_liner and not one_liner.endswith("."):
+            one_liner += "."
+
+    profile["narrative"] = {
+        **narrative_raw,
+        "one_liner": one_liner or "",
+        "proof_points_by_theme": proof_points_by_theme or {},
+    }
+
+    positioning_raw = profile.get("positioning", {})
+    headline = positioning_raw.get("headline") or narrative_raw.get("headline", "")
+    lead_with = positioning_raw.get("lead_with")
+    if lead_with is None:
+        lead_with = profile.get("tech_stack", {}).get("strong", [])
+    seniority = positioning_raw.get("seniority")
+    if seniority is None:
+        primary_roles = " ".join(profile.get("target_roles", {}).get("primary", []))
+        seniority = ("Senior/Staff (per config/profile.yml target_roles)"
+                     if any(w in primary_roles for w in ("Senior", "Staff", "Lead"))
+                     else "Mid-level")
+    profile["positioning"] = {
+        **positioning_raw,
+        "headline": headline,
+        "lead_with": lead_with,
+        "differentiators": differentiators or positioning_raw.get("differentiators", []),
+        "seniority": seniority,
+    }
+
+    target_raw = profile.get("target", {})
+    roles = target_raw.get("roles")
+    if roles is None:
+        target_roles_cfg = profile.get("target_roles", {})
+        roles = list(dict.fromkeys(
+            target_roles_cfg.get("primary", []) + target_roles_cfg.get("secondary", [])
+        ))
+    locations = target_raw.get("locations")
+    if locations is None:
+        loc_prefs = profile.get("location_preferences", {})
+        locations = list(loc_prefs.get("on_site_cities", []))
+        if loc_prefs.get("remote"):
+            locations.append("Remote")
+    profile["target"] = {**target_raw, "roles": roles or [], "locations": locations or []}
+
+    comp_raw = profile.get("compensation", {})
+    target_min = comp_raw.get("target_ctc_lakhs_min")
+    target_max = comp_raw.get("target_ctc_lakhs_max")
+    if target_min is None:
+        target_min = comp_raw.get("minimum_inr_lpa")
+    if target_max is None:
+        target_max = comp_raw.get("target_inr_lpa")
+    profile["compensation"] = {**comp_raw, "target_ctc_lakhs_min": target_min, "target_ctc_lakhs_max": target_max}
+
+    return profile
+
+
 @dataclass
 class AgentContext:
     """Loaded once per run, passed to every agent.
@@ -71,7 +180,7 @@ class AgentContext:
     @classmethod
     def load(cls, profile_path: Path = PROFILE_PATH,
               companies_path: Path = TARGET_COMPANIES_PATH) -> "AgentContext":
-        profile = _load_yaml(profile_path)
+        profile = _normalize_profile(_load_yaml(profile_path))
         target_cfg = _load_yaml(companies_path)
         return cls(
             profile=profile,
