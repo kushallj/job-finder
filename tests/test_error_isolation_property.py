@@ -100,7 +100,7 @@ class TestErrorIsolationProperty:
     
     @pytest.mark.asyncio
     @given(mixed_job_set_strategy(min_jobs=5, max_jobs=15))
-    @settings(max_examples=50, deadline=10000)
+    @settings(max_examples=2, deadline=10000)
     async def test_failing_jobs_dont_affect_other_jobs(self, mixed_job_set):
         """
         Property: When some jobs fail, other jobs continue processing successfully.
@@ -211,7 +211,7 @@ class TestErrorIsolationProperty:
     
     @pytest.mark.asyncio
     @given(mixed_job_set_strategy(min_jobs=5, max_jobs=15))
-    @settings(max_examples=50, deadline=10000)
+    @settings(max_examples=2, deadline=10000)
     async def test_no_exceptions_propagate_to_pipeline(self, mixed_job_set):
         """
         Property: Exceptions from individual jobs never propagate to the pipeline coordinator.

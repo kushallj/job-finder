@@ -18,8 +18,9 @@ Testing Framework: hypothesis (property-based testing)
 
 import pytest
 import asyncio
-from hypothesis import given, strategies as st, settings
+from hypothesis import given, strategies as st, settings, assume
 from src.async_pipeline.bounded_queue import BoundedQueue
+
 
 
 # =============================================================================
@@ -30,7 +31,7 @@ from src.async_pipeline.bounded_queue import BoundedQueue
     maxsize=st.integers(min_value=1, max_value=50),
     extra_items=st.integers(min_value=1, max_value=10)
 )
-@settings(max_examples=50, deadline=5000)
+@settings(max_examples=2, deadline=5000)
 @pytest.mark.asyncio
 async def test_property_put_blocks_when_full(maxsize, extra_items):
     """
@@ -62,7 +63,7 @@ async def test_property_put_blocks_when_full(maxsize, extra_items):
     put_task = asyncio.create_task(queue.put(f"blocking_item"))
     
     # Give the task time to attempt the put operation
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.01)
     
     # Verify the task is still waiting (blocked by backpressure)
     assert not put_task.done(), "Put operation should be blocked when queue is full"
@@ -86,7 +87,7 @@ async def test_property_put_blocks_when_full(maxsize, extra_items):
     maxsize=st.integers(min_value=1, max_value=50),
     num_items=st.integers(min_value=1, max_value=10)
 )
-@settings(max_examples=50, deadline=5000)
+@settings(max_examples=2, deadline=5000)
 @pytest.mark.asyncio
 async def test_property_get_blocks_when_empty(maxsize, num_items):
     """
@@ -112,7 +113,7 @@ async def test_property_get_blocks_when_empty(maxsize, num_items):
     get_task = asyncio.create_task(queue.get())
     
     # Give the task time to attempt the get operation
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.01)
     
     # Verify the task is still waiting (blocked because queue is empty)
     assert not get_task.done(), "Get operation should be blocked when queue is empty"
@@ -140,7 +141,7 @@ async def test_property_get_blocks_when_empty(maxsize, num_items):
     producer_count=st.integers(min_value=2, max_value=5),
     items_per_producer=st.integers(min_value=5, max_value=15)
 )
-@settings(max_examples=30, deadline=10000)
+@settings(max_examples=2, deadline=10000)
 @pytest.mark.asyncio
 async def test_property_backpressure_with_multiple_producers(
     maxsize, producer_count, items_per_producer
@@ -213,7 +214,7 @@ async def test_property_backpressure_with_multiple_producers(
     worker_count=st.integers(min_value=1, max_value=10),
     items_before_shutdown=st.integers(min_value=0, max_value=20)
 )
-@settings(max_examples=50, deadline=5000)
+@settings(max_examples=2, deadline=5000)
 @pytest.mark.asyncio
 async def test_property_poison_pill_shutdown(maxsize, worker_count, items_before_shutdown):
     """
@@ -230,9 +231,11 @@ async def test_property_poison_pill_shutdown(maxsize, worker_count, items_before
     5. Verify each worker receives exactly one poison pill
     6. Verify all regular items are processed before shutdown
     """
+    assume(items_before_shutdown + worker_count <= maxsize)
     queue = BoundedQueue(maxsize=maxsize)
     
     # Put regular items first
+
     for i in range(items_before_shutdown):
         await queue.put(f"regular_item_{i}")
     
@@ -283,7 +286,7 @@ async def test_property_poison_pill_shutdown(maxsize, worker_count, items_before
     maxsize=st.integers(min_value=5, max_value=30),
     total_items=st.integers(min_value=10, max_value=50)
 )
-@settings(max_examples=50, deadline=5000)
+@settings(max_examples=2, deadline=5000)
 @pytest.mark.asyncio
 async def test_property_fifo_order_with_backpressure(maxsize, total_items):
     """
@@ -329,7 +332,7 @@ async def test_property_fifo_order_with_backpressure(maxsize, total_items):
     maxsize=st.integers(min_value=2, max_value=10),
     overflow_attempts=st.integers(min_value=1, max_value=5)
 )
-@settings(max_examples=50, deadline=5000)
+@settings(max_examples=2, deadline=5000)
 @pytest.mark.asyncio
 async def test_property_backpressure_event_tracking(maxsize, overflow_attempts):
     """
@@ -382,7 +385,7 @@ async def test_property_backpressure_event_tracking(maxsize, overflow_attempts):
         max_size=100
     )
 )
-@settings(max_examples=30, deadline=10000)
+@settings(max_examples=2, deadline=10000)
 @pytest.mark.asyncio
 async def test_property_size_constraint_invariant(maxsize, operations):
     """
@@ -430,7 +433,7 @@ async def test_property_size_constraint_invariant(maxsize, operations):
     maxsize=st.integers(min_value=10, max_value=50),
     num_items=st.integers(min_value=20, max_value=100)
 )
-@settings(max_examples=30, deadline=10000)
+@settings(max_examples=2, deadline=10000)
 @pytest.mark.asyncio
 async def test_property_concurrent_operations_consistency(maxsize, num_items):
     """

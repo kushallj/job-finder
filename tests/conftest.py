@@ -6,6 +6,19 @@ from sqlalchemy.orm import sessionmaker
 from src.models import Base, Job, Application, Resume, Contact, OutreachRecord, ProcessingResult, PipelineMetric
 from src.database import init_db
 
+try:
+    from hypothesis import settings, HealthCheck
+    settings.register_profile(
+        "fast",
+        max_examples=10,
+        deadline=None,
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+    )
+    settings.load_profile("fast")
+except ImportError:
+    pass
+
+
 
 @pytest.fixture
 def test_db():

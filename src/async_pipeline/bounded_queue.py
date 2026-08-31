@@ -53,6 +53,7 @@ class BoundedQueue:
         # Defer queue creation to avoid event loop binding issues
         # The queue will be created lazily in the correct event loop
         self._queue: Optional[asyncio.Queue[Optional[Any]]] = None
+        self._created_loop: Optional[asyncio.AbstractEventLoop] = None
         self._maxsize = maxsize
         self._stats = stats or QueueStats()
         self._get_wait_times: list = []
@@ -62,16 +63,30 @@ class BoundedQueue:
     
     def _ensure_queue(self) -> None:
         """Ensure the queue is created in the current event loop."""
+        try:
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            current_loop = None
+
         if self._queue is None:
-            try:
-                # Get the current event loop
-                loop = asyncio.get_running_loop()
-                self._queue = asyncio.Queue(maxsize=self._maxsize)
-                logger.debug(f"BoundedQueue created in event loop {id(loop)}")
-            except RuntimeError:
-                # No running loop, create queue anyway (will fail later if used incorrectly)
-                self._queue = asyncio.Queue(maxsize=self._maxsize)
-                logger.warning("BoundedQueue created outside of event loop")
+            self._queue = asyncio.Queue(maxsize=self._maxsize)
+            self._created_loop = current_loop
+        elif current_loop is not None and self._created_loop is not current_loop:
+            old_items = []
+            while not self._queue.empty():
+                try:
+                    old_items.append(self._queue.get_nowait())
+                except Exception:
+                    break
+            self._queue = asyncio.Queue(maxsize=self._maxsize)
+            self._created_loop = current_loop
+            for item in old_items:
+                try:
+                    self._queue.put_nowait(item)
+                except Exception:
+                    pass
+
+
     
     @property
     def maxsize(self) -> int:
@@ -166,12 +181,14 @@ class BoundedQueue:
         Args:
             count: Number of poison pills to put (typically equal to worker count).
         """
+        self._ensure_queue()
         logger.debug(f"Putting {count} poison pills in queue")
         
         for _ in range(count):
             await self._queue.put(None)
         
         logger.info(f"Added {count} poison pills to queue")
+
     
     def qsize(self) -> int:
         """

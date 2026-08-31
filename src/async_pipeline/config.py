@@ -421,19 +421,27 @@ def create_async_db_engine(
     elif database_url.startswith("sqlite:///") and "aiosqlite" not in database_url:
         database_url = database_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
     
-    # Create engine with connection pooling
-    engine = create_async_engine(
-        database_url,
-        poolclass=QueuePool,
-        pool_size=pool_size,
-        max_overflow=max_overflow,
-        pool_timeout=pool_timeout,
-        pool_pre_ping=pool_pre_ping,
-        echo=echo,
-        future=True,
-    )
+    # Create engine with appropriate connection pooling
+    if "sqlite" in database_url:
+        engine = create_async_engine(
+            database_url,
+            echo=echo,
+            future=True,
+        )
+    else:
+        engine = create_async_engine(
+            database_url,
+            poolclass=QueuePool,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_timeout=pool_timeout,
+            pool_pre_ping=pool_pre_ping,
+            echo=echo,
+            future=True,
+        )
     
     return engine
+
 
 
 def create_async_session_factory(

@@ -212,7 +212,11 @@ class AsyncJobProducer:
         
         filters = filters or {}
         
+        if not self._db_session_factory:
+            return 0
+
         async with self._db_session_factory() as session:
+
             # Build count query using COUNT(*)
             stmt = select(func.count(Job.id))
             

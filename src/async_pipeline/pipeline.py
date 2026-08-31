@@ -266,11 +266,14 @@ class AsyncJobPipeline:
         logger.info(f"Starting pipeline with query: '{query}'")
         
         try:
-            # Initialize database
-            await self._init_database()
+            # Initialize database if needed
+            if not self._engine:
+                await self._init_database()
             
-            # Initialize components
-            await self._setup_components()
+            # Initialize components if needed
+            if not self._queue:
+                await self._setup_components()
+
             
             # Initialize progress tracker if enabled
             if self._enable_progress_display:

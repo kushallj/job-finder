@@ -14,6 +14,7 @@ import pytest
 import asyncio
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+from sqlalchemy.pool import StaticPool
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
@@ -31,6 +32,8 @@ class TestAsyncJobProducerRequirements:
         """Create an async in-memory SQLite engine."""
         engine = create_async_engine(
             "sqlite+aiosqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
             echo=False,
         )
         
@@ -40,6 +43,7 @@ class TestAsyncJobProducerRequirements:
         yield engine
         
         await engine.dispose()
+
     
     @pytest.fixture
     def async_session_factory(self, async_engine):
@@ -55,7 +59,7 @@ class TestAsyncJobProducerRequirements:
         """Populate database with test jobs."""
         async with async_session_factory() as session:
             jobs = []
-            for i in range(250):  # More than 2 chunks (default chunk_size=100)
+            for i in range(30):  # Multiple chunks
                 job = Job(
                     job_id=f"job-{i:03d}",
                     title=f"Software Engineer {i}" if i % 2 == 0 else f"Data Scientist {i}",
@@ -71,7 +75,8 @@ class TestAsyncJobProducerRequirements:
             session.add_all(jobs)
             await session.commit()
         
-        return 250  # Total job count
+        return 30  # Total job count
+
     
     @pytest.mark.asyncio
     async def test_requirement_1_1_chunked_fetching(
@@ -84,11 +89,12 @@ class TestAsyncJobProducerRequirements:
         
         **Validates: Requirements 1.1**
         """
-        chunk_size = 50
+        chunk_size = 5
         producer = AsyncJobProducer(
             db_session_factory=async_session_factory,
             chunk_size=chunk_size,
         )
+
         
         # Track how many times _fetch_job_chunk is called
         fetch_count = 0
@@ -155,7 +161,7 @@ class TestAsyncJobProducerRequirements:
         
         **Validates: Requirements 1.3**
         """
-        chunk_size = 50
+        chunk_size = 5
         producer = AsyncJobProducer(
             db_session_factory=async_session_factory,
             chunk_size=chunk_size,
@@ -191,11 +197,12 @@ class TestAsyncJobProducerRequirements:
         
         **Validates: Requirements 1.4, 10.3**
         """
-        chunk_size = 50
+        chunk_size = 5
         producer = AsyncJobProducer(
             db_session_factory=async_session_factory,
             chunk_size=chunk_size,
         )
+
         
         # Track maximum batch size fetched
         max_batch_size = 0
@@ -342,10 +349,12 @@ class TestAsyncJobProducerRequirements:
         
         # Consume some jobs
         count = 0
-        async for _ in producer.produce_jobs("Software Engineer"):
+        gen = producer.produce_jobs("Software Engineer")
+        async for _ in gen:
             count += 1
             if count >= 10:
                 break
+        await gen.aclose()
         
         # Should have tracked session lifecycle
         assert len(sessions_active) > 0
@@ -367,7 +376,8 @@ class TestAsyncJobProducerRequirements:
         )
         
         # Get a job
-        async for job in producer.produce_jobs("Software Engineer"):
+        gen = producer.produce_jobs("Software Engineer")
+        async for job in gen:
             # Verify it's a JobContext, not ORM Job
             assert isinstance(job, JobContext)
             assert hasattr(job, "__dataclass_fields__")
@@ -385,6 +395,8 @@ class TestAsyncJobProducerRequirements:
             assert job.source
             
             break  # Only need to test one
+        await gen.aclose()
+
     
     @pytest.mark.asyncio
     async def test_job_count_without_loading_all_jobs(

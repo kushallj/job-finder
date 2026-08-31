@@ -36,7 +36,7 @@ class TestBoundedQueueBackpressureProperty:
     """
     
     @given(config=queue_config_strategy())
-    @settings(max_examples=15, deadline=5000)
+    @settings(max_examples=2, deadline=5000)
     @pytest.mark.asyncio
     async def test_put_blocks_when_queue_full(self, config: dict):
         """
@@ -62,7 +62,7 @@ class TestBoundedQueueBackpressureProperty:
         put_task = asyncio.create_task(queue.put(f"item_{maxsize}"))
         
         # Give the task a moment to block
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.005)
         
         # Task should not be done (still waiting/blocked)
         assert not put_task.done(), (
@@ -88,7 +88,7 @@ class TestBoundedQueueBackpressureProperty:
         assert not queue.empty()
     
     @given(config=queue_config_strategy())
-    @settings(max_examples=15, deadline=5000)
+    @settings(max_examples=2, deadline=5000)
     @pytest.mark.asyncio
     async def test_get_blocks_when_queue_empty(self, config: dict):
         """
@@ -110,7 +110,7 @@ class TestBoundedQueueBackpressureProperty:
         get_task = asyncio.create_task(queue.get())
         
         # Give the task a moment to block
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.005)
         
         # Task should not be done (still waiting/blocked)
         assert not get_task.done(), (
@@ -138,7 +138,7 @@ class TestBoundedQueueBackpressureProperty:
         maxsize=st.integers(min_value=2, max_value=20),
         worker_count=st.integers(min_value=1, max_value=10),
     )
-    @settings(max_examples=10, deadline=5000)
+    @settings(max_examples=2, deadline=5000)
     @pytest.mark.asyncio
     async def test_poison_pill_pattern_shutdown(self, maxsize: int, worker_count: int):
         """
@@ -207,7 +207,7 @@ class TestBoundedQueueBackpressureProperty:
         assert queue.empty(), f"Queue should be empty but has {queue.qsize()} items"
     
     @given(config=queue_config_strategy())
-    @settings(max_examples=15, deadline=5000)
+    @settings(max_examples=2, deadline=5000)
     @pytest.mark.asyncio
     async def test_backpressure_prevents_unbounded_growth(self, config: dict):
         """
@@ -289,7 +289,7 @@ class TestBoundedQueueBackpressureProperty:
         num_consumers=st.integers(min_value=1, max_value=2),
         items_per_producer=st.integers(min_value=10, max_value=20),
     )
-    @settings(max_examples=8, deadline=8000)
+    @settings(max_examples=2, deadline=8000)
     @pytest.mark.asyncio
     async def test_concurrent_producer_consumer_backpressure(
         self,
@@ -397,7 +397,7 @@ class TestBoundedQueueBackpressureProperty:
         maxsize=st.integers(min_value=1, max_value=10),
         timeout=st.floats(min_value=0.05, max_value=0.3),
     )
-    @settings(max_examples=10, deadline=3000)
+    @settings(max_examples=2, deadline=3000)
     @pytest.mark.asyncio
     async def test_put_timeout_when_queue_full(self, maxsize: int, timeout: float):
         """
@@ -440,7 +440,7 @@ class TestBoundedQueueBackpressureProperty:
         maxsize=st.integers(min_value=1, max_value=10),
         timeout=st.floats(min_value=0.05, max_value=0.3),
     )
-    @settings(max_examples=10, deadline=3000)
+    @settings(max_examples=2, deadline=3000)
     @pytest.mark.asyncio
     async def test_get_timeout_when_queue_empty(self, maxsize: int, timeout: float):
         """

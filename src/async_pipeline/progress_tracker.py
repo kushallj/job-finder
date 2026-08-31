@@ -272,11 +272,15 @@ class ProgressTracker:
         # Combine progress bar and stats
         if self._progress:
             display = Table.grid(padding=(0, 0))
-            display.add_row(self._progress)
+            if hasattr(self._progress, "__rich__") or hasattr(self._progress, "__rich_console__"):
+                display.add_row(self._progress)
+            else:
+                display.add_row(str(self._progress))
             display.add_row("")
             display.add_row(stats_table)
         else:
             display = stats_table
+
         
         # Wrap in panel
         return Panel(

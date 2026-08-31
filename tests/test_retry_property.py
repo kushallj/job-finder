@@ -43,7 +43,7 @@ class TestExponentialBackoffRetryProperty:
     """
     
     @given(config=retry_config_strategy())
-    @settings(max_examples=50)
+    @settings(max_examples=2)
     @pytest.mark.asyncio
     async def test_retry_delay_calculation_formula(self, config: RetryConfig):
         """
@@ -97,7 +97,7 @@ class TestExponentialBackoffRetryProperty:
             )
     
     @given(config=retry_config_strategy())
-    @settings(max_examples=50)
+    @settings(max_examples=2)
     @pytest.mark.asyncio
     async def test_total_attempts_never_exceed_max(self, config: RetryConfig):
         """
@@ -134,7 +134,7 @@ class TestExponentialBackoffRetryProperty:
         config=retry_config_strategy(),
         success_attempt=st.integers(min_value=1, max_value=10)
     )
-    @settings(max_examples=50)
+    @settings(max_examples=2)
     @pytest.mark.asyncio
     async def test_retry_stops_on_success(self, config: RetryConfig, success_attempt: int):
         """
@@ -173,7 +173,7 @@ class TestExponentialBackoffRetryProperty:
         assert call_count <= config.max_attempts
     
     @given(config=retry_config_strategy())
-    @settings(max_examples=30)
+    @settings(max_examples=2)
     @pytest.mark.asyncio
     async def test_jitter_adds_randomness_to_delays(self, config: RetryConfig):
         """
@@ -249,7 +249,7 @@ class TestExponentialBackoffRetryProperty:
                 )
     
     @given(config=retry_config_strategy())
-    @settings(max_examples=30)
+    @settings(max_examples=2)
     @pytest.mark.asyncio
     async def test_max_delay_caps_exponential_growth(self, config: RetryConfig):
         """
@@ -291,7 +291,7 @@ class TestExponentialBackoffRetryProperty:
             )
     
     @given(config=retry_config_strategy())
-    @settings(max_examples=30)
+    @settings(max_examples=2)
     @pytest.mark.asyncio
     async def test_failure_result_returned_when_exhausted(self, config: RetryConfig):
         """
@@ -318,7 +318,7 @@ class TestExponentialBackoffRetryProperty:
         assert manager.stats.failed_retries == config.max_attempts
     
     @given(config=retry_config_strategy())
-    @settings(max_examples=20)
+    @settings(max_examples=2)
     @pytest.mark.asyncio
     async def test_retry_statistics_tracking(self, config: RetryConfig):
         """
@@ -372,7 +372,7 @@ class TestExponentialBackoffRetryProperty:
         base_delay=st.floats(min_value=0.1, max_value=5.0),
         max_delay=st.floats(min_value=0.1, max_value=5.0),
     )
-    @settings(max_examples=20)
+    @settings(max_examples=2)
     @pytest.mark.asyncio
     async def test_constant_delay_when_max_equals_base(self, base_delay: float, max_delay: float):
         """

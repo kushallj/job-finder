@@ -783,10 +783,13 @@ class TestLifecycleManagement:
     async def test_start_without_credentials_logs_warning(self, db_session_factory):
         """Verify starting without credentials doesn't crash."""
         detector = ReplyDetector(db_session_factory)
-        # Credentials are empty by default in test environment
+        detector._email = ""
+        detector._password = ""
+        # Credentials are empty
         await detector.start()
         # Should not be running without credentials
         assert detector.is_running is False
+
 
     @pytest.mark.asyncio
     async def test_stop_cleans_up_resources(self, db_session_factory):

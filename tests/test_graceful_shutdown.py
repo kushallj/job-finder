@@ -155,47 +155,48 @@ async def test_shutdown_waits_for_inflight_jobs(shutdown_config, fast_processor,
     
     # Mock the database to avoid actual DB setup
     with patch.object(pipeline, '_init_database', new_callable=AsyncMock):
-        with patch.object(pipeline, '_producer') as mock_producer:
-            # Setup mock producer
-            mock_producer.get_job_count = AsyncMock(return_value=3)
-            
-            async def produce_jobs(query, filters):
-                for i in range(3):
-                    yield JobContext(
-                        job_id=f"job-{i}",
-                        title="Test Job",
-                        company="Test Corp",
-                        description="A test job description that is long enough for validation purposes.",
-                        url=f"https://example.com/job/{i}",
-                        source="test",
-                    )
-            
-            mock_producer.produce_jobs = produce_jobs
-            
-            # Start pipeline in background
-            task = asyncio.create_task(pipeline.run(query="test"))
-            
-            # Wait a bit for jobs to start processing
-            await asyncio.sleep(0.2)
-            
-            # Request shutdown
-            pipeline._shutdown_requested = True
-            
-            # Measure shutdown time
-            start_time = time.time()
-            
-            # Wait for pipeline to complete
-            try:
-                await asyncio.wait_for(task, timeout=5.0)
-            except asyncio.TimeoutError:
-                pytest.fail("Pipeline did not shutdown within expected time")
-            
-            elapsed = time.time() - start_time
-            
-            # Shutdown should complete quickly since jobs are fast
-            assert elapsed < shutdown_config.shutdown_timeout_seconds
+        await pipeline._setup_components()
+        mock_producer = pipeline._producer
+        mock_producer.get_job_count = AsyncMock(return_value=3)
+        
+        async def produce_jobs(query, filters):
+            for i in range(3):
+                yield JobContext(
+                    job_id=f"job-{i}",
+                    title="Test Job",
+                    company="Test Corp",
+                    description="A test job description that is long enough for validation purposes.",
+                    url=f"https://example.com/job/{i}",
+                    source="test",
+                )
+        
+        mock_producer.produce_jobs = MagicMock(side_effect=lambda *a, **kw: produce_jobs(*a, **kw))
+        
+        # Start pipeline in background
+        task = asyncio.create_task(pipeline.run(query="test"))
+        
+        # Wait a bit for jobs to start processing
+        await asyncio.sleep(0.2)
+        
+        # Request shutdown
+        pipeline._shutdown_requested = True
+        
+        # Measure shutdown time
+        start_time = time.time()
+        
+        # Wait for pipeline to complete
+        try:
+            await asyncio.wait_for(task, timeout=5.0)
+        except asyncio.TimeoutError:
+            pytest.fail("Pipeline did not shutdown within expected time")
+        
+        elapsed = time.time() - start_time
+        
+        # Shutdown should complete quickly since jobs are fast
+        assert elapsed < shutdown_config.shutdown_timeout_seconds
     
     await pipeline.close()
+
 
 
 @pytest.mark.asyncio
@@ -217,50 +218,50 @@ async def test_shutdown_timeout_exceeded_force_terminate(shutdown_config, slow_p
     
     # Mock the database
     with patch.object(pipeline, '_init_database', new_callable=AsyncMock):
-        with patch.object(pipeline, '_producer') as mock_producer:
-            # Setup mock producer with just one job
-            mock_producer.get_job_count = AsyncMock(return_value=1)
-            
-            async def produce_jobs(query, filters):
-                yield JobContext(
-                    job_id="slow-job",
-                    title="Slow Job",
-                    company="Test Corp",
-                    description="A slow job that will exceed shutdown timeout with enough characters.",
-                    url="https://example.com/job/slow",
-                    source="test",
-                )
-            
-            mock_producer.produce_jobs = produce_jobs
-            
-            # Start pipeline in background
-            task = asyncio.create_task(pipeline.run(query="test"))
-            
-            # Wait for job to start processing
-            await asyncio.sleep(0.3)
-            
-            # Request shutdown
-            pipeline._shutdown_requested = True
-            
-            # Measure shutdown time
-            start_time = time.time()
-            
-            # Close pipeline (which triggers graceful shutdown)
-            await pipeline.close()
-            
-            elapsed = time.time() - start_time
-            
-            # Shutdown should complete within timeout + small buffer
-            # Even though job takes 5s, shutdown should force terminate at 2s
-            assert elapsed < shutdown_config.shutdown_timeout_seconds + 1.0
-            
-            # Cancel the task if still running
-            if not task.done():
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+        await pipeline._setup_components()
+        mock_producer = pipeline._producer
+        mock_producer.get_job_count = AsyncMock(return_value=1)
+        
+        async def produce_jobs(query, filters):
+            yield JobContext(
+                job_id="slow-job",
+                title="Slow Job",
+                company="Test Corp",
+                description="A slow job that will exceed shutdown timeout with enough characters.",
+                url="https://example.com/job/slow",
+                source="test",
+            )
+        
+        mock_producer.produce_jobs = MagicMock(side_effect=lambda *a, **kw: produce_jobs(*a, **kw))
+        
+        # Start pipeline in background
+        task = asyncio.create_task(pipeline.run(query="test"))
+        
+        # Wait for job to start processing
+        await asyncio.sleep(0.3)
+        
+        # Request shutdown
+        pipeline._shutdown_requested = True
+        
+        # Measure shutdown time
+        start_time = time.time()
+        
+        # Close pipeline (which triggers graceful shutdown)
+        await pipeline.close()
+        
+        elapsed = time.time() - start_time
+        
+        # Shutdown should complete within timeout + small buffer
+        # Even though job takes 5s, shutdown should force terminate at 2s
+        assert elapsed < shutdown_config.shutdown_timeout_seconds + 1.0
+        
+        # Cancel the task if still running
+        if not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 
 # ============================================================================
@@ -281,45 +282,47 @@ async def test_shutdown_stops_accepting_new_jobs(shutdown_config, fast_processor
     pipeline.enable_progress_display(False)
     
     with patch.object(pipeline, '_init_database', new_callable=AsyncMock):
-        with patch.object(pipeline, '_producer') as mock_producer:
-            mock_producer.get_job_count = AsyncMock(return_value=10)
-            
-            jobs_produced = []
-            
-            async def produce_jobs(query, filters):
-                for i in range(10):
-                    # Simulate slow job production
-                    await asyncio.sleep(0.1)
-                    job = JobContext(
-                        job_id=f"job-{i}",
-                        title="Test Job",
-                        company="Test Corp",
-                        description="A test job description with sufficient length for validation.",
-                        url=f"https://example.com/job/{i}",
-                        source="test",
-                    )
-                    jobs_produced.append(job)
-                    yield job
-            
-            mock_producer.produce_jobs = produce_jobs
-            
-            # Start pipeline
-            task = asyncio.create_task(pipeline.run(query="test"))
-            
-            # Wait for some jobs to be produced
-            await asyncio.sleep(0.3)
-            
-            # Request shutdown - should stop accepting new jobs
-            pipeline._shutdown_requested = True
-            
-            # Wait for completion
-            try:
-                await asyncio.wait_for(task, timeout=5.0)
-            except asyncio.TimeoutError:
-                task.cancel()
-            
-            # Should have produced fewer than 10 jobs (stopped early)
-            assert len(jobs_produced) < 10
+        await pipeline._setup_components()
+        mock_producer = pipeline._producer
+        mock_producer.get_job_count = AsyncMock(return_value=10)
+        
+        jobs_produced = []
+        
+        async def produce_jobs(query, filters):
+            for i in range(10):
+                # Simulate slow job production
+                await asyncio.sleep(0.1)
+                job = JobContext(
+                    job_id=f"job-{i}",
+                    title="Test Job",
+                    company="Test Corp",
+                    description="A test job description with sufficient length for validation.",
+                    url=f"https://example.com/job/{i}",
+                    source="test",
+                )
+                jobs_produced.append(job)
+                yield job
+        
+        mock_producer.produce_jobs = MagicMock(side_effect=lambda *a, **kw: produce_jobs(*a, **kw))
+        
+        # Start pipeline
+        task = asyncio.create_task(pipeline.run(query="test"))
+        
+        # Wait for some jobs to be produced
+        await asyncio.sleep(0.3)
+        
+        # Request shutdown - should stop accepting new jobs
+        pipeline._shutdown_requested = True
+        
+        # Wait for completion
+        try:
+            await asyncio.wait_for(task, timeout=5.0)
+        except asyncio.TimeoutError:
+            task.cancel()
+        
+        # Should have produced fewer than 10 jobs (stopped early)
+        assert len(jobs_produced) < 10
+
     
     await pipeline.close()
 
@@ -384,11 +387,12 @@ async def test_shutdown_flushes_log_handlers(shutdown_config):
     pipeline = AsyncJobPipeline(config=shutdown_config)
     
     # Create a mock handler
-    mock_handler = Mock()
+    mock_handler = logging.NullHandler()
     mock_handler.flush = Mock()
     
     # Add mock handler to root logger
     logger = logging.getLogger()
+
     logger.addHandler(mock_handler)
     
     try:
@@ -448,40 +452,41 @@ async def test_shutdown_logs_timeout_warning(shutdown_config, slow_processor, ca
     pipeline.enable_progress_display(False)
     
     with patch.object(pipeline, '_init_database', new_callable=AsyncMock):
-        with patch.object(pipeline, '_producer') as mock_producer:
-            mock_producer.get_job_count = AsyncMock(return_value=1)
-            
-            async def produce_jobs(query, filters):
-                yield JobContext(
-                    job_id="slow-job",
-                    title="Slow Job",
-                    company="Test Corp",
-                    description="A slow job that will exceed shutdown timeout for testing purposes.",
-                    url="https://example.com/job/slow",
-                    source="test",
-                )
-            
-            mock_producer.produce_jobs = produce_jobs
-            
-            # Start pipeline
-            task = asyncio.create_task(pipeline.run(query="test"))
-            
-            # Wait for job to start
-            await asyncio.sleep(0.3)
-            
-            # Request shutdown
-            pipeline._shutdown_requested = True
-            
-            # Close with timeout
-            await pipeline.close()
-            
-            # Cancel task if still running
-            if not task.done():
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+        await pipeline._setup_components()
+        mock_producer = pipeline._producer
+        mock_producer.get_job_count = AsyncMock(return_value=1)
+        
+        async def produce_jobs(query, filters):
+            yield JobContext(
+                job_id="slow-job",
+                title="Slow Job",
+                company="Test Corp",
+                description="A slow job that will exceed shutdown timeout for testing purposes.",
+                url="https://example.com/job/slow",
+                source="test",
+            )
+        
+        mock_producer.produce_jobs = MagicMock(side_effect=lambda *a, **kw: produce_jobs(*a, **kw))
+        
+        # Start pipeline
+        task = asyncio.create_task(pipeline.run(query="test"))
+        
+        # Wait for job to start
+        await asyncio.sleep(0.3)
+        
+        # Request shutdown
+        pipeline._shutdown_requested = True
+        
+        # Close with timeout
+        await pipeline.close()
+        
+        # Cancel task if still running
+        if not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
     
     # Check for timeout warning in logs
     log_messages = [record.message for record in caplog.records if record.levelname == "WARNING"]
@@ -588,23 +593,25 @@ async def test_shutdown_after_pipeline_complete(shutdown_config, fast_processor,
     pipeline.enable_progress_display(False)
     
     with patch.object(pipeline, '_init_database', new_callable=AsyncMock):
-        with patch.object(pipeline, '_producer') as mock_producer:
-            mock_producer.get_job_count = AsyncMock(return_value=0)
-            
-            async def produce_jobs(query, filters):
-                return
-                yield  # Make this a generator
-            
-            mock_producer.produce_jobs = produce_jobs
-            
-            # Run pipeline to completion
-            await pipeline.run(query="test")
-            
-            # Now close after completion
-            await pipeline.close()
-            
-            # Should complete without errors
-            assert not pipeline.is_running
+        await pipeline._setup_components()
+        mock_producer = pipeline._producer
+        mock_producer.get_job_count = AsyncMock(return_value=0)
+        
+        async def produce_jobs(query, filters):
+            if False:
+                yield
+        
+        mock_producer.produce_jobs = MagicMock(side_effect=lambda *a, **kw: produce_jobs(*a, **kw))
+        
+        # Run pipeline to completion
+        await pipeline.run(query="test")
+        
+        # Now close after completion
+        await pipeline.close()
+        
+        # Should complete without errors
+        assert not pipeline.is_running
+
 
 
 if __name__ == "__main__":

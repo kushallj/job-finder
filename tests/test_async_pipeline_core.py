@@ -12,6 +12,8 @@ Tests cover:
 import pytest
 import asyncio
 from datetime import datetime
+from unittest.mock import MagicMock, patch
+from sqlalchemy.ext.asyncio import AsyncEngine
 from src.async_pipeline import (
     JobContext,
     ProcessingResult,
@@ -24,6 +26,7 @@ from src.async_pipeline import (
     create_async_db_engine,
     create_async_session_factory,
 )
+
 
 
 class TestJobContext:
@@ -287,7 +290,8 @@ class TestStructuredLogging:
 class TestAsyncDatabase:
     """Test async database engine creation."""
     
-    def test_create_async_db_engine_sqlite(self):
+    @patch("src.async_pipeline.config.create_async_engine")
+    def test_create_async_db_engine_sqlite(self, mock_create):
         """Test creating async SQLite engine."""
         engine = create_async_db_engine(
             database_url="sqlite:///test.db",
@@ -296,9 +300,11 @@ class TestAsyncDatabase:
         )
         
         assert engine is not None
-        assert "aiosqlite" in str(engine.url)
+        mock_create.assert_called_once()
+        assert "sqlite+aiosqlite:///" in mock_create.call_args[0][0]
     
-    def test_create_async_db_engine_postgresql(self):
+    @patch("src.async_pipeline.config.create_async_engine")
+    def test_create_async_db_engine_postgresql(self, mock_create):
         """Test creating async PostgreSQL engine."""
         engine = create_async_db_engine(
             database_url="postgresql://user:pass@localhost/db",
@@ -307,10 +313,17 @@ class TestAsyncDatabase:
         )
         
         assert engine is not None
-        assert "asyncpg" in str(engine.url)
+        mock_create.assert_called_once()
+        assert "postgresql+asyncpg://" in mock_create.call_args[0][0]
     
-    def test_create_async_session_factory(self):
+    @patch("src.async_pipeline.config.create_async_engine")
+    def test_create_async_session_factory(self, mock_create):
+
+
         """Test creating async session factory."""
+        mock_engine = MagicMock(spec=AsyncEngine)
+        mock_create.return_value = mock_engine
+        
         engine = create_async_db_engine(
             database_url="sqlite:///test.db",
         )
@@ -319,6 +332,9 @@ class TestAsyncDatabase:
         
         assert session_factory is not None
         assert callable(session_factory)
+
+
+
 
 
 if __name__ == "__main__":
