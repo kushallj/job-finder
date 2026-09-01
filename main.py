@@ -4417,7 +4417,136 @@ async def get_enterprise_crawler_metrics():
         db.close()
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Global FinTech Fest Decision Maker Mining & Autonomous Outreach Engine
+# ═══════════════════════════════════════════════════════════════════════════
 
+class FinTechMineRequest(BaseModel):
+    auto_send: bool = False
+    max_companies: int = 20
+    interval_seconds: int = 3600
+
+@app.post("/api/fintech/mine-decision-makers", tags=["fintech-decision-makers"])
+async def trigger_fintech_decision_maker_mining(
+    payload: FinTechMineRequest = FinTechMineRequest()
+):
+    """Triggers autonomous mining of technical & executive decision makers across 150+ FinTech Fest companies."""
+    from src.fintech_decision_maker_miner import fintech_miner
+    try:
+        # Run asynchronous sweep in background
+        asyncio.create_task(fintech_miner.run_full_gff_decision_maker_sweep(auto_send=payload.auto_send))
+        return {
+            "status": "started",
+            "message": f"FinTech decision maker mining started in background (Auto-Send: {payload.auto_send}).",
+            "recent_events": fintech_miner.recent_events[-5:],
+        }
+    except Exception as exc:
+        log.error("Failed to start decision maker mining: %s", exc, exc_info=True)
+        raise APIError(f"Decision maker mining failed: {str(exc)}")
+
+
+@app.get("/api/fintech/decision-makers", tags=["fintech-decision-makers"])
+async def get_mined_fintech_decision_makers(
+    limit: int = Query(default=100, ge=1, le=500),
+    company: Optional[str] = Query(default=None),
+):
+    """Returns all discovered decision makers, verified emails, phone numbers, and outreach statuses."""
+    db = SessionLocal()
+    try:
+        q = db.query(Contact).filter(Contact.source == "gff_decision_maker_miner")
+        if company:
+            q = q.filter(Contact.company.ilike(f"%{company}%"))
+        contacts = q.order_by(Contact.id.desc()).limit(limit).all()
+
+        results = []
+        for c in contacts:
+            sent_record = db.query(OutreachRecord).filter(OutreachRecord.contact_id == c.id).first()
+            results.append({
+                "id": c.id,
+                "name": c.name,
+                "title": c.title,
+                "company": c.company,
+                "email": c.email,
+                "category": c.department,
+                "linkedin_url": c.linkedin_url,
+                "confidence_score": c.confidence_score,
+                "source": c.source,
+                "found_at": c.found_at.isoformat() if c.found_at else None,
+                "outreach_sent": sent_record is not None,
+                "outreach_status": sent_record.status if sent_record else "pending",
+                "outreach_sent_at": sent_record.sent_at.isoformat() if sent_record and sent_record.sent_at else None,
+            })
+        return {
+            "status": "success",
+            "total": len(results),
+            "decision_makers": results,
+        }
+    finally:
+        db.close()
+
+
+@app.post("/api/fintech/auto-outreach", tags=["fintech-decision-makers"])
+async def trigger_fintech_auto_outreach(limit: int = Query(default=20, ge=1, le=100)):
+    """Dispatches hyper-personalized cold outreach emails to pending discovered decision makers."""
+    from src.fintech_decision_maker_miner import fintech_miner, DecisionMakerContact
+    db = SessionLocal()
+    sent_count = 0
+    errors = 0
+    try:
+        contacts = db.query(Contact).filter(Contact.source == "gff_decision_maker_miner").limit(limit).all()
+        for c in contacts:
+            already_sent = db.query(OutreachRecord).filter(OutreachRecord.contact_id == c.id).first()
+            if not already_sent and c.email:
+                dm = DecisionMakerContact(
+                    company=c.company,
+                    name=c.name,
+                    title=c.title or "Engineering Leader",
+                    domain=c.company.lower().replace(" ", "") + ".com",
+                    email=c.email,
+                    linkedin_url=c.linkedin_url,
+                )
+                subj, text, html = fintech_miner.compose_personalized_outreach(dm)
+                loop = asyncio.get_event_loop()
+                sent_ok = await loop.run_in_executor(
+                    None, lambda: fintech_miner.send_smtp_email(dm.email, subj, text, html)
+                )
+                if sent_ok:
+                    sent_count += 1
+                    rec = OutreachRecord(
+                        contact_id=c.id,
+                        subject=subj,
+                        body=text,
+                        template_type="fintech_decision_maker_outreach",
+                        status="sent",
+                        email_sent=True,
+                        sent_at=datetime.now(timezone.utc),
+                    )
+                    db.add(rec)
+                    db.commit()
+                    await asyncio.sleep(2.0)
+                else:
+                    errors += 1
+
+        return {
+            "status": "success",
+            "sent_count": sent_count,
+            "errors": errors,
+            "total_evaluated": len(contacts),
+        }
+    finally:
+        db.close()
+
+
+@app.get("/api/fintech/miner-status", tags=["fintech-decision-makers"])
+async def get_fintech_miner_status():
+    """Returns real-time telemetry, worker state, and event logs for the GFF decision maker engine."""
+    from src.fintech_decision_maker_miner import fintech_miner
+    return {
+        "status": "running" if fintech_miner.is_running else "idle",
+        "total_mined": fintech_miner.total_mined,
+        "total_emailed": fintech_miner.total_emailed,
+        "recent_events": fintech_miner.recent_events[-15:],
+    }
 
 
 @app.get("/api/community-intel/company/{company}", tags=["community-intel"], response_model=CommunityIntelResponse)
