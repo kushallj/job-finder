@@ -45,14 +45,29 @@ PHONE_REGEX = re.compile(
 )
 EMAIL_REGEX = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
 
-DECISION_MAKER_TITLES = [
-    "CTO", "Chief Technology Officer",
-    "VP of Engineering", "VP Engineering", "Vice President Engineering",
-    "Director of Engineering", "Engineering Director",
-    "Head of Engineering", "Engineering Manager", "Lead Engineer",
-    "Co-Founder", "Founder", "Chief Executive Officer", "CEO",
-    "Head of Talent", "Technical Recruiter", "Talent Acquisition"
+MAX_OUTREACH_PER_COMPANY = 2
+
+
+import re
+
+ROLE_PATTERNS = [
+    (re.compile(r"\b(cto|chief\s+technology\s+officer|founder|co-founder|ceo)\b", re.I), 1),
+    (re.compile(r"\b(vp\s+of\s+engineering|vp\s+engineering|vice\s+president|head\s+of\s+engineering)\b", re.I), 2),
+    (re.compile(r"\b(director\s+of\s+engineering|engineering\s+director)\b", re.I), 3),
+    (re.compile(r"\b(engineering\s+manager|lead\s+engineer|tech\s+lead|principal\s+engineer)\b", re.I), 4),
+    (re.compile(r"\b(head\s+of\s+talent|talent\s+acquisition|recruiter|recruitment)\b", re.I), 5),
 ]
+
+
+def get_role_priority(title: str) -> int:
+    """Rank decision maker titles by executive impact (1 = highest priority)."""
+    t = title or ""
+    for pattern, priority in ROLE_PATTERNS:
+        if pattern.search(t):
+            return priority
+    return 6
+
+
 
 
 @dataclass
@@ -322,14 +337,21 @@ Software Engineer
                 else:
                     contact_id = existing.id
 
-                # Autonomous Outreach dispatch
+                # Autonomous Outreach dispatch (Strictly <= MAX_OUTREACH_PER_COMPANY per company)
                 if auto_send:
-                    # Check if already sent
+                    # Check how many emails already dispatched to this company
+                    company_sent_count = (
+                        db.query(OutreachRecord)
+                        .join(Contact, OutreachRecord.contact_id == Contact.id)
+                        .filter(Contact.company == dm.company)
+                        .count()
+                    )
+
                     already_sent = db.query(OutreachRecord).filter(
                         (OutreachRecord.contact_id == contact_id) | (OutreachRecord.contact_email == dm.email)
                     ).first()
 
-                    if not already_sent and dm.email:
+                    if not already_sent and dm.email and company_sent_count < MAX_OUTREACH_PER_COMPANY:
                         subj, text, html = self.compose_personalized_outreach(dm)
                         loop = asyncio.get_event_loop()
                         sent_ok = await loop.run_in_executor(
@@ -352,7 +374,7 @@ Software Engineer
                             )
                             db.add(rec)
                             db.commit()
-                            self._log_event("SUCCESS", f"Sent personalized outreach to {dm.name} ({dm.title} at {dm.company}) -> {dm.email}")
+                            self._log_event("SUCCESS", f"Sent personalized outreach to {dm.name} ({dm.title} at {dm.company}) -> {dm.email} (Company sent count: {company_sent_count + 1}/{MAX_OUTREACH_PER_COMPANY})")
                             # Safe delay to protect SMTP sender reputation
                             await asyncio.sleep(2.5)
 
@@ -361,60 +383,94 @@ Software Engineer
         return saved_contacts
 
     async def dispatch_pending_outreach(self, limit: int = 50) -> Dict[str, Any]:
-        """Dispatch personalized outreach to all discovered decision makers who have not yet been contacted."""
+        """
+        Dispatch personalized outreach to discovered decision makers who have not yet been contacted.
+        Strictly enforces MAX_OUTREACH_PER_COMPANY = 2 limit per organization.
+        """
+        from collections import defaultdict
         sent_count = 0
         error_count = 0
+
         with SessionLocal() as db:
             pending_contacts = db.query(Contact).filter(Contact.source == "gff_decision_maker_miner").all()
-            self._log_event("INFO", f"Evaluating {len(pending_contacts)} mined contacts for autonomous outreach (Limit: {limit})...")
+            self._log_event("INFO", f"Evaluating {len(pending_contacts)} mined contacts for autonomous outreach (Max {MAX_OUTREACH_PER_COMPANY}/company, Batch Limit: {limit})...")
 
+            # Group contacts by company
+            company_contacts = defaultdict(list)
             for c in pending_contacts:
+                company_contacts[c.company].append(c)
+
+            # Process companies
+            for company_name, c_list in company_contacts.items():
                 if sent_count >= limit:
                     break
-                already_sent = db.query(OutreachRecord).filter(
-                    (OutreachRecord.contact_id == c.id) | (OutreachRecord.contact_email == c.email)
-                ).first()
 
-                if not already_sent and c.email:
-                    dm = DecisionMakerContact(
-                        company=c.company,
-                        name=c.name,
-                        title=c.title or "Engineering Leader",
-                        domain=c.company.lower().replace(" ", "") + ".com",
-                        email=c.email,
-                        linkedin_url=c.linkedin_url,
-                    )
-                    subj, text, html = self.compose_personalized_outreach(dm)
-                    loop = asyncio.get_event_loop()
-                    sent_ok = await loop.run_in_executor(
-                        None, lambda: self.send_smtp_email(dm.email, subj, text, html)
-                    )
-                    if sent_ok:
-                        sent_count += 1
-                        self.total_emailed += 1
-                        rec = OutreachRecord(
-                            contact_id=c.id,
-                            contact_name=c.name,
-                            contact_email=c.email,
-                            subject=subj,
-                            body=text,
-                            template_type="fintech_decision_maker_outreach",
-                            status="sent",
-                            email_sent=True,
-                            sent_at=datetime.now(timezone.utc),
+                # Count how many already sent to this company
+                already_sent_company = (
+                    db.query(OutreachRecord)
+                    .join(Contact, OutreachRecord.contact_id == Contact.id)
+                    .filter(Contact.company == company_name)
+                    .count()
+                )
+
+                remaining_slots = MAX_OUTREACH_PER_COMPANY - already_sent_company
+                if remaining_slots <= 0:
+                    continue
+
+                # Sort by executive priority (CTO/Founder first, then VP Eng/Director)
+                c_list.sort(key=lambda x: get_role_priority(x.title))
+
+                for c in c_list:
+                    if sent_count >= limit or remaining_slots <= 0:
+                        break
+
+                    already_sent_contact = db.query(OutreachRecord).filter(
+                        (OutreachRecord.contact_id == c.id) | (OutreachRecord.contact_email == c.email)
+                    ).first()
+
+                    if not already_sent_contact and c.email:
+                        dm = DecisionMakerContact(
+                            company=c.company,
+                            name=c.name,
+                            title=c.title or "Engineering Leader",
+                            domain=c.company.lower().replace(" ", "") + ".com",
+                            email=c.email,
+                            linkedin_url=c.linkedin_url,
                         )
-                        db.add(rec)
-                        db.commit()
-                        self._log_event("SUCCESS", f"Sent personalized outreach to {c.name} ({c.title} at {c.company}) -> {c.email}")
-                        await asyncio.sleep(2.5)
-                    else:
-                        error_count += 1
+                        subj, text, html = self.compose_personalized_outreach(dm)
+                        loop = asyncio.get_event_loop()
+                        sent_ok = await loop.run_in_executor(
+                            None, lambda: self.send_smtp_email(dm.email, subj, text, html)
+                        )
+                        if sent_ok:
+                            sent_count += 1
+                            remaining_slots -= 1
+                            self.total_emailed += 1
+                            rec = OutreachRecord(
+                                contact_id=c.id,
+                                contact_name=c.name,
+                                contact_email=c.email,
+                                subject=subj,
+                                body=text,
+                                template_type="fintech_decision_maker_outreach",
+                                status="sent",
+                                email_sent=True,
+                                sent_at=datetime.now(timezone.utc),
+                            )
+                            db.add(rec)
+                            db.commit()
+                            self._log_event("SUCCESS", f"Sent personalized outreach to {c.name} ({c.title} at {c.company}) -> {c.email} (Company total: {MAX_OUTREACH_PER_COMPANY - remaining_slots}/{MAX_OUTREACH_PER_COMPANY})")
+                            await asyncio.sleep(2.5)
+                        else:
+                            error_count += 1
 
         return {
             "status": "success",
             "total_sent": sent_count,
             "total_errors": error_count,
+            "max_per_company_enforced": MAX_OUTREACH_PER_COMPANY,
         }
+
 
     async def run_full_gff_decision_maker_sweep(self, auto_send: bool = True) -> Dict[str, Any]:
         """Execute sweep across all 150+ FinTech festival partners."""
