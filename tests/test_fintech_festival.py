@@ -20,13 +20,13 @@ def test_festival_registry_loads_sponsors():
     assert adyen is not None
     assert adyen.ats_platform == "smartrecruiters"
 
-    m2p = get_fintech_festival_company("m2p")
-    assert m2p is not None
-    assert m2p.category == "Payments & Gateways"
-
     elevenlabs = get_fintech_festival_company("elevenlabs")
     assert elevenlabs is not None
-    assert elevenlabs.category == "RegTech & Core Banking"
+    assert elevenlabs.category == "RegTech & AI"
+
+    phonepe = get_fintech_festival_company("phonepe")
+    assert phonepe is not None
+    assert phonepe.tier_role == "Co-Powered By"
 
 
 def test_filter_fintech_festival_companies():
@@ -37,8 +37,8 @@ def test_filter_fintech_festival_companies():
     gff = filter_fintech_festival_companies(festival="Global FinTech Fest")
     assert len(gff) >= 20
 
-    sff = filter_fintech_festival_companies(festival="Singapore FinTech Festival")
-    assert len(sff) >= 15
+    ai_partners = filter_fintech_festival_companies(category="RegTech & AI")
+    assert len(ai_partners) >= 10
 
 
 @pytest.mark.asyncio
@@ -63,30 +63,30 @@ async def test_fintech_festival_scraper_greenhouse():
     jobs = await scraper.scrape_all_festival_sponsors(company_ids=["juspay"], keywords=["UPI"])
     assert len(jobs) == 1
     assert jobs[0]["title"] == "Backend Architect - UPI Switch"
-    assert jobs[0]["company"] == "Juspay Technologies"
+    assert jobs[0]["company"] == "Juspay"
     assert "FinTech-Festival-Sponsor" in jobs[0]["tags"]
     assert jobs[0]["festival_info"]["category"] == "Payments & Gateways"
 
 
 @pytest.mark.asyncio
-async def test_fintech_festival_scraper_lever():
+async def test_fintech_festival_scraper_smartrecruiters():
     async def handler(request: httpx.Request):
-        if "api.lever.co/v0/postings/decentro" in str(request.url):
-            return httpx.Response(200, json=[
-                {
-                    "id": "dec-909",
-                    "text": "Senior Backend Engineer - Core Banking APIs",
-                    "description": "Develop scalable Open Banking & KYC API integrations in Python.",
-                    "categories": {"location": "Bengaluru, India"},
-                    "hostedUrl": "https://jobs.lever.co/decentro/dec-909",
-                    "createdAt": 1724500000000
-                }
-            ])
+        if "api.smartrecruiters.com/v1/companies/adyen/postings" in str(request.url):
+            return httpx.Response(200, json={
+                "content": [
+                    {
+                        "id": "adyen-101",
+                        "name": "Backend Software Engineer - Global Payouts",
+                        "location": {"city": "Singapore", "country": "Singapore"},
+                        "releasedDate": "2026-08-25T10:00:00Z"
+                    }
+                ]
+            })
         return httpx.Response(404)
 
     scraper = FinTechFestivalScraper(transport=httpx.MockTransport(handler))
-    jobs = await scraper.scrape_all_festival_sponsors(company_ids=["decentro"], keywords=["Banking"])
+    jobs = await scraper.scrape_all_festival_sponsors(company_ids=["adyen"], keywords=["Payouts"])
     assert len(jobs) == 1
-    assert jobs[0]["title"] == "Senior Backend Engineer - Core Banking APIs"
-    assert jobs[0]["company"] == "Decentro"
+    assert jobs[0]["title"] == "Backend Software Engineer - Global Payouts"
+    assert jobs[0]["company"] == "Adyen"
     assert jobs[0]["festival_info"]["category"] == "Payments & Gateways"
