@@ -12,32 +12,24 @@ Main components:
 - quick_search: Convenience function for simple searches
 """
 
-from src.scrapers.orchestrator import (
-    ScraperOrchestrator,
-    ScraperConfig,
-    ScraperResult,
-    OrchestratorResult,
-    ScraperStatus,
-    NormalizedJob,
-    JobDeduplicator,
-    UnifiedScraperInterface,
-    create_orchestrator,
-    quick_search,
-)
-from src.scrapers.base import BaseScraper
+try:
+    from src.scrapers.orchestrator import (
+        ScraperOrchestrator,
+        ScraperConfig,
+        ScraperResult,
+        OrchestratorResult,
+        ScraperStatus,
+        NormalizedJob,
+        JobDeduplicator,
+        UnifiedScraperInterface,
+        create_orchestrator,
+        quick_search,
+    )
+except ImportError:
+    pass
 
-__all__ = [
-    # Orchestrator
-    "ScraperOrchestrator",
-    "ScraperConfig",
-    "ScraperResult", 
-    "OrchestratorResult",
-    "ScraperStatus",
-    "NormalizedJob",
-    "JobDeduplicator",
-    "UnifiedScraperInterface",
-    "create_orchestrator",
-    "quick_search",
-    # Base
-    "BaseScraper",
-]
+try:
+    from src.scrapers.base import BaseScraper
+except ImportError:
+    pass
+

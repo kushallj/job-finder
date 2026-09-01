@@ -53,7 +53,9 @@ from src.indian_app_startups import INDIAN_APP_STARTUPS, get_indian_app_startup,
 from src.scrapers.indian_app_startups_scraper import IndianAppStartupsScraper
 from src.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, get_fintech_festival_company, filter_fintech_festival_companies
 from src.scrapers.fintech_festival_scraper import FinTechFestivalScraper
+from src.autonomous_job_crawler import autonomous_crawler, extract_tech_tags_and_seniority
 from src.config import settings
+
 
 
 
@@ -4187,6 +4189,104 @@ async def sync_fintech_festival_jobs(payload: FinTechFestivalSyncRequest = FinTe
     except Exception as exc:
         log.error("FinTech Festival job sync failed: %s", exc, exc_info=True)
         raise APIError(f"FinTech Festival job sync failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Autonomous Continuous Job Ingestion & Intelligence Pipeline Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/crawler/status", tags=["autonomous-crawler"])
+async def get_crawler_status():
+    """Returns live worker status, current scraping engine, uptime, and event timeline."""
+    return autonomous_crawler.get_status()
+
+
+class CrawlerStartRequest(BaseModel):
+    interval_seconds: int = 180
+
+
+@app.post("/api/crawler/start", tags=["autonomous-crawler"])
+async def start_autonomous_crawler(payload: CrawlerStartRequest = CrawlerStartRequest()):
+    """Starts the continuous background autonomous job crawler daemon."""
+    started = autonomous_crawler.start_daemon(interval_seconds=max(30, payload.interval_seconds))
+    if not started:
+        return {"status": "already_running", "message": "Autonomous crawler is already running in the background."}
+    return {"status": "started", "message": f"Autonomous crawler started with {payload.interval_seconds}s interval."}
+
+
+@app.post("/api/crawler/stop", tags=["autonomous-crawler"])
+async def stop_autonomous_crawler():
+    """Stops/pauses the continuous background autonomous job crawler."""
+    stopped = autonomous_crawler.stop_daemon()
+    return {"status": "stopped" if stopped else "not_running", "message": "Autonomous crawler stopped."}
+
+
+class CrawlerSinglePassRequest(BaseModel):
+    max_per_source: int = 30
+
+
+@app.post("/api/crawler/run-single-pass", tags=["autonomous-crawler"])
+async def trigger_crawler_single_pass(payload: CrawlerSinglePassRequest = CrawlerSinglePassRequest()):
+    """Triggers an immediate, comprehensive job sweep across all 5 sourcing engines."""
+    results = await autonomous_crawler.run_single_pass(max_per_source=payload.max_per_source)
+    return {
+        "status": "success",
+        "sweep_results": results,
+    }
+
+
+@app.get("/api/crawler/metrics", tags=["autonomous-crawler"])
+async def get_enterprise_crawler_metrics():
+    """Returns enterprise-grade metrics for CTO / VC pitch: tech stack distribution, remote ratio, salary benchmarks."""
+    from collections import Counter
+    from src.tier1_companies import TIER1_REGISTRY
+    from src.indian_app_startups import INDIAN_APP_STARTUPS
+    from src.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY
+
+    db = SessionLocal()
+    try:
+        total_jobs = db.query(Job).count()
+        all_jobs = db.query(Job.title, Job.tags, Job.experience_level, Job.work_mode, Job.has_remote, Job.company, Job.source).all()
+
+        tech_counts = Counter()
+        seniority_counts = Counter()
+        work_mode_counts = Counter()
+        sources_counts = Counter()
+
+        for row in all_jobs:
+            sources_counts[row.source or "unknown"] += 1
+            work_mode_counts[row.work_mode or "onsite"] += 1
+            seniority_counts[row.experience_level or "Mid-Level"] += 1
+            if row.tags:
+                try:
+                    tags = json.loads(row.tags) if isinstance(row.tags, str) else row.tags
+                    for t in tags:
+                        tech_counts[t] += 1
+                except Exception:
+                    pass
+
+
+        return {
+            "status": "success",
+            "enterprise_summary": {
+                "total_verified_target_companies": len(TIER1_REGISTRY) + len(INDIAN_APP_STARTUPS) + len(FINTECH_FESTIVAL_REGISTRY),
+                "tier1_global_unicorns": len(TIER1_REGISTRY),
+                "top_indian_app_startups": len(INDIAN_APP_STARTUPS),
+                "fintech_festival_sponsors": len(FINTECH_FESTIVAL_REGISTRY),
+                "total_jobs_in_database": total_jobs,
+            },
+            "taxonomy_metrics": {
+                "tech_stack_distribution": dict(tech_counts.most_common(20)),
+                "seniority_distribution": dict(seniority_counts),
+                "work_mode_distribution": dict(work_mode_counts),
+                "source_distribution": dict(sources_counts),
+            },
+            "crawler_live_state": autonomous_crawler.get_status(),
+        }
+    finally:
+        db.close()
+
+
 
 
 
