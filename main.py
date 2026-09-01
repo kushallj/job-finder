@@ -4774,6 +4774,72 @@ async def mine_and_outreach_shark_tank_us_startups(
     }
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Suniel Shetty Shows ("Bharat Ke Super Founders", "Horses Stable") Engine
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SunielShettyOutreachRequest(BaseModel):
+    show: Optional[str] = None
+    category: Optional[str] = None
+    auto_send: bool = True
+    limit: int = 20
+
+@app.get("/api/suniel-shetty/companies", tags=["suniel-shetty"])
+async def get_suniel_shetty_companies(
+    show: Optional[str] = Query(default=None),
+    category: Optional[str] = Query(default=None),
+):
+    """Lists startups from Suniel Shetty's shows ('Bharat Ke Super Founders', 'Horses Stable') & portfolio."""
+    from src.suniel_shetty_startups import (
+        SUNIEL_SHETTY_STARTUPS_REGISTRY,
+        filter_by_show,
+        filter_by_shetty_category,
+    )
+    startups = SUNIEL_SHETTY_STARTUPS_REGISTRY
+    if show:
+        startups = filter_by_show(show)
+    if category:
+        startups = filter_by_shetty_category(category)
+
+    return {
+        "status": "success",
+        "total": len(startups),
+        "companies": [s.to_dict() for s in startups],
+    }
+
+
+@app.post("/api/suniel-shetty/mine-and-outreach", tags=["suniel-shetty"])
+async def mine_and_outreach_suniel_shetty_startups(
+    payload: SunielShettyOutreachRequest = SunielShettyOutreachRequest()
+):
+    """Mines founders & CTOs across Suniel Shetty show startups and dispatches outreach (strictly <= 2/company)."""
+    from src.suniel_shetty_startups import (
+        SUNIEL_SHETTY_STARTUPS_REGISTRY,
+        filter_by_show,
+    )
+    from src.suniel_shetty_miner import suniel_shetty_miner
+
+    startups = SUNIEL_SHETTY_STARTUPS_REGISTRY
+    if payload.show:
+        startups = filter_by_show(payload.show)
+
+    total_mined = 0
+    all_contacts = []
+    for s in startups[:payload.limit]:
+        res = await suniel_shetty_miner.mine_and_outreach_startup(s, auto_send=payload.auto_send)
+        total_mined += len(res)
+        all_contacts.extend(res)
+
+    return {
+        "status": "success",
+        "companies_processed": min(len(startups), payload.limit),
+        "total_leaders_mined": total_mined,
+        "contacts": all_contacts,
+        "max_per_company_enforced": 2,
+    }
+
+
+
 
 
 
