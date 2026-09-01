@@ -2749,13 +2749,14 @@ async def stats(state: AppState = Depends(get_state)):
             recent = [
                 RecentOutreach(
                     id=r.id,
-                    contact_email=r.contact_email,
-                    status=r.status,
+                    contact_email=r.contact_email or "outreach@domain.com",
+                    status=r.status or "sent",
                     sent_at=r.sent_at,
                 )
                 for r in db.query(OutreachRecord)
                            .order_by(OutreachRecord.sent_at.desc()).limit(5).all()
             ]
+
             
             # Calculate success rate safely
             success_rate = round(se / to * 100, 1) if to > 0 else 0.0

@@ -694,9 +694,10 @@ class StatsData(BaseModel):
 class RecentOutreach(BaseModel):
     """Recent outreach record summary"""
     id: int = Field(..., description="Outreach record ID")
-    contact_email: str = Field(..., description="Contact email")
+    contact_email: Optional[str] = Field(None, description="Contact email")
     status: str = Field(..., description="Outreach status")
     sent_at: Optional[datetime] = Field(None, description="Send timestamp")
+
 
 
 class StatsResponse(BaseModel):
