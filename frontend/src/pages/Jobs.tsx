@@ -144,8 +144,8 @@ export const Jobs: React.FC = () => {
     // Check cache validity
     if (cached && now - cached.timestamp < CACHE_TTL_MS) {
       setJobs(cached.data.jobs);
-      setTotalJobs(cached.data.pagination.total);
-      setTotalPages(cached.data.pagination.pages);
+      setTotalJobs(cached.data.pagination?.total ?? cached.data.total ?? cached.data.jobs.length);
+      setTotalPages(cached.data.pagination?.pages ?? Math.ceil((cached.data.total ?? cached.data.jobs.length) / jobLimit));
       setIsCacheHit(true);
       setIsLoading(false);
       setError(null);
@@ -158,11 +158,14 @@ export const Jobs: React.FC = () => {
 
     jobsApi
       .getAllJobs(queryParams)
-      .then((res) => {
+      .then((res: any) => {
         if (isCancelled) return;
-        setJobs(res.jobs);
-        setTotalJobs(res.pagination.total);
-        setTotalPages(res.pagination.pages);
+        const jobList = res.jobs || [];
+        const total = res.pagination?.total ?? res.total ?? jobList.length;
+        const pages = res.pagination?.pages ?? Math.ceil(total / jobLimit);
+        setJobs(jobList);
+        setTotalJobs(total);
+        setTotalPages(pages);
         cacheRef.current.set(cacheKey, { data: res, timestamp: Date.now() });
       })
       .catch((err: any) => {
@@ -211,6 +214,20 @@ export const Jobs: React.FC = () => {
   const handleJobClick = (job: Job) => {
     navigate(`/opportunities/${job.id}`);
   };
+
+  // Instant local filtering for immediate user feedback
+  const displayedJobs = useMemo(() => {
+    if (!searchInput.trim()) return jobs;
+    const term = searchInput.trim().toLowerCase();
+    return jobs.filter(
+      (job) =>
+        (job.title && job.title.toLowerCase().includes(term)) ||
+        (job.company && job.company.toLowerCase().includes(term)) ||
+        (job.location && job.location.toLowerCase().includes(term)) ||
+        (job.tags && (Array.isArray(job.tags) ? job.tags.join(' ') : String(job.tags)).toLowerCase().includes(term)) ||
+        (job.description && job.description.toLowerCase().includes(term))
+    );
+  }, [jobs, searchInput]);
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -297,7 +314,7 @@ export const Jobs: React.FC = () => {
               <TextField
                 fullWidth
                 size="small"
-                placeholder="Search title, tech stack, company..."
+                placeholder="Search by title, company, skills..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 InputProps={{
@@ -429,7 +446,6 @@ export const Jobs: React.FC = () => {
             </Grid>
           </Grid>
 
-
           {/* Tech Stack Chip Selector */}
           <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px solid #F1F5F9' }}>
             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ gap: 0.75 }}>
@@ -490,7 +506,7 @@ export const Jobs: React.FC = () => {
             Querying SQLite with optimized ORM filters...
           </Typography>
         </Box>
-      ) : jobs.length === 0 ? (
+      ) : displayedJobs.length === 0 ? (
         <Card sx={{ p: 5, textAlign: 'center', borderRadius: '16px' }}>
           <Typography variant="h6" fontWeight={700} color="#0F172A" sx={{ mb: 1 }}>
             No opportunities matched your filters
@@ -513,7 +529,7 @@ export const Jobs: React.FC = () => {
       ) : viewMode === 'cards' ? (
         /* Grid View */
         <Grid container spacing={2.5}>
-          {jobs.map((job) => (
+          {displayedJobs.map((job) => (
             <Grid key={job.id} size={{ xs: 12, md: 6, lg: 4 }}>
               <Card
                 sx={{
@@ -624,7 +640,7 @@ export const Jobs: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {jobs.map((job) => (
+              {displayedJobs.map((job) => (
                 <TableRow key={job.id} hover sx={{ cursor: 'pointer' }} onClick={() => handleJobClick(job)}>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 700, color: '#0F172A' }}>
