@@ -144,13 +144,14 @@ export const Jobs: React.FC = () => {
     // Check cache validity
     if (cached && now - cached.timestamp < CACHE_TTL_MS) {
       setJobs(cached.data.jobs);
-      setTotalJobs(cached.data.pagination?.total ?? cached.data.total ?? cached.data.jobs.length);
-      setTotalPages(cached.data.pagination?.pages ?? Math.ceil((cached.data.total ?? cached.data.jobs.length) / jobLimit));
+      setTotalJobs(cached.data.pagination?.total ?? cached.data.jobs.length);
+      setTotalPages(cached.data.pagination?.pages ?? Math.ceil(cached.data.jobs.length / jobLimit));
       setIsCacheHit(true);
       setIsLoading(false);
       setError(null);
       return;
     }
+
 
     setIsLoading(true);
     setIsCacheHit(false);
