@@ -206,6 +206,21 @@ export interface RootResponse {
   version: string;
 }
 
+export interface JobQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  region?: string;
+  experience_level?: string;
+  years_of_experience?: number;
+  date_posted?: string;
+  tech_stack?: string;
+  source?: string;
+  has_remote?: boolean;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+}
+
 export interface JobsResponse {
   status: 'success' | 'error';
   jobs: Job[];
@@ -216,6 +231,7 @@ export interface JobsResponse {
     pages: number;
   };
 }
+
 
 export interface OpportunitySignal {
   label: string;

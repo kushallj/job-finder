@@ -6,6 +6,7 @@ import type {
   Job,
   JobsResponse,
   OpportunityBrief,
+  JobQueryParams,
 } from '../types';
 
 export const jobsApi = {
@@ -19,14 +20,16 @@ export const jobsApi = {
   },
 
   /**
-   * Get all jobs with pagination, sorted by recently fetched
+   * Get all jobs with multi-facet ORM filtering & pagination
    */
-  getAllJobs: async (page: number = 1, limit: number = 50): Promise<JobsResponse> => {
+  getAllJobs: async (params: JobQueryParams | number = 1, limit: number = 50): Promise<JobsResponse> => {
+    const queryParams = typeof params === 'number' ? { page: params, limit } : params;
     const response = await api.get<JobsResponse>('/api/jobs', {
-      params: { page, limit },
+      params: queryParams,
     });
     return response.data;
   },
+
 
   /**
    * Get jobs that are pending outreach (matched with resume but not yet reached out)
