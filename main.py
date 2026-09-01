@@ -4911,6 +4911,79 @@ async def mine_and_outreach_nifty500_companies(
     }
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# S&P 500 (US Market Leaders) Enterprise Sourcing & Tech Leadership Engine
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SP500OutreachRequest(BaseModel):
+    sector: Optional[str] = None
+    sub_industry: Optional[str] = None
+    auto_send: bool = True
+    limit: int = 20
+
+@app.get("/api/sp500/companies", tags=["sp500"])
+async def get_sp500_companies(
+    sector: Optional[str] = Query(default=None),
+    sub_industry: Optional[str] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+):
+    """Lists official constituent corporations from the US S&P 500 index (503 companies)."""
+    from src.sp500_registry import (
+        get_all_sp500_companies,
+        filter_by_sector,
+        filter_by_sub_industry,
+        search_by_keyword,
+        get_sector_breakdown,
+    )
+    companies = get_all_sp500_companies()
+    if sector:
+        companies = filter_by_sector(sector)
+    if sub_industry:
+        companies = filter_by_sub_industry(sub_industry)
+    if search:
+        companies = search_by_keyword(search)
+
+    return {
+        "status": "success",
+        "total": len(companies),
+        "total_index_size": 503,
+        "sector_breakdown": get_sector_breakdown(),
+        "companies": [c.to_dict() for c in companies],
+    }
+
+
+@app.post("/api/sp500/mine-and-outreach", tags=["sp500"])
+async def mine_and_outreach_sp500_companies(
+    payload: SP500OutreachRequest = SP500OutreachRequest()
+):
+    """Mines tech decision makers across S&P 500 giants and dispatches outreach (strictly <= 2/company)."""
+    from src.sp500_registry import (
+        get_all_sp500_companies,
+        filter_by_sector,
+    )
+    from src.sp500_miner import sp500_miner
+
+    companies = get_all_sp500_companies()
+    if payload.sector:
+        companies = filter_by_sector(payload.sector)
+
+    total_mined = 0
+    all_contacts = []
+    for c in companies[:payload.limit]:
+        res = await sp500_miner.mine_and_outreach_company(c, auto_send=payload.auto_send)
+        total_mined += len(res)
+        all_contacts.extend(res)
+
+    return {
+        "status": "success",
+        "companies_processed": min(len(companies), payload.limit),
+        "total_leaders_mined": total_mined,
+        "contacts": all_contacts,
+        "max_per_company_enforced": 2,
+    }
+
+
+
 
 
 

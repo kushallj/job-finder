@@ -258,9 +258,20 @@ class MasterJobCrawler:
         for c in nifty500:
             sym_lower = c.symbol.lower()
             src_tag = f"nifty500_{sym_lower}"
-            # Check tech enterprises with greenhouse/lever endpoints
             tasks.append(self.crawl_greenhouse_board(c.name, sym_lower, src_tag))
             tasks.append(self.crawl_lever_board(c.name, sym_lower, src_tag))
+
+        # 7. Official S&P 500 Corporations
+        from src.sp500_registry import get_all_sp500_companies
+        sp500 = get_all_sp500_companies()
+        logger.info(f"Indexing {len(sp500)} official S&P 500 corporations...")
+        for c in sp500:
+            sym_lower = c.symbol.lower()
+            name_slug = c.name.split()[0].lower()
+            src_tag = f"sp500_{sym_lower}"
+            tasks.append(self.crawl_greenhouse_board(c.name, name_slug, src_tag))
+            tasks.append(self.crawl_lever_board(c.name, name_slug, src_tag))
+
 
         logger.info(f"Executing {len(tasks)} concurrent async scraper tasks...")
         batch_size = 50
