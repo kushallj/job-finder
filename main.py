@@ -4550,6 +4550,89 @@ async def get_fintech_miner_status():
     }
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Y Combinator & Global Accelerators Sourcing & Decision Maker Outreach
+# ═══════════════════════════════════════════════════════════════════════════
+
+class AcceleratorSyncRequest(BaseModel):
+    accelerator: Optional[str] = None
+    max_jobs: int = 15
+
+class AcceleratorOutreachRequest(BaseModel):
+    accelerator: Optional[str] = None
+    auto_send: bool = True
+    limit: int = 20
+
+@app.get("/api/accelerators/companies", tags=["accelerators"])
+async def get_accelerator_companies(
+    accelerator: Optional[str] = Query(default=None),
+    category: Optional[str] = Query(default=None),
+    stage: Optional[str] = Query(default=None),
+):
+    """Lists startups from Y Combinator, Surge by Peak XV, Accel Atoms, Antler, Techstars, and Blume Ventures."""
+    from src.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator, filter_by_category
+    startups = ACCELERATORS_REGISTRY
+    if accelerator:
+        startups = filter_by_accelerator(accelerator)
+    if category:
+        startups = [s for s in startups if category.lower() in s.category.lower()]
+    if stage:
+        startups = [s for s in startups if stage.lower() in s.stage.lower()]
+    return {
+        "status": "success",
+        "total": len(startups),
+        "companies": [s.to_dict() for s in startups],
+    }
+
+
+@app.post("/api/accelerators/sync-jobs", tags=["accelerators"])
+async def sync_accelerator_jobs(payload: AcceleratorSyncRequest = AcceleratorSyncRequest()):
+    """Concurrently scrapes live engineering opportunities from YC and accelerator startups."""
+    from src.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator
+    from src.accelerator_miner import accelerator_miner
+    startups = ACCELERATORS_REGISTRY
+    if payload.accelerator:
+        startups = filter_by_accelerator(payload.accelerator)
+
+    all_jobs = []
+    for s in startups:
+        jobs = await accelerator_miner.scrape_startup_jobs(s, max_jobs=payload.max_jobs)
+        all_jobs.extend(jobs)
+
+    return {
+        "status": "success",
+        "total_sourced": len(all_jobs),
+        "companies_checked": len(startups),
+        "jobs": all_jobs[:50],
+    }
+
+
+@app.post("/api/accelerators/mine-and-outreach", tags=["accelerators"])
+async def mine_and_outreach_accelerator_startups(payload: AcceleratorOutreachRequest = AcceleratorOutreachRequest()):
+    """Mines founders & CTOs across accelerator startups and dispatches cold outreach (strictly <= 2/company)."""
+    from src.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator
+    from src.accelerator_miner import accelerator_miner
+    startups = ACCELERATORS_REGISTRY
+    if payload.accelerator:
+        startups = filter_by_accelerator(payload.accelerator)
+
+    total_mined = 0
+    all_contacts = []
+    for s in startups[:payload.limit]:
+        res = await accelerator_miner.mine_and_outreach_startup(s, auto_send=payload.auto_send)
+        total_mined += len(res)
+        all_contacts.extend(res)
+
+    return {
+        "status": "success",
+        "companies_processed": min(len(startups), payload.limit),
+        "total_leaders_mined": total_mined,
+        "contacts": all_contacts,
+        "max_per_company_enforced": 2,
+    }
+
+
+
 @app.get("/api/community-intel/company/{company}", tags=["community-intel"], response_model=CommunityIntelResponse)
 async def get_company_community_intel(company: str, role: Optional[str] = "Software Engineer", force_refresh: bool = False, req: Request = None):
     """Retrieves aggregated interview experiences, question leaks, and source citations from Reddit, HN, Medium, Substack, and YouTube."""
