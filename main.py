@@ -4422,9 +4422,10 @@ async def get_enterprise_crawler_metrics():
 # ═══════════════════════════════════════════════════════════════════════════
 
 class FinTechMineRequest(BaseModel):
-    auto_send: bool = False
-    max_companies: int = 20
+    auto_send: bool = True
+    max_companies: int = 50
     interval_seconds: int = 3600
+
 
 @app.post("/api/fintech/mine-decision-makers", tags=["fintech-decision-makers"])
 async def trigger_fintech_decision_maker_mining(

@@ -326,10 +326,10 @@ Software Engineer
                 if auto_send:
                     # Check if already sent
                     already_sent = db.query(OutreachRecord).filter(
-                        OutreachRecord.contact_email == dm.email if hasattr(OutreachRecord, "contact_email") else OutreachRecord.contact_id == contact_id
+                        (OutreachRecord.contact_id == contact_id) | (OutreachRecord.contact_email == dm.email)
                     ).first()
 
-                    if not already_sent:
+                    if not already_sent and dm.email:
                         subj, text, html = self.compose_personalized_outreach(dm)
                         loop = asyncio.get_event_loop()
                         sent_ok = await loop.run_in_executor(
@@ -341,6 +341,8 @@ Software Engineer
                             self.total_emailed += 1
                             rec = OutreachRecord(
                                 contact_id=contact_id,
+                                contact_name=dm.name,
+                                contact_email=dm.email,
                                 subject=subj,
                                 body=text,
                                 template_type="fintech_decision_maker_outreach",
@@ -351,12 +353,68 @@ Software Engineer
                             db.add(rec)
                             db.commit()
                             self._log_event("SUCCESS", f"Sent personalized outreach to {dm.name} ({dm.title} at {dm.company}) -> {dm.email}")
-                            # Jittered delay to protect SMTP sender reputation
+                            # Safe delay to protect SMTP sender reputation
                             await asyncio.sleep(2.5)
 
                 saved_contacts.append(dm)
 
         return saved_contacts
+
+    async def dispatch_pending_outreach(self, limit: int = 50) -> Dict[str, Any]:
+        """Dispatch personalized outreach to all discovered decision makers who have not yet been contacted."""
+        sent_count = 0
+        error_count = 0
+        with SessionLocal() as db:
+            pending_contacts = db.query(Contact).filter(Contact.source == "gff_decision_maker_miner").all()
+            self._log_event("INFO", f"Evaluating {len(pending_contacts)} mined contacts for autonomous outreach (Limit: {limit})...")
+
+            for c in pending_contacts:
+                if sent_count >= limit:
+                    break
+                already_sent = db.query(OutreachRecord).filter(
+                    (OutreachRecord.contact_id == c.id) | (OutreachRecord.contact_email == c.email)
+                ).first()
+
+                if not already_sent and c.email:
+                    dm = DecisionMakerContact(
+                        company=c.company,
+                        name=c.name,
+                        title=c.title or "Engineering Leader",
+                        domain=c.company.lower().replace(" ", "") + ".com",
+                        email=c.email,
+                        linkedin_url=c.linkedin_url,
+                    )
+                    subj, text, html = self.compose_personalized_outreach(dm)
+                    loop = asyncio.get_event_loop()
+                    sent_ok = await loop.run_in_executor(
+                        None, lambda: self.send_smtp_email(dm.email, subj, text, html)
+                    )
+                    if sent_ok:
+                        sent_count += 1
+                        self.total_emailed += 1
+                        rec = OutreachRecord(
+                            contact_id=c.id,
+                            contact_name=c.name,
+                            contact_email=c.email,
+                            subject=subj,
+                            body=text,
+                            template_type="fintech_decision_maker_outreach",
+                            status="sent",
+                            email_sent=True,
+                            sent_at=datetime.now(timezone.utc),
+                        )
+                        db.add(rec)
+                        db.commit()
+                        self._log_event("SUCCESS", f"Sent personalized outreach to {c.name} ({c.title} at {c.company}) -> {c.email}")
+                        await asyncio.sleep(2.5)
+                    else:
+                        error_count += 1
+
+        return {
+            "status": "success",
+            "total_sent": sent_count,
+            "total_errors": error_count,
+        }
 
     async def run_full_gff_decision_maker_sweep(self, auto_send: bool = True) -> Dict[str, Any]:
         """Execute sweep across all 150+ FinTech festival partners."""
@@ -382,6 +440,7 @@ Software Engineer
             "emails_dispatched": total_dispatched,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+
 
     def start_background_miner(self, interval_seconds: int = 3600, auto_send: bool = True):
         """Start continuous self-healing background miner."""
