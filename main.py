@@ -4839,6 +4839,79 @@ async def mine_and_outreach_suniel_shetty_startups(
     }
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Nifty 500 (NSE India) Enterprise Sourcing & Tech Leadership Outreach
+# ═══════════════════════════════════════════════════════════════════════════
+
+class Nifty500OutreachRequest(BaseModel):
+    sector: Optional[str] = None
+    cap_category: Optional[str] = None
+    auto_send: bool = True
+    limit: int = 20
+
+@app.get("/api/nifty500/companies", tags=["nifty500"])
+async def get_nifty500_companies(
+    sector: Optional[str] = Query(default=None),
+    cap_category: Optional[str] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+):
+    """Lists enterprise companies from the Nifty 500 index (NSE India)."""
+    from src.nifty500_registry import (
+        NIFTY_500_REGISTRY,
+        filter_by_sector,
+        filter_by_cap,
+    )
+    companies = NIFTY_500_REGISTRY
+    if sector:
+        companies = filter_by_sector(sector)
+    if cap_category:
+        companies = filter_by_cap(cap_category)
+    if search:
+        s_lower = search.strip().lower()
+        companies = [
+            c for c in companies
+            if s_lower in c.name.lower() or s_lower in c.symbol.lower()
+        ]
+
+    return {
+        "status": "success",
+        "total": len(companies),
+        "companies": [c.to_dict() for c in companies],
+    }
+
+
+@app.post("/api/nifty500/mine-and-outreach", tags=["nifty500"])
+async def mine_and_outreach_nifty500_companies(
+    payload: Nifty500OutreachRequest = Nifty500OutreachRequest()
+):
+    """Mines tech decision makers across Nifty 500 enterprises and dispatches outreach (strictly <= 2/company)."""
+    from src.nifty500_registry import (
+        NIFTY_500_REGISTRY,
+        filter_by_sector,
+    )
+    from src.nifty500_miner import nifty500_miner
+
+    companies = NIFTY_500_REGISTRY
+    if payload.sector:
+        companies = filter_by_sector(payload.sector)
+
+    total_mined = 0
+    all_contacts = []
+    for c in companies[:payload.limit]:
+        res = await nifty500_miner.mine_and_outreach_company(c, auto_send=payload.auto_send)
+        total_mined += len(res)
+        all_contacts.extend(res)
+
+    return {
+        "status": "success",
+        "companies_processed": min(len(companies), payload.limit),
+        "total_leaders_mined": total_mined,
+        "contacts": all_contacts,
+        "max_per_company_enforced": 2,
+    }
+
+
+
 
 
 
