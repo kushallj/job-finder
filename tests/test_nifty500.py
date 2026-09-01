@@ -1,13 +1,14 @@
 """
-Unit tests for Nifty 500 Registry & Tech Leadership Outreach Engine.
+Unit tests for Official Nifty 500 Database (500 NSE Companies) & Outreach Engine.
 """
 import pytest
 from src.nifty500_registry import (
-    NIFTY_500_REGISTRY,
     get_all_nifty500_companies,
+    filter_by_industry,
     filter_by_sector,
-    filter_by_cap,
     search_by_symbol,
+    search_by_keyword,
+    get_industry_breakdown,
 )
 from src.nifty500_miner import (
     Nifty500Miner,
@@ -16,51 +17,69 @@ from src.nifty500_miner import (
 )
 
 
-def test_nifty500_registry_loaded():
+def test_official_nifty500_dataset_loaded_500_companies():
     companies = get_all_nifty500_companies()
-    assert len(companies) >= 60
+    assert len(companies) == 500, f"Expected exactly 500 official companies, got {len(companies)}"
 
-    # Verify key IT, Consumer Tech and BFSI names
-    symbols = [c.symbol for c in companies]
+    # Check key symbols
+    symbols = set(c.symbol for c in companies)
     assert "TCS" in symbols
     assert "INFY" in symbols
-    assert "ZOMATO" in symbols
     assert "HDFCBANK" in symbols
+    assert "RELIANCE" in symbols
     assert "DIXON" in symbols
-    assert "TATAMOTORS" in symbols
+    assert "360ONE" in symbols
+    assert "ABB" in symbols
+    assert "ADANIGREEN" in symbols
 
 
-def test_filter_by_sector():
-    it_companies = filter_by_sector("Information Technology")
-    assert len(it_companies) >= 15
+def test_filter_by_industry():
+    financials = filter_by_industry("Financial Services")
+    assert len(financials) >= 90
     
-    fin_companies = filter_by_sector("Banking & Financial Services")
-    assert len(fin_companies) >= 10
+    it = filter_by_industry("Information Technology")
+    assert len(it) >= 25
 
 
-def test_search_by_symbol():
-    zomato = search_by_symbol("ZOMATO")
-    assert zomato is not None
-    assert zomato.name == "Zomato"
-    assert zomato.sector == "Consumer Internet & Tech"
+def test_search_by_symbol_official():
+    tcs = search_by_symbol("TCS")
+    assert tcs is not None
+    assert "Tata Consultancy" in tcs.name
+    assert tcs.industry == "Information Technology"
+
+
+def test_search_by_keyword():
+    results = search_by_keyword("Tata")
+    assert len(results) >= 5
+    names = [r.name for r in results]
+    assert any("Tata Motors" in n or "Tata Consultancy" in n for n in names)
+
+
+def test_get_industry_breakdown():
+    breakdown = get_industry_breakdown()
+    assert "Financial Services" in breakdown
+    assert "Information Technology" in breakdown
+    assert "Capital Goods" in breakdown
+    assert sum(breakdown.values()) == 500
 
 
 def test_compose_nifty500_outreach():
     miner = Nifty500Miner()
     contact = {
-        "name": "Nitin Gupta",
-        "title": "Head of Engineering",
-        "company": "Zomato",
-        "sector": "Consumer Internet & Tech",
-        "symbol": "ZOMATO",
+        "name": "Ananth Krishnan",
+        "title": "Chief Technology Officer",
+        "company": "Tata Consultancy Services Ltd.",
+        "industry": "Information Technology",
+        "symbol": "TCS",
     }
+
     subj, text, html = miner.compose_nifty500_outreach(contact)
-    assert "Zomato" in subj
+    assert "Tata Consultancy Services Ltd." in subj
     assert "Nifty 500" in subj
-    assert "Nitin" in text
+    assert "Ananth" in text
     assert "Python, FastAPI, React" in text
     assert "<html>" in html
 
 
-def test_max_outreach_per_company_constraint_nifty500():
+def test_max_outreach_per_company_constraint():
     assert MAX_OUTREACH_PER_COMPANY == 2

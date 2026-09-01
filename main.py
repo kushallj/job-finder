@@ -4851,31 +4851,29 @@ class Nifty500OutreachRequest(BaseModel):
 
 @app.get("/api/nifty500/companies", tags=["nifty500"])
 async def get_nifty500_companies(
+    industry: Optional[str] = Query(default=None),
     sector: Optional[str] = Query(default=None),
-    cap_category: Optional[str] = Query(default=None),
     search: Optional[str] = Query(default=None),
 ):
-    """Lists enterprise companies from the Nifty 500 index (NSE India)."""
+    """Lists official enterprise companies from the NSE Nifty 500 index (500 companies)."""
     from src.nifty500_registry import (
-        NIFTY_500_REGISTRY,
-        filter_by_sector,
-        filter_by_cap,
+        get_all_nifty500_companies,
+        filter_by_industry,
+        search_by_keyword,
+        get_industry_breakdown,
     )
-    companies = NIFTY_500_REGISTRY
-    if sector:
-        companies = filter_by_sector(sector)
-    if cap_category:
-        companies = filter_by_cap(cap_category)
+    companies = get_all_nifty500_companies()
+    target_ind = industry or sector
+    if target_ind:
+        companies = filter_by_industry(target_ind)
     if search:
-        s_lower = search.strip().lower()
-        companies = [
-            c for c in companies
-            if s_lower in c.name.lower() or s_lower in c.symbol.lower()
-        ]
+        companies = search_by_keyword(search)
 
     return {
         "status": "success",
         "total": len(companies),
+        "total_index_size": 500,
+        "industry_breakdown": get_industry_breakdown(),
         "companies": [c.to_dict() for c in companies],
     }
 
@@ -4886,14 +4884,15 @@ async def mine_and_outreach_nifty500_companies(
 ):
     """Mines tech decision makers across Nifty 500 enterprises and dispatches outreach (strictly <= 2/company)."""
     from src.nifty500_registry import (
-        NIFTY_500_REGISTRY,
-        filter_by_sector,
+        get_all_nifty500_companies,
+        filter_by_industry,
     )
     from src.nifty500_miner import nifty500_miner
 
-    companies = NIFTY_500_REGISTRY
-    if payload.sector:
-        companies = filter_by_sector(payload.sector)
+    companies = get_all_nifty500_companies()
+    target_ind = payload.sector
+    if target_ind:
+        companies = filter_by_industry(target_ind)
 
     total_mined = 0
     all_contacts = []
@@ -4909,6 +4908,7 @@ async def mine_and_outreach_nifty500_companies(
         "contacts": all_contacts,
         "max_per_company_enforced": 2,
     }
+
 
 
 

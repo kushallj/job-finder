@@ -128,8 +128,9 @@ class Nifty500Miner:
                     "email": email_addr,
                     "linkedin_url": link,
                     "symbol": company.symbol,
-                    "sector": company.sector,
+                    "industry": company.industry,
                 })
+
 
         except Exception as exc:
             logger.warning(f"Error mining leaders for Nifty 500 company {company.name}: {exc}")
@@ -250,8 +251,9 @@ Software Engineer
                         linkedin_url=dm["linkedin_url"],
                         confidence_score=90,
                         source=f"nifty500_{company.symbol.lower()}",
-                        department=company.sector,
+                        department=company.industry,
                     )
+
                     db.add(new_c)
                     db.commit()
                     db.refresh(new_c)
