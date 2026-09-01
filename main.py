@@ -49,7 +49,10 @@ from src.resume_parser import SharpAPIResumeParser
 from src.tier1_companies import TIER1_REGISTRY, get_tier1_company
 from src.scrapers.tier1_career_scraper import Tier1CareerScraper
 from src.referral_engine import generate_referral_xray_queries, search_company_referral_contacts, compose_referral_request
+from src.indian_app_startups import INDIAN_APP_STARTUPS, get_indian_app_startup, filter_indian_startups
+from src.scrapers.indian_app_startups_scraper import IndianAppStartupsScraper
 from src.config import settings
+
 
 
 try:
@@ -4047,10 +4050,68 @@ async def find_tier1_referral_contacts(payload: Tier1ReferralRequest):
 
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Top Indian App Startups (Top Downloads & Revenue) Career Ingestion Engine
+# ═══════════════════════════════════════════════════════════════════════════
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Community Intel & Interview Debrief Aggregator Endpoints
-# ═══════════════════════════════════════════════════════════════════════════
+@app.get("/api/indian-startups/directory", tags=["indian-startups"])
+async def list_indian_startups(
+    category: Optional[str] = None,
+    tier: Optional[str] = None,
+    search: Optional[str] = None,
+):
+    """Returns top Indian startups on App Store / Play Store with download/revenue scale & career links."""
+    startups = filter_indian_startups(category=category, tier_category=tier, search=search)
+    return {
+        "status": "success",
+        "total_startups": len(startups),
+        "startups": [s.to_dict() for s in startups],
+    }
+
+
+@app.get("/api/indian-startups/stats", tags=["indian-startups"])
+async def get_indian_startups_stats():
+    """Returns statistical breakdown of the Indian startup catalog across sectors and app tiers."""
+    from collections import Counter
+    categories = Counter(s.category for s in INDIAN_APP_STARTUPS)
+    tiers = Counter(s.tier_category for s in INDIAN_APP_STARTUPS)
+    ats_breakdown = Counter(s.ats_platform for s in INDIAN_APP_STARTUPS)
+    return {
+        "status": "success",
+        "total_tracked_startups": len(INDIAN_APP_STARTUPS),
+        "category_distribution": dict(categories),
+        "tier_distribution": dict(tiers),
+        "ats_breakdown": dict(ats_breakdown),
+    }
+
+
+class IndianStartupsSyncRequest(BaseModel):
+    categories: Optional[List[str]] = None
+    startup_ids: Optional[List[str]] = None
+    keywords: Optional[List[str]] = ["Python", "FastAPI", "Backend", "Engineer", "Software", "SDE"]
+    limit: int = 100
+
+
+@app.post("/api/indian-startups/sync-jobs", tags=["indian-startups"])
+async def sync_indian_startups_jobs(payload: IndianStartupsSyncRequest = IndianStartupsSyncRequest()):
+    """Concurrently scrapes live engineering opportunities from top Indian app startups."""
+    try:
+        scraper = IndianAppStartupsScraper()
+        jobs = await scraper.scrape_all_startups(
+            keywords=payload.keywords,
+            categories=payload.categories,
+            startup_ids=payload.startup_ids,
+            max_jobs=payload.limit,
+        )
+        return {
+            "status": "success",
+            "total_found": len(jobs),
+            "jobs": jobs,
+        }
+    except Exception as exc:
+        log.error("Indian startups job sync failed: %s", exc, exc_info=True)
+        raise APIError(f"Indian startups job sync failed: {str(exc)}")
+
 
 @app.get("/api/community-intel/company/{company}", tags=["community-intel"], response_model=CommunityIntelResponse)
 async def get_company_community_intel(company: str, role: Optional[str] = "Software Engineer", force_refresh: bool = False, req: Request = None):
