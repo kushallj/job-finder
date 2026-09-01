@@ -5,19 +5,22 @@ import type { QueryRequest } from '../api/types';
 export const useJobs = (page: number = 1, limit: number = 50) => {
   const queryClient = useQueryClient();
 
-  // Get all jobs with pagination
+  // Get all jobs with pagination and fast auto-refresh
   const allJobsQuery = useQuery({
     queryKey: ['jobs', 'all', page, limit],
     queryFn: () => jobsApi.getAllJobs(page, limit),
-    staleTime: 30000, // 30 seconds
+    staleTime: 5000, // 5 seconds
+    refetchInterval: 10000, // Auto-refetch every 10 seconds to catch newly crawled jobs
   });
 
   // Get pending outreach jobs
   const pendingOutreachQuery = useQuery({
     queryKey: ['jobs', 'pending-outreach'],
     queryFn: () => jobsApi.getPendingOutreach(50, 50),
-    staleTime: 30000, // 30 seconds
+    staleTime: 5000,
+    refetchInterval: 15000,
   });
+
 
   // Run query mutation
   const runQueryMutation = useMutation({

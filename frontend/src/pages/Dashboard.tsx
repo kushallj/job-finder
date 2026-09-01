@@ -129,7 +129,8 @@ const QUICK_PRESETS = [
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { stats, recentOutreach, isLoadingStats, refetchStats } = useStats();
-  const { pendingOutreach, isPendingOutreachLoading, runQuery, isRunningQuery } = useJobs();
+  const { allJobs, allJobsTotal, isAllJobsLoading, pendingOutreach, isPendingOutreachLoading, runQuery, isRunningQuery } = useJobs(1, 10);
+
 
   // Search state for job fetching
   const [searchQuery, setSearchQuery] = useState('Python Developer');
@@ -473,31 +474,31 @@ export const Dashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        {/* High-Match Pending Opportunities */}
+        {/* Top Opportunities & Ingested Positions Feed */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6" fontWeight={800} color="#0F172A">
-                  Top Opportunities Ready to Apply
+                  {pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? 'Top Opportunities Ready to Apply' : 'Recently Crawled Positions'}
                 </Typography>
                 <Chip
-                  label={`${pendingOutreach?.total_jobs || 0} Ready`}
+                  label={pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? `${pendingOutreach.total_jobs || 0} Ready` : `${allJobsTotal || 0} Ingested`}
                   size="small"
                   sx={{ bgcolor: alpha('#10B981', 0.1), color: '#059669', fontWeight: 700 }}
                 />
               </Box>
               <Divider sx={{ mb: 1 }} />
 
-              {isPendingOutreachLoading ? (
+              {isPendingOutreachLoading || isAllJobsLoading ? (
                 <Stack spacing={1.5} sx={{ py: 2 }}>
                   <Skeleton height={50} />
                   <Skeleton height={50} />
                   <Skeleton height={50} />
                 </Stack>
-              ) : pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? (
+              ) : (pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? pendingOutreach.jobs : allJobs).length > 0 ? (
                 <List disablePadding>
-                  {pendingOutreach.jobs.slice(0, 5).map((job, index: number) => (
+                  {(pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? pendingOutreach.jobs : allJobs).slice(0, 6).map((job, index: number) => (
                     <React.Fragment key={job.id}>
                       <ListItem
                         disablePadding
@@ -525,14 +526,16 @@ export const Dashboard: React.FC = () => {
                           Brief
                         </Button>
                       </ListItem>
-                      {index < Math.min(pendingOutreach.jobs.length, 5) - 1 && <Divider sx={{ borderColor: '#F1F5F9' }} />}
+                      {index < Math.min((pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? pendingOutreach.jobs : allJobs).length, 6) - 1 && (
+                        <Divider sx={{ borderColor: '#F1F5F9' }} />
+                      )}
                     </React.Fragment>
                   ))}
                 </List>
               ) : (
                 <Box sx={{ py: 4, textAlign: 'center' }}>
                   <Typography variant="body2" color="text.secondary">
-                    No pending high-match jobs. Click "Fetch & AI Match" to scan for roles!
+                    No positions found. The autonomous crawler is scanning company boards in the background...
                   </Typography>
                 </Box>
               )}
@@ -540,6 +543,7 @@ export const Dashboard: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
     </Box>
   );
 };

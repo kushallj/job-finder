@@ -2575,33 +2575,11 @@ async def stats(state: AppState = Depends(get_state)):
     
     Requirements: 23.2 (Validate request parameters), 23.3 (Return processing statistics)
     """
-    # Fast path: live O(1) counters
-    if state.outreach_proc and hasattr(state.outreach_proc, "get_stats"):
-        try:
-            live_stats = state.outreach_proc.get_stats()
-            log.info("Stats from live processor: %s", live_stats)
-            return StatsResponse(
-                status="success",
-                source="live",
-                stats=StatsData(
-                    total_jobs=live_stats.get("total_jobs", 0),
-                    total_contacts=live_stats.get("total_contacts", 0),
-                    total_applications=live_stats.get("total_applications", 0),
-                    total_outreach_attempts=live_stats.get("total_outreach_attempts", 0),
-                    emails_sent=live_stats.get("emails_sent", 0),
-                    follow_ups_sent=live_stats.get("follow_ups_sent", 0),
-                    success_rate=live_stats.get("success_rate", 0.0),
-                ),
-                recent_outreach=[],
-            )
-        except Exception as e:
-            log.warning("Live get_stats() failed, falling back to DB: %s", e)
-
-    # Fallback: bounded DB queries with proper error handling
     try:
         async with db_session() as db:
-            # Execute all count queries
+            # Execute all count queries directly from database
             tj = db.query(Job).count()
+
             ta = db.query(Application).count()
             to = db.query(OutreachRecord).count()
             tc = db.query(Contact).count()
