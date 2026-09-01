@@ -308,13 +308,26 @@ Software Engineer
     async def mine_and_store_company(
         self, company: FinTechFestivalCompany, auto_send: bool = True
     ) -> List[DecisionMakerContact]:
-        """Mine decision makers for single company, store in DB, and optionally dispatch outreach."""
+        """Mine decision makers for single company, store in DB, and optionally dispatch outreach (strictly <= 2/company)."""
+        from sqlalchemy import func
         contacts = await self.search_company_decision_makers_serpapi(company, max_results=6)
         if not contacts:
             return []
 
+        # Sort contacts by executive impact priority (CTO/Founder -> VP Eng -> Director -> Manager)
+        contacts.sort(key=lambda x: get_role_priority(x.title))
+
         saved_contacts: List[DecisionMakerContact] = []
         with SessionLocal() as db:
+            # Query existing outreach count for this company
+            company_sent_count = (
+                db.query(OutreachRecord)
+                .join(Contact, OutreachRecord.contact_id == Contact.id)
+                .filter(func.lower(Contact.company) == func.lower(company.name))
+                .count()
+            )
+            slots_remaining = max(0, MAX_OUTREACH_PER_COMPANY - company_sent_count)
+
             for dm in contacts:
                 # Check if contact already exists in database
                 existing = db.query(Contact).filter(Contact.email == dm.email).first()
@@ -338,20 +351,12 @@ Software Engineer
                     contact_id = existing.id
 
                 # Autonomous Outreach dispatch (Strictly <= MAX_OUTREACH_PER_COMPANY per company)
-                if auto_send:
-                    # Check how many emails already dispatched to this company
-                    company_sent_count = (
-                        db.query(OutreachRecord)
-                        .join(Contact, OutreachRecord.contact_id == Contact.id)
-                        .filter(Contact.company == dm.company)
-                        .count()
-                    )
-
+                if auto_send and slots_remaining > 0:
                     already_sent = db.query(OutreachRecord).filter(
                         (OutreachRecord.contact_id == contact_id) | (OutreachRecord.contact_email == dm.email)
                     ).first()
 
-                    if not already_sent and dm.email and company_sent_count < MAX_OUTREACH_PER_COMPANY:
+                    if not already_sent and dm.email:
                         subj, text, html = self.compose_personalized_outreach(dm)
                         loop = asyncio.get_event_loop()
                         sent_ok = await loop.run_in_executor(
@@ -361,6 +366,7 @@ Software Engineer
                             dm.outreach_sent = True
                             dm.sent_at = datetime.now(timezone.utc).isoformat()
                             self.total_emailed += 1
+                            slots_remaining -= 1
                             rec = OutreachRecord(
                                 contact_id=contact_id,
                                 contact_name=dm.name,
@@ -374,13 +380,14 @@ Software Engineer
                             )
                             db.add(rec)
                             db.commit()
-                            self._log_event("SUCCESS", f"Sent personalized outreach to {dm.name} ({dm.title} at {dm.company}) -> {dm.email} (Company sent count: {company_sent_count + 1}/{MAX_OUTREACH_PER_COMPANY})")
+                            self._log_event("SUCCESS", f"Sent personalized outreach to {dm.name} ({dm.title} at {dm.company}) -> {dm.email} (Company total: {MAX_OUTREACH_PER_COMPANY - slots_remaining}/{MAX_OUTREACH_PER_COMPANY})")
                             # Safe delay to protect SMTP sender reputation
                             await asyncio.sleep(2.5)
 
                 saved_contacts.append(dm)
 
         return saved_contacts
+
 
     async def dispatch_pending_outreach(self, limit: int = 50) -> Dict[str, Any]:
         """
