@@ -51,7 +51,10 @@ from src.scrapers.tier1_career_scraper import Tier1CareerScraper
 from src.referral_engine import generate_referral_xray_queries, search_company_referral_contacts, compose_referral_request
 from src.indian_app_startups import INDIAN_APP_STARTUPS, get_indian_app_startup, filter_indian_startups
 from src.scrapers.indian_app_startups_scraper import IndianAppStartupsScraper
+from src.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, get_fintech_festival_company, filter_fintech_festival_companies
+from src.scrapers.fintech_festival_scraper import FinTechFestivalScraper
 from src.config import settings
+
 
 
 
@@ -4111,6 +4114,80 @@ async def sync_indian_startups_jobs(payload: IndianStartupsSyncRequest = IndianS
     except Exception as exc:
         log.error("Indian startups job sync failed: %s", exc, exc_info=True)
         raise APIError(f"Indian startups job sync failed: {str(exc)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FinTech Festival (GFF & SFF) Sponsors & Career Ingestion Engine
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/fintech-festival/sponsors", tags=["fintech-festival"])
+async def list_fintech_festival_sponsors(
+    category: Optional[str] = None,
+    festival: Optional[str] = None,
+    tier_role: Optional[str] = None,
+    search: Optional[str] = None,
+):
+    """Returns sponsors and exhibitors from Global FinTech Fest and Singapore FinTech Festival."""
+    sponsors = filter_fintech_festival_companies(
+        category=category,
+        festival=festival,
+        tier_role=tier_role,
+        search=search,
+    )
+    return {
+        "status": "success",
+        "total_sponsors": len(sponsors),
+        "sponsors": [s.to_dict() for s in sponsors],
+    }
+
+
+@app.get("/api/fintech-festival/stats", tags=["fintech-festival"])
+async def get_fintech_festival_stats():
+    """Returns statistical breakdown of FinTech Festival sponsors across categories, events, and ATS platforms."""
+    from collections import Counter
+    categories = Counter(c.category for c in FINTECH_FESTIVAL_REGISTRY)
+    festivals = Counter(c.festival for c in FINTECH_FESTIVAL_REGISTRY)
+    tiers = Counter(c.tier_role for c in FINTECH_FESTIVAL_REGISTRY)
+    ats_breakdown = Counter(c.ats_platform for c in FINTECH_FESTIVAL_REGISTRY)
+    return {
+        "status": "success",
+        "total_tracked_sponsors": len(FINTECH_FESTIVAL_REGISTRY),
+        "category_distribution": dict(categories),
+        "festival_distribution": dict(festivals),
+        "tier_distribution": dict(tiers),
+        "ats_breakdown": dict(ats_breakdown),
+    }
+
+
+class FinTechFestivalSyncRequest(BaseModel):
+    categories: Optional[List[str]] = None
+    festivals: Optional[List[str]] = None
+    company_ids: Optional[List[str]] = None
+    keywords: Optional[List[str]] = ["Python", "FastAPI", "Backend", "Engineer", "Software", "Fintech"]
+    limit: int = 100
+
+
+@app.post("/api/fintech-festival/sync-jobs", tags=["fintech-festival"])
+async def sync_fintech_festival_jobs(payload: FinTechFestivalSyncRequest = FinTechFestivalSyncRequest()):
+    """Concurrently scrapes live engineering opportunities from FinTech Festival sponsors & partners."""
+    try:
+        scraper = FinTechFestivalScraper()
+        jobs = await scraper.scrape_all_festival_sponsors(
+            keywords=payload.keywords,
+            categories=payload.categories,
+            festivals=payload.festivals,
+            company_ids=payload.company_ids,
+            max_jobs=payload.limit,
+        )
+        return {
+            "status": "success",
+            "total_found": len(jobs),
+            "jobs": jobs,
+        }
+    except Exception as exc:
+        log.error("FinTech Festival job sync failed: %s", exc, exc_info=True)
+        raise APIError(f"FinTech Festival job sync failed: {str(exc)}")
+
 
 
 @app.get("/api/community-intel/company/{company}", tags=["community-intel"], response_model=CommunityIntelResponse)
