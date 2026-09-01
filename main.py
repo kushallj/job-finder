@@ -4632,6 +4632,78 @@ async def mine_and_outreach_accelerator_startups(payload: AcceleratorOutreachReq
     }
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Shark Tank India (Seasons 1-5) Startups Sourcing & Leadership Outreach
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SharkTankOutreachRequest(BaseModel):
+    season: Optional[int] = None
+    shark: Optional[str] = None
+    auto_send: bool = True
+    limit: int = 20
+
+@app.get("/api/shark-tank/companies", tags=["shark-tank"])
+async def get_shark_tank_companies(
+    season: Optional[int] = Query(default=None, ge=1, le=5),
+    category: Optional[str] = Query(default=None),
+    shark: Optional[str] = Query(default=None),
+):
+    """Lists startups from Shark Tank India across Seasons 1, 2, 3, 4, and 5."""
+    from src.shark_tank_india_startups import (
+        SHARK_TANK_INDIA_REGISTRY,
+        filter_by_season,
+        filter_by_shark,
+        filter_by_category,
+    )
+    startups = SHARK_TANK_INDIA_REGISTRY
+    if season:
+        startups = filter_by_season(season)
+    if shark:
+        startups = [s for s in startups if any(shark.lower() in inv.lower() for inv in s.sharks_invested)]
+    if category:
+        startups = filter_by_category(category)
+
+    return {
+        "status": "success",
+        "total": len(startups),
+        "companies": [s.to_dict() for s in startups],
+    }
+
+
+@app.post("/api/shark-tank/mine-and-outreach", tags=["shark-tank"])
+async def mine_and_outreach_shark_tank_startups(
+    payload: SharkTankOutreachRequest = SharkTankOutreachRequest()
+):
+    """Mines founders & CTOs across Shark Tank India startups and dispatches outreach (strictly <= 2/company)."""
+    from src.shark_tank_india_startups import (
+        SHARK_TANK_INDIA_REGISTRY,
+        filter_by_season,
+    )
+    from src.shark_tank_miner import shark_tank_miner
+
+    startups = SHARK_TANK_INDIA_REGISTRY
+    if payload.season:
+        startups = filter_by_season(payload.season)
+    if payload.shark:
+        startups = [s for s in startups if any(payload.shark.lower() in inv.lower() for inv in s.sharks_invested)]
+
+    total_mined = 0
+    all_contacts = []
+    for s in startups[:payload.limit]:
+        res = await shark_tank_miner.mine_and_outreach_startup(s, auto_send=payload.auto_send)
+        total_mined += len(res)
+        all_contacts.extend(res)
+
+    return {
+        "status": "success",
+        "companies_processed": min(len(startups), payload.limit),
+        "total_leaders_mined": total_mined,
+        "contacts": all_contacts,
+        "max_per_company_enforced": 2,
+    }
+
+
+
 
 @app.get("/api/community-intel/company/{company}", tags=["community-intel"], response_model=CommunityIntelResponse)
 async def get_company_community_intel(company: str, role: Optional[str] = "Software Engineer", force_refresh: bool = False, req: Request = None):
