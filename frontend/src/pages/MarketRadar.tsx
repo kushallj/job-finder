@@ -124,8 +124,9 @@ export const MarketRadar: React.FC = () => {
         </Box>
       ) : radar ? (
         <Stack spacing={2.5} sx={{ mb: 4 }}>
-          {radar.remote_global_roles.map((role, idx) => (
+          {(radar.remote_global_roles || []).map((role, idx) => (
             <Card key={idx} sx={{ border: '1px solid #E2E8F0', borderRadius: 3 }}>
+
               <CardContent sx={{ p: 2.5 }}>
                 <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1.5} mb={1}>
                   <Box>

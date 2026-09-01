@@ -39,7 +39,7 @@ const LeadsTab: React.FC = () => {
           <Typography variant="h6" sx={{ fontWeight: 700 }} gutterBottom>X-ray / boolean lead sourcing</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             30 queries across ATS platforms, YC/Wellfound, funding press, Medium/Substack, GitHub, YouTube,
-            and search-indexed X/LinkedIn posts. Runs through the Google Custom Search API or Serper.dev if
+            and search-indexed X/LinkedIn posts. Runs through SerpAPI, Serper.dev, or Google Custom Search API if
             configured — never raw scraping. Without a key, queries render below for you to paste into Google
             manually.
           </Typography>
@@ -75,9 +75,10 @@ const LeadsTab: React.FC = () => {
         <Card sx={{ mb: 3, border: '1px solid #E2E8F0' }}>
           <CardContent sx={{ p: 2.5 }}>
             <Alert severity="info" sx={{ mb: 2 }}>
-              No search backend configured (set google_cse_api_key + google_cse_id, or serper_api_key, in .env
+              No search backend configured (set serpapi_api_key, serper_api_key, or google_cse_api_key in .env
               to auto-execute). Here are the rendered queries — copy and paste into Google.
             </Alert>
+
             <Stack spacing={1.5}>
               {runLeads.data.rendered_queries.map((q) => (
                 <Box key={q.id} sx={{ border: '1px solid #F1F5F9', borderRadius: 2, p: 1.5 }}>

@@ -64,8 +64,9 @@ export const Copilot: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView?.({ behavior: 'smooth' });
   }, [messages, loading]);
+
 
   const handleSend = async (customText?: string) => {
     const textToSend = customText || input;

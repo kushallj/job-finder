@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Request, status, Query
+from fastapi import Depends, FastAPI, HTTPException, Request, status, Query, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
@@ -44,8 +44,14 @@ from src.job_processor import JobProcessor
 from src.database import init_db, SessionLocal
 from src.models import Application, Job, OutreachRecord, Contact
 from src.lifecycle import next_action, require_transition, normalize_status, sort_actions, KNOWN_STATUSES
-from src.job_data_providers import JobDataAPIClient, AIDevBoardClient, search_all
+from src.job_data_providers import JobDataAPIClient, AIDevBoardClient, FantasticJobsClient, ArbeitnowClient, CareerjetClient, USAJobsClient, search_all
+from src.resume_parser import SharpAPIResumeParser
+from src.tier1_companies import TIER1_REGISTRY, get_tier1_company
+from src.scrapers.tier1_career_scraper import Tier1CareerScraper
+from src.referral_engine import generate_referral_xray_queries, search_company_referral_contacts, compose_referral_request
 from src.config import settings
+
+
 try:
     from src.api.routers.agents_router import router as agents_router
     _AGENTS_ROUTER_OK = True
@@ -3885,6 +3891,161 @@ async def generate_tailored_cover_letter(request: CoverLetterGenerateRequestSche
     except Exception as exc:
         log.error("Cover letter generation failed: %s", exc, exc_info=True)
         raise APIError(f"Cover letter generation failed: {str(exc)}")
+
+
+@app.post("/api/resume/parse", tags=["resume"])
+async def parse_resume_document(
+    file: UploadFile = File(...),
+):
+    """Parses resume PDF/DOCX/TXT via ApyHub SharpAPI into structured candidate JSON."""
+    try:
+        content = await file.read()
+        parser = SharpAPIResumeParser()
+        result = await parser.parse_resume_bytes(content, filename=file.filename or "resume.pdf")
+        return result
+    except Exception as exc:
+        log.error("SharpAPI resume parse failed: %s", exc, exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "error": str(exc), "provider": "sharpapi_apyhub"},
+        )
+
+
+@app.post("/api/resume/evaluate", tags=["resume"])
+async def evaluate_resume_document(
+    file: Optional[UploadFile] = File(None),
+    job_description: Optional[str] = Form(None),
+    job_title: Optional[str] = Form(None),
+):
+    """Evaluates candidate resume against target JD using ApyHub SharpAPI parsing and cross-attention scoring."""
+    try:
+        parser = SharpAPIResumeParser()
+        if file is not None:
+            content = await file.read()
+            filename = file.filename or "resume.pdf"
+        else:
+            default_path = Path("data/resume.pdf")
+            if default_path.exists():
+                content = default_path.read_bytes()
+                filename = "resume.pdf"
+            else:
+                raise HTTPException(status_code=400, detail="No resume file uploaded and default data/resume.pdf not found.")
+
+        evaluation = await parser.evaluate_resume(
+            content,
+            filename=filename,
+            job_description=job_description,
+            job_title=job_title,
+        )
+        return evaluation
+    except Exception as exc:
+        log.error("Resume evaluation failed: %s", exc, exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "error": str(exc), "provider": "sharpapi_apyhub"},
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 60 Tier-1 Tech Companies: Career Scraping, Leveling & Referral Engine
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/tier1/companies", tags=["tier1-sourcing"])
+async def list_tier1_companies(search: Optional[str] = None):
+    """Returns the 60 top-tier target companies with compensation, 4-YOE leveling, and negotiation targets."""
+    companies = [c.to_dict() for c in TIER1_REGISTRY]
+    if search:
+        s_lower = search.lower()
+        companies = [c for c in companies if s_lower in c["name"].lower()]
+    return {
+        "status": "success",
+        "total_companies": len(companies),
+        "companies": companies,
+    }
+
+
+@app.get("/api/tier1/compensation/{company_name}", tags=["tier1-sourcing"])
+async def get_company_compensation_benchmark(company_name: str):
+    """Retrieves 4-YOE Base, Bonus, RSU, Typical TC, and Negotiation Target for a specific company."""
+    comp = get_tier1_company(company_name)
+    if not comp:
+        raise HTTPException(status_code=404, detail=f"Company '{company_name}' not found in Tier-1 database.")
+    return {
+        "status": "success",
+        "company": comp.to_dict(),
+        "negotiation_advice": f"For {comp.name} at {comp.likely_level}, target {comp.negotiation_target_lakhs} total compensation (Typical TC: {comp.typical_tc_lakhs})."
+    }
+
+
+class Tier1SyncCareersRequest(BaseModel):
+    companies: Optional[List[str]] = None
+    keywords: Optional[List[str]] = ["Python", "FastAPI", "Backend", "Engineer", "Software"]
+    limit: int = 50
+
+
+@app.post("/api/tier1/sync-careers", tags=["tier1-sourcing"])
+async def sync_tier1_career_pages(payload: Tier1SyncCareersRequest = Tier1SyncCareersRequest()):
+    """Concurrently scrapes official career portals & ATS endpoints across Tier-1 companies."""
+    try:
+        scraper = Tier1CareerScraper()
+        jobs = await scraper.scrape_all_tier1_careers(
+            keywords=payload.keywords,
+            companies=payload.companies,
+            max_jobs=payload.limit,
+        )
+        return {
+            "status": "success",
+            "total_found": len(jobs),
+            "jobs": jobs,
+        }
+    except Exception as exc:
+        log.error("Tier-1 career sync failed: %s", exc, exc_info=True)
+        raise APIError(f"Tier-1 career sync failed: {str(exc)}")
+
+
+class Tier1ReferralRequest(BaseModel):
+    company_name: str
+    role_title: Optional[str] = "Software Engineer"
+    job_id_or_url: Optional[str] = None
+    max_leads: int = 5
+
+
+@app.post("/api/tier1/find-referrals", tags=["tier1-sourcing"])
+async def find_tier1_referral_contacts(payload: Tier1ReferralRequest):
+    """Discovers Engineering Managers and Senior Engineers on LinkedIn and generates personalized referral requests."""
+    try:
+        queries = generate_referral_xray_queries(payload.company_name)
+        leads = await search_company_referral_contacts(payload.company_name, max_leads=payload.max_leads)
+
+        comp = get_tier1_company(payload.company_name)
+
+        # Compose message for each lead
+        enriched_leads = []
+        for lead in leads:
+            msg = compose_referral_request(
+                contact_name=lead["name"],
+                company_name=payload.company_name,
+                role_title=payload.role_title or "Software Engineer",
+                job_id_or_url=payload.job_id_or_url,
+                candidate_name=getattr(settings, "sender_name", "Kushall Jain") or "Kushall Jain",
+            )
+            enriched_leads.append({
+                **lead,
+                "outreach_materials": msg,
+            })
+
+        return {
+            "status": "success",
+            "company": comp.to_dict() if comp else {"name": payload.company_name},
+            "xray_queries": queries,
+            "leads_found": len(enriched_leads),
+            "leads": enriched_leads,
+        }
+    except Exception as exc:
+        log.error("Tier-1 referral search failed: %s", exc, exc_info=True)
+        raise APIError(f"Tier-1 referral search failed: {str(exc)}")
+
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════

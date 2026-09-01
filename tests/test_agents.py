@@ -267,3 +267,45 @@ def test_negotiator_counter_script_never_exceeds_reasonable_bump(ctx):
     assert result.ok
     assert result.data["counter_ask_lpa"] > 14.0
     assert result.data["counter_ask_lpa"] < 14.0 * 1.5  # sanity: no wild overshoot
+
+
+# ── Query Hunter (agent 11) SerpAPI Backend ─────────────────────────────
+
+def test_query_hunter_selects_serpapi_backend(ctx, monkeypatch):
+    from src.config import settings
+    monkeypatch.setattr(settings, "google_cse_api_key", None)
+    monkeypatch.setattr(settings, "serper_api_key", None)
+    monkeypatch.setattr(settings, "serpapi_api_key", "test_serpapi_key_123")
+
+    agent = QueryHunterAgent(ctx)
+    backend = agent._select_backend()
+    assert backend == "serpapi"
+
+
+def test_query_hunter_executes_serpapi_mock(ctx, monkeypatch, tmp_path):
+    import httpx
+    import src.agents.base as base_mod
+    from src.config import settings
+    monkeypatch.setattr(base_mod, "AGENT_STATE_DB", tmp_path / "test_state.db")
+    monkeypatch.setattr(settings, "google_cse_api_key", None)
+    monkeypatch.setattr(settings, "serper_api_key", None)
+    monkeypatch.setattr(settings, "serpapi_api_key", "test_serpapi_key_123")
+
+    def mock_handler(request: httpx.Request):
+        assert "serpapi.com/search.json" in str(request.url)
+        assert "api_key=test_serpapi_key_123" in str(request.url)
+        assert "engine=google" in str(request.url)
+        return httpx.Response(200, json={
+            "organic_results": [
+                {"title": "Founding Engineer - AI", "link": "https://example.com/job", "snippet": "FastAPI + PyTorch"}
+            ]
+        })
+
+    agent = QueryHunterAgent(ctx)
+    with httpx.Client(transport=httpx.MockTransport(mock_handler)) as client:
+        results = agent._execute(client, "serpapi", "site:jobs.lever.co 'Python'", 10)
+        assert len(results) == 1
+        assert results[0]["title"] == "Founding Engineer - AI"
+        assert results[0]["url"] == "https://example.com/job"
+        assert results[0]["snippet"] == "FastAPI + PyTorch"
+

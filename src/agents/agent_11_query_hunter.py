@@ -18,10 +18,12 @@ IMPORTANT — how this stays ToS-compliant:
   blocked). It only calls:
     - Google Custom Search JSON API   (official, key + cx required)
     - Serper.dev                       (official, key required)
-  Both are exactly what "X-ray sourcing" tools like SeekOut/hireEZ run on
-  under the hood. If neither is configured, this agent still runs — it
+    - SerpAPI                          (official, key required)
+  All three are exactly what "X-ray sourcing" tools like SeekOut/hireEZ run on
+  under the hood. If none is configured, this agent still runs — it
   just renders the templated queries for you to paste into Google/Bing
   manually, rather than failing or silently doing something it shouldn't.
+
 
 DAG node contract:
     Input:  AgentContext, categories: List[str] = None (filter query bank),
@@ -58,6 +60,7 @@ except Exception:  # noqa: BLE001
 QUERY_BANK_PATH = CONFIG_DIR / "boolean_queries.yml"
 GOOGLE_CSE_URL = "https://www.googleapis.com/customsearch/v1"
 SERPER_URL = "https://google.serper.dev/search"
+SERPAPI_URL = "https://serpapi.com/search.json"
 
 
 def _load_query_bank() -> List[Dict[str, Any]]:
@@ -161,6 +164,8 @@ class QueryHunterAgent(BaseAgent):
             return "google_cse"
         if getattr(settings, "serper_api_key", None):
             return "serper"
+        if getattr(settings, "serpapi_api_key", None) or getattr(settings, "serp_api_key", None):
+            return "serpapi"
         return None
 
     def _execute(self, client, backend: str, query: str, max_results: int) -> List[Dict[str, str]]:
@@ -181,9 +186,23 @@ class QueryHunterAgent(BaseAgent):
                 items = resp.json().get("organic", [])
                 return [{"title": i.get("title", ""), "url": i.get("link", ""),
                           "snippet": i.get("snippet", "")} for i in items]
+            if backend == "serpapi":
+                api_key = getattr(settings, "serpapi_api_key", None) or getattr(settings, "serp_api_key", None)
+                resp = client.get(SERPAPI_URL, params={
+                    "api_key": api_key,
+                    "engine": "google",
+                    "q": query,
+                    "num": min(max_results, 100),
+                })
+                resp.raise_for_status()
+                items = resp.json().get("organic_results", [])
+                return [{"title": i.get("title", ""), "url": i.get("link", ""),
+                          "snippet": i.get("snippet", "")} for i in items]
         except Exception:  # noqa: BLE001
             self.log.warning("Query execution failed for %r via %s", query[:60], backend, exc_info=True)
         return []
+
+
 
 
 if __name__ == "__main__":

@@ -152,13 +152,13 @@ export const SpamHeatmapSandbox: React.FC<SpamHeatmapSandboxProps> = ({
       </Stack>
 
       {/* Spam Trigger Heatmap & 1-Click Replacer */}
-      {analysis && analysis.spam_matches.length > 0 && (
+      {analysis && (analysis.spam_matches?.length ?? 0) > 0 && (
         <Box sx={{ mb: 2, p: 1.5, bgcolor: '#FEF2F2', borderRadius: 2, border: '1px solid #FCA5A5' }}>
           <Typography variant="caption" fontWeight={700} color="#991B1B" textTransform="uppercase" display="block" mb={1}>
-            ⚠️ {analysis.spam_matches.length} Spam Trigger Word(s) Detected
+            ⚠️ {analysis.spam_matches?.length || 0} Spam Trigger Word(s) Detected
           </Typography>
           <Stack spacing={1}>
-            {analysis.spam_matches.map((m: SpamWordMatch, idx: number) => (
+            {(analysis.spam_matches || []).map((m: SpamWordMatch, idx: number) => (
               <Box key={idx} sx={{ p: 1, bgcolor: '#FFFFFF', borderRadius: 1.5, border: '1px solid #FECACA' }}>
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                   <Chip
@@ -170,7 +170,7 @@ export const SpamHeatmapSandbox: React.FC<SpamHeatmapSandboxProps> = ({
                   <Typography variant="caption" color="text.secondary">
                     Replace with:
                   </Typography>
-                  {m.suggested_alternatives.map((alt: string, aIdx: number) => (
+                  {(m.suggested_alternatives || []).map((alt: string, aIdx: number) => (
                     <Button
                       key={aIdx}
                       size="small"
@@ -178,6 +178,7 @@ export const SpamHeatmapSandbox: React.FC<SpamHeatmapSandboxProps> = ({
                       color="primary"
                       startIcon={<AutoFixHighIcon sx={{ fontSize: 12 }} />}
                       onClick={() => onReplaceWord && onReplaceWord(m.word, alt)}
+
                       sx={{
                         py: 0.2,
                         px: 0.8,
@@ -197,9 +198,9 @@ export const SpamHeatmapSandbox: React.FC<SpamHeatmapSandboxProps> = ({
       )}
 
       {/* Deliverability Recommendations */}
-      {analysis && analysis.deliverability_recommendations.length > 0 && (
+      {analysis && (analysis.deliverability_recommendations?.length ?? 0) > 0 && (
         <Stack spacing={0.5}>
-          {analysis.deliverability_recommendations.map((rec: string, idx: number) => (
+          {(analysis.deliverability_recommendations || []).map((rec: string, idx: number) => (
             <Stack key={idx} direction="row" spacing={1} alignItems="center">
               <CheckCircleIcon sx={{ fontSize: 14, color: isSafe ? '#10B981' : '#F59E0B' }} />
               <Typography variant="caption" color="text.secondary" fontWeight={500}>

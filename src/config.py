@@ -26,8 +26,17 @@ class Settings(BaseSettings):
     adzuna_app_key: str = ""
     jobdata_api_key: Optional[str] = None
     aidevboard_api_key: Optional[str] = None
+    fantastic_jobs_api_key: Optional[str] = None
+    fantasticjobs_api_key: Optional[str] = None
+    careerjet_api_key: Optional[str] = None
+    careerjet_locale_code: str = "en_US"
+    usajobs_api_key: Optional[str] = None
+    usajobs_email: Optional[str] = None
     provider_sync_limit: int = 50
     provider_sync_max_age_days: int = 30
+
+
+
     
     # Database
     database_url: str
@@ -50,10 +59,12 @@ class Settings(BaseSettings):
 
     # Boolean/X-ray lead sourcing (src/agents/agent_11_query_hunter.py) —
     # ToS-compliant search backends only, never raw scraping of Google/
-    # LinkedIn/X results pages. Configure ONE of the two below.
+    # LinkedIn/X results pages. Configure ONE of the three below.
     google_cse_api_key: Optional[str] = None   # Google Custom Search JSON API key
     google_cse_id: Optional[str] = None        # Programmable Search Engine ID (cx=)
     serper_api_key: Optional[str] = None       # serper.dev — alternative to Google CSE
+    serpapi_api_key: Optional[str] = None      # serpapi.com — Google search API
+    serp_api_key: Optional[str] = None         # serpapi.com alias
     
     # Cloudflare Browser Rendering
     cloudflare_account_id: Optional[str] = None
@@ -68,6 +79,11 @@ class Settings(BaseSettings):
 
     # News API
     news_api_key: Optional[str] = None
+
+    # Resume Evaluation & Parsing (ApyHub / SharpAPI)
+    apyhub_token: Optional[str] = None
+    apyhub_api_key: Optional[str] = None
+    sharpapi_api_key: Optional[str] = None
 
     # Email provider — "smtp" | "sendgrid" | "ses"
     email_provider: str = "smtp"

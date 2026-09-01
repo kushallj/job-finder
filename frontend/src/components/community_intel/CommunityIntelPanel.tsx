@@ -141,7 +141,7 @@ export const CommunityIntelPanel: React.FC<CommunityIntelPanelProps> = ({ compan
               <Tab label="Interview Rounds & Roadmap" sx={{ fontWeight: 700, fontSize: '0.85rem' }} />
               <Tab label="Leaked Questions & System Design" sx={{ fontWeight: 700, fontSize: '0.85rem' }} />
               <Tab label="Culture Flags & Negotiation" sx={{ fontWeight: 700, fontSize: '0.85rem' }} />
-              <Tab label={`Source Citations (${intel.sources.length})`} sx={{ fontWeight: 700, fontSize: '0.85rem' }} />
+              <Tab label={`Source Citations (${intel.sources?.length || 0})`} sx={{ fontWeight: 700, fontSize: '0.85rem' }} />
             </Tabs>
 
             {/* Tab 0: Interview Rounds */}
@@ -151,7 +151,7 @@ export const CommunityIntelPanel: React.FC<CommunityIntelPanelProps> = ({ compan
                   Reported Hiring Loop Roadmap:
                 </Typography>
                 <Grid container spacing={2}>
-                  {intel.interview_debrief.rounds.map((r, idx) => (
+                  {(intel.interview_debrief?.rounds || []).map((r, idx) => (
                     <Grid size={{ xs: 12, md: 6 }} key={idx}>
                       <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: '#F8FAFC' }}>
                         <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
@@ -269,7 +269,7 @@ export const CommunityIntelPanel: React.FC<CommunityIntelPanelProps> = ({ compan
             {/* Tab 3: Source Citations */}
             {activeTab === 3 && (
               <Stack spacing={1.5}>
-                {intel.sources.map((src, idx) => (
+                {(intel.sources || []).map((src, idx) => (
                   <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: '#F8FAFC' }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1} mb={0.5}>
                       <Stack direction="row" spacing={1} alignItems="center">

@@ -799,7 +799,9 @@ class OutreachProcessor:
             # Pre-load all known contact emails into trie
             contacts = db.query(Contact).all()
             for c in contacts:
-                self.trie.insert(c.email, data=c.id)
+                if c.email:
+                    self.trie.insert(c.email, data=c.id)
+
         self._log.info(
             "Indices ready: trie=%d emails, graph=%d outreach edges",
             len(self.trie),

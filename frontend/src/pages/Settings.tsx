@@ -74,12 +74,15 @@ export const Settings: React.FC = () => {
 
     try {
       const notifRes = await notificationsApi.getConfig();
-      setNotifConfig(notifRes.data);
+      if (notifRes) {
+        setNotifConfig(notifRes.data || (notifRes as unknown as NotificationConfig));
+      }
     } catch {
       // fallback default
     } finally {
       setLoadingHealth(false);
     }
+
   };
 
   useEffect(() => {
@@ -384,8 +387,8 @@ export const Settings: React.FC = () => {
                 <FormControlLabel
                   control={
                     <Switch
-                      checked={notifConfig.enabled}
-                      onChange={(e) => setNotifConfig({ ...notifConfig, enabled: e.target.checked })}
+                      checked={Boolean(notifConfig?.enabled)}
+                      onChange={(e) => setNotifConfig({ ...(notifConfig || {}), enabled: e.target.checked } as NotificationConfig)}
                     />
                   }
                   label="Enable Instant Alerts"
@@ -412,8 +415,8 @@ export const Settings: React.FC = () => {
                     <TextField
                       label="Bot Token"
                       placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-                      value={notifConfig.telegram_bot_token || ''}
-                      onChange={(e) => setNotifConfig({ ...notifConfig, telegram_bot_token: e.target.value })}
+                      value={notifConfig?.telegram_bot_token || ''}
+                      onChange={(e) => setNotifConfig({ ...(notifConfig || {}), telegram_bot_token: e.target.value } as NotificationConfig)}
                       fullWidth
                       size="small"
                       sx={{ mb: 1.5 }}
@@ -421,8 +424,8 @@ export const Settings: React.FC = () => {
                     <TextField
                       label="Chat / Channel ID"
                       placeholder="-1001234567890"
-                      value={notifConfig.telegram_chat_id || ''}
-                      onChange={(e) => setNotifConfig({ ...notifConfig, telegram_chat_id: e.target.value })}
+                      value={notifConfig?.telegram_chat_id || ''}
+                      onChange={(e) => setNotifConfig({ ...(notifConfig || {}), telegram_chat_id: e.target.value } as NotificationConfig)}
                       fullWidth
                       size="small"
                       sx={{ mb: 1.5 }}
@@ -432,7 +435,7 @@ export const Settings: React.FC = () => {
                       variant="outlined"
                       startIcon={testingChannel === 'telegram' ? <CircularProgress size={12} /> : <SendIcon sx={{ fontSize: 13 }} />}
                       onClick={() => handleTestChannel('telegram')}
-                      disabled={!notifConfig.telegram_bot_token || Boolean(testingChannel)}
+                      disabled={!notifConfig?.telegram_bot_token || Boolean(testingChannel)}
                       fullWidth
                     >
                       Test Telegram Alert
@@ -449,8 +452,8 @@ export const Settings: React.FC = () => {
                     <TextField
                       label="Discord Webhook URL"
                       placeholder="https://discord.com/api/webhooks/..."
-                      value={notifConfig.discord_webhook_url || ''}
-                      onChange={(e) => setNotifConfig({ ...notifConfig, discord_webhook_url: e.target.value })}
+                      value={notifConfig?.discord_webhook_url || ''}
+                      onChange={(e) => setNotifConfig({ ...(notifConfig || {}), discord_webhook_url: e.target.value } as NotificationConfig)}
                       fullWidth
                       size="small"
                       sx={{ mb: 4.5 }}
@@ -460,7 +463,7 @@ export const Settings: React.FC = () => {
                       variant="outlined"
                       startIcon={testingChannel === 'discord' ? <CircularProgress size={12} /> : <SendIcon sx={{ fontSize: 13 }} />}
                       onClick={() => handleTestChannel('discord')}
-                      disabled={!notifConfig.discord_webhook_url || Boolean(testingChannel)}
+                      disabled={!notifConfig?.discord_webhook_url || Boolean(testingChannel)}
                       fullWidth
                     >
                       Test Discord Alert
@@ -477,8 +480,8 @@ export const Settings: React.FC = () => {
                     <TextField
                       label="Slack Webhook URL"
                       placeholder="https://hooks.slack.com/services/..."
-                      value={notifConfig.slack_webhook_url || ''}
-                      onChange={(e) => setNotifConfig({ ...notifConfig, slack_webhook_url: e.target.value })}
+                      value={notifConfig?.slack_webhook_url || ''}
+                      onChange={(e) => setNotifConfig({ ...(notifConfig || {}), slack_webhook_url: e.target.value } as NotificationConfig)}
                       fullWidth
                       size="small"
                       sx={{ mb: 4.5 }}
@@ -488,7 +491,7 @@ export const Settings: React.FC = () => {
                       variant="outlined"
                       startIcon={testingChannel === 'slack' ? <CircularProgress size={12} /> : <SendIcon sx={{ fontSize: 13 }} />}
                       onClick={() => handleTestChannel('slack')}
-                      disabled={!notifConfig.slack_webhook_url || Boolean(testingChannel)}
+                      disabled={!notifConfig?.slack_webhook_url || Boolean(testingChannel)}
                       fullWidth
                     >
                       Test Slack Alert

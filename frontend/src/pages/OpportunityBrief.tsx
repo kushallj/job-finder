@@ -577,9 +577,11 @@ const OpportunityBrief: React.FC = () => {
     );
   }
 
-  const score = Math.round(brief.fit_score);
-  const action = brief.next_action.key;
-  const openListing = () => brief.job.url && window.open(brief.job.url, '_blank', 'noopener,noreferrer');
+  const score = Math.round(brief.fit_score ?? 0);
+  const action = brief.next_action?.key || 'view';
+
+  const openListing = () => brief.job?.url && window.open(brief.job.url, '_blank', 'noopener,noreferrer');
+
 
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', pb: 8 }}>
@@ -653,8 +655,9 @@ const OpportunityBrief: React.FC = () => {
                 fullWidth
                 sx={{ fontWeight: 700 }}
               >
-                {working ? 'Processing…' : brief.next_action.label}
+                {working ? 'Processing…' : brief.next_action?.label || 'Take Next Action'}
               </Button>
+
 
               <Stack direction="row" spacing={1}>
                 <Button
@@ -868,7 +871,7 @@ const OpportunityBrief: React.FC = () => {
                 Match Strengths:
               </Typography>
               <List dense disablePadding>
-                {brief.fit_reasons.map((reason) => (
+                {(brief.fit_reasons || []).map((reason) => (
                   <ListItem key={reason} disableGutters sx={{ py: 0.5 }}>
                     <ListItemIcon sx={{ minWidth: 24, color: '#10B981' }}>
                       <CheckIcon fontSize="small" />
@@ -881,13 +884,13 @@ const OpportunityBrief: React.FC = () => {
                 ))}
               </List>
 
-              {brief.resume.missing_keywords.length > 0 && (
+              {(brief.resume?.missing_keywords?.length ?? 0) > 0 && (
                 <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid #F1F5F9' }}>
                   <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
                     Missing Keywords (Click to copy)
                   </Typography>
                   <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                    {brief.resume.missing_keywords.map((k) => (
+                    {(brief.resume?.missing_keywords || []).map((k) => (
                       <Chip
                         key={k}
                         label={k}
@@ -1930,4 +1933,6 @@ const OpportunityBrief: React.FC = () => {
   );
 };
 
+export { OpportunityBrief };
 export default OpportunityBrief;
+

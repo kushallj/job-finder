@@ -74,10 +74,11 @@ export const AttentionHeatmap: React.FC<Props> = ({ data, loading, onSelectProof
     return null;
   }
 
-  const { overall_score, fit_label, heads, matrix, top_attended_values } = data;
-  const queries = matrix.query_tokens || [];
-  const keys = matrix.key_tokens || [];
-  const weights = matrix.weights || [];
+  const { overall_score = 0, fit_label = 'Fit Analysis', heads = {}, matrix, top_attended_values = [] } = data;
+  const queries = matrix?.query_tokens || [];
+  const keys = matrix?.key_tokens || [];
+  const weights = matrix?.weights || [];
+
 
   const handleCopy = (text: string, idx: number) => {
     navigator.clipboard.writeText(text);

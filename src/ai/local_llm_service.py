@@ -47,22 +47,23 @@ log = logging.getLogger(__name__)
 
 # =============================================================================
 # Model priority order
-# llama3.2:3b is first — optimal for 8GB M1 (2GB VRAM, ~18 tok/s on Metal)
-# Mistral variants pushed to end — 4.9GB, starves OS on 8GB machines
+# qwen2.5:3b is primary — state-of-the-art JSON adherence, coding, and resume extraction (1.9GB)
+# llama3.2:3b is strong fallback — (2.0GB, fast token generation on Metal)
 # =============================================================================
 _MODEL_ORDER = [
-    "phi3:mini",        # PRIMARY — 2-3GB RAM, designed for low-resource devices, no lag/heat on 8GB
-    "phi3.5:mini",      # Microsoft Phi3.5, slightly larger but still lean
-    "qwen2.5:3b",       # lighter fallback — best instruction following at 3B (1.9GB)
-    "llama3.2:3b",      # strong fallback — 2GB, good quality
-    "llama3.2:1b",      # ultra-fast fallback — 1GB
+    "qwen2.5:3b",       # PRIMARY — Best JSON structured output, skill extraction, and resume matching (1.9GB)
+    "llama3.2:3b",      # Strong fallback — 2.0GB, fast token generation on Metal
+    "qwen2.5-coder:7b", # 4.7GB — high accuracy code/JD analysis
+    "llama3.2:1b",      # ultra-fast fallback — 1.3GB
+    "phi3.5:mini",      # Microsoft Phi3.5 (2.2GB)
+    "phi3:mini",
     "gemma2:2b",
-    "qwen2.5-coder:7b", # 4.7GB — only if you have headroom (16GB+)
     "llama3:8b",
-    "mistral:latest",   # too large for 8GB M1 — use only on 16GB+
+    "mistral:latest",
     "mistral:7b",
     "mistral",
 ]
+
 
 # Per-method LLM call timeouts (seconds)
 # qwen2.5-coder:7b on M1 is ~25s for short prompts, longer for big outputs
