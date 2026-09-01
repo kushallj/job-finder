@@ -4703,6 +4703,78 @@ async def mine_and_outreach_shark_tank_startups(
     }
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Shark Tank US (Seasons 1-16) Startups Sourcing & Leadership Outreach
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SharkTankUSOutreachRequest(BaseModel):
+    season: Optional[int] = None
+    shark: Optional[str] = None
+    auto_send: bool = True
+    limit: int = 20
+
+@app.get("/api/shark-tank-us/companies", tags=["shark-tank-us"])
+async def get_shark_tank_us_companies(
+    season: Optional[int] = Query(default=None, ge=1, le=16),
+    category: Optional[str] = Query(default=None),
+    shark: Optional[str] = Query(default=None),
+):
+    """Lists startups from Shark Tank US across Seasons 1 to 16."""
+    from src.shark_tank_us_startups import (
+        SHARK_TANK_US_REGISTRY,
+        filter_by_season_us,
+        filter_by_shark_us,
+        filter_by_category_us,
+    )
+    startups = SHARK_TANK_US_REGISTRY
+    if season:
+        startups = filter_by_season_us(season)
+    if shark:
+        startups = [s for s in startups if any(shark.lower() in inv.lower() for inv in s.sharks_invested)]
+    if category:
+        startups = filter_by_category_us(category)
+
+    return {
+        "status": "success",
+        "total": len(startups),
+        "companies": [s.to_dict() for s in startups],
+    }
+
+
+@app.post("/api/shark-tank-us/mine-and-outreach", tags=["shark-tank-us"])
+async def mine_and_outreach_shark_tank_us_startups(
+    payload: SharkTankUSOutreachRequest = SharkTankUSOutreachRequest()
+):
+    """Mines founders & CTOs across US Shark Tank startups and dispatches outreach (strictly <= 2/company)."""
+    from src.shark_tank_us_startups import (
+        SHARK_TANK_US_REGISTRY,
+        filter_by_season_us,
+    )
+    from src.shark_tank_us_miner import shark_tank_us_miner
+
+    startups = SHARK_TANK_US_REGISTRY
+    if payload.season:
+        startups = filter_by_season_us(payload.season)
+    if payload.shark:
+        startups = [s for s in startups if any(payload.shark.lower() in inv.lower() for inv in s.sharks_invested)]
+
+    total_mined = 0
+    all_contacts = []
+    for s in startups[:payload.limit]:
+        res = await shark_tank_us_miner.mine_and_outreach_startup(s, auto_send=payload.auto_send)
+        total_mined += len(res)
+        all_contacts.extend(res)
+
+    return {
+        "status": "success",
+        "companies_processed": min(len(startups), payload.limit),
+        "total_leaders_mined": total_mined,
+        "contacts": all_contacts,
+        "max_per_company_enforced": 2,
+    }
+
+
+
 
 
 @app.get("/api/community-intel/company/{company}", tags=["community-intel"], response_model=CommunityIntelResponse)
