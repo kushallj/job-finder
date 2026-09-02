@@ -4983,6 +4983,27 @@ async def mine_and_outreach_sp500_companies(
     }
 
 
+class SP500SyncJobsRequest(BaseModel):
+    sector: Optional[str] = None
+    limit_companies: int = 50
+    use_serpapi_for_giants: bool = True
+
+@app.post("/api/sp500/sync-jobs", tags=["sp500"])
+async def sync_sp500_tech_jobs(
+    payload: SP500SyncJobsRequest = SP500SyncJobsRequest()
+):
+    """Discovers and ingests live software & tech engineering jobs for S&P 500 corporations."""
+    from src.scrapers.sp500_job_scraper import sp500_job_scraper
+
+    result = await sp500_job_scraper.crawl_sp500_tech_jobs(
+        sector=payload.sector,
+        limit_companies=payload.limit_companies,
+        use_serpapi_for_giants=payload.use_serpapi_for_giants,
+    )
+    return result
+
+
+
 
 
 
