@@ -5003,6 +5003,22 @@ async def sync_sp500_tech_jobs(
     return result
 
 
+class SP500SyncReferralsRequest(BaseModel):
+    auto_send: bool = False
+
+@app.post("/api/sp500/sync-referrals", tags=["sp500"])
+async def sync_sp500_referrals_and_contacts(
+    payload: SP500SyncReferralsRequest = SP500SyncReferralsRequest()
+):
+    """Mines LinkedIn & X referral contacts and synthesized emails for all S&P 500 roles."""
+    from src.scrapers.sp500_referral_miner import SP500ReferralMiner
+
+    miner = SP500ReferralMiner()
+    result = await miner.mine_and_sync_all_sp500_referrals(auto_send=payload.auto_send)
+    return result
+
+
+
 
 
 
