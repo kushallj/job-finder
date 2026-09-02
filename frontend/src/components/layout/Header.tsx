@@ -10,17 +10,16 @@ import {
   Chip,
   Stack,
 } from '@mui/material';
-
 import {
   Menu as MenuIcon,
   RefreshOutlined as RefreshIcon,
   Bolt as ActionIcon,
-  CheckCircle as HealthyIcon,
+  LocalFireDepartment as FlameIcon,
 } from '@mui/icons-material';
 import { useUIStore } from '../../stores/useUIStore';
 import { useNavigate } from 'react-router-dom';
 
-const DRAWER_WIDTH = 260;
+const DRAWER_WIDTH = 270;
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -43,10 +42,9 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, title }) => {
           easing: theme.transitions.easing.sharp,
           duration: theme.transitions.duration.leavingScreen,
         }),
-        backgroundColor: 'rgba(11, 15, 25, 0.85)',
-        backdropFilter: 'blur(16px)',
-        color: '#F8FAFC',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        backgroundColor: '#0A0D0E',
+        color: '#F6F1D7',
+        borderBottom: '3px solid #2A363F',
         zIndex: theme.zIndex.drawer + 1,
       }}
     >
@@ -66,44 +64,53 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, title }) => {
           aria-label="toggle sidebar"
           edge="start"
           onClick={toggleSidebar}
-          sx={{ mr: 2, display: { xs: 'none', md: 'flex' }, color: '#94A3B8', '&:hover': { color: '#38BDF8' } }}
+          sx={{ mr: 2, display: { xs: 'none', md: 'flex' }, color: '#A0AEC0', '&:hover': { color: '#FFDE59' } }}
         >
           <MenuIcon />
         </IconButton>
 
-        <Box sx={{ flexGrow: 1 }}>
-          <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.025em' }}>
+        <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 900, color: '#F6F1D7', letterSpacing: '-0.02em', textTransform: 'uppercase' }}>
             {title}
           </Typography>
+          <Chip
+            icon={<FlameIcon sx={{ fontSize: '15px !important', color: '#FF3E00 !important' }} />}
+            label="100s Mode"
+            size="small"
+            sx={{
+              bgcolor: '#FFDE59',
+              color: '#0A0D0E',
+              border: '2px solid #000',
+              fontWeight: 900,
+              display: { xs: 'none', sm: 'inline-flex' },
+            }}
+          />
         </Box>
 
         <Stack direction="row" alignItems="center" spacing={1.5}>
           <Chip
-            icon={<HealthyIcon sx={{ fontSize: '14px !important', color: '#34D399 !important' }} />}
-            label="System Online"
+            label="2,050+ Live Jobs"
             size="small"
             sx={{
-              bgcolor: 'rgba(52, 211, 153, 0.12)',
-              color: '#34D399',
-              border: '1px solid rgba(52, 211, 153, 0.3)',
-              fontWeight: 700,
-              fontSize: '0.75rem',
-              display: { xs: 'none', sm: 'inline-flex' },
+              bgcolor: '#00E676',
+              color: '#0A0D0E',
+              border: '2px solid #000',
+              fontWeight: 900,
+              display: { xs: 'none', md: 'inline-flex' },
             }}
           />
 
           <Button
             variant="contained"
-            size="small"
             color="primary"
+            size="small"
             startIcon={<ActionIcon fontSize="small" />}
             onClick={() => navigate('/jobs')}
             sx={{
               display: { xs: 'none', sm: 'inline-flex' },
-              fontWeight: 700,
             }}
           >
-            Explore Jobs
+            Speedrun Jobs
           </Button>
 
           <IconButton
@@ -111,12 +118,13 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, title }) => {
             title="Refresh View"
             onClick={() => window.location.reload()}
             sx={{
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '10px',
+              border: '2px solid #000',
+              borderRadius: '12px',
               p: 1,
-              color: '#94A3B8',
-              backgroundColor: 'rgba(255, 255, 255, 0.02)',
-              '&:hover': { bgcolor: 'rgba(56, 189, 248, 0.1)', color: '#38BDF8', borderColor: 'rgba(56, 189, 248, 0.3)' },
+              bgcolor: '#12181B',
+              color: '#F6F1D7',
+              boxShadow: '3px 3px 0px #000',
+              '&:hover': { bgcolor: '#FFDE59', color: '#0A0D0E', transform: 'translate(-1px, -1px)', boxShadow: '4px 4px 0px #FF3E00' },
             }}
           >
             <RefreshIcon fontSize="small" />

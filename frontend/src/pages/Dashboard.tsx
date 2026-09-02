@@ -26,7 +26,7 @@ import {
   Send as OutreachIcon,
   CheckCircle as SuccessIcon,
   Search as SearchIcon,
-  AutoAwesome as AIIcon,
+  LocalFireDepartment as FlameIcon,
   Language as GlobeIcon,
   Bolt as FlashIcon,
   ArrowForward as ArrowForwardIcon,
@@ -41,7 +41,7 @@ import type { RecentOutreach, ProviderSyncResponse, MarketIntelligenceResponse }
 import ActionQueue from '../components/lifecycle/ActionQueue';
 import { providersApi } from '../api/endpoints/providers';
 
-// Stat Card Component
+// Neo-Brutalist Stat Card Component
 interface StatCardProps {
   title: string;
   value: number | string;
@@ -53,11 +53,11 @@ interface StatCardProps {
 }
 
 const colorMap = {
-  primary: { main: '#38BDF8', light: 'rgba(56, 189, 248, 0.12)', border: 'rgba(56, 189, 248, 0.3)' },
-  success: { main: '#34D399', light: 'rgba(52, 211, 153, 0.12)', border: 'rgba(52, 211, 153, 0.3)' },
-  warning: { main: '#FBBF24', light: 'rgba(251, 191, 36, 0.12)', border: 'rgba(251, 191, 36, 0.3)' },
-  error: { main: '#F87171', light: 'rgba(248, 113, 113, 0.12)', border: 'rgba(248, 113, 113, 0.3)' },
-  secondary: { main: '#818CF8', light: 'rgba(129, 140, 248, 0.12)', border: 'rgba(129, 140, 248, 0.3)' },
+  primary: { main: '#FF3E00', bg: '#FF3E00', text: '#FFFFFF', shadow: '#000000' },
+  success: { main: '#00E676', bg: '#00E676', text: '#0A0D0E', shadow: '#000000' },
+  warning: { main: '#FFDE59', bg: '#FFDE59', text: '#0A0D0E', shadow: '#000000' },
+  error: { main: '#FF007A', bg: '#FF007A', text: '#FFFFFF', shadow: '#000000' },
+  secondary: { main: '#8A2BE2', bg: '#8A2BE2', text: '#FFFFFF', shadow: '#000000' },
 };
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color, loading, onClick }) => {
@@ -68,13 +68,15 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
       sx={{
         height: '100%',
         cursor: onClick ? 'pointer' : 'default',
-        bgcolor: '#111827',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        bgcolor: '#12181B',
+        border: '3px solid #2A363F',
+        boxShadow: '5px 5px 0px #000000',
+        borderRadius: '20px',
+        transition: 'all 0.15s ease-in-out',
         '&:hover': onClick
           ? {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 10px 25px -5px ${c.light}`,
+              transform: 'translate(-2px, -2px)',
+              boxShadow: `7px 7px 0px ${c.main}`,
               borderColor: c.main,
             }
           : {},
@@ -84,18 +86,18 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
       <CardContent sx={{ p: 2.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1.5 }}>
           <Box>
-            <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            <Typography variant="caption" sx={{ fontWeight: 900, color: '#A0AEC0', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
               {title}
             </Typography>
             {loading ? (
-              <Skeleton variant="text" width={90} height={42} sx={{ bgcolor: '#1E293B' }} />
+              <Skeleton variant="text" width={90} height={42} sx={{ bgcolor: '#181E24' }} />
             ) : (
-              <Typography variant="h4" sx={{ fontWeight: 800, color: '#F8FAFC', my: 0.5, letterSpacing: '-0.025em' }}>
+              <Typography variant="h4" sx={{ fontWeight: 900, color: '#F6F1D7', my: 0.5, letterSpacing: '-0.03em' }}>
                 {value}
               </Typography>
             )}
             {subtitle && (
-              <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 500 }}>
+              <Typography variant="caption" sx={{ color: '#A0AEC0', fontWeight: 600 }}>
                 {subtitle}
               </Typography>
             )}
@@ -103,13 +105,14 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
           <Box
             sx={{
               p: 1.25,
-              borderRadius: '12px',
-              backgroundColor: c.light,
-              color: c.main,
+              borderRadius: '14px',
+              backgroundColor: c.bg,
+              color: c.text,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: `1px solid ${c.border}`,
+              border: '2px solid #000000',
+              boxShadow: '3px 3px 0px #000000',
             }}
           >
             {icon}
@@ -121,13 +124,13 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
 };
 
 const QUICK_PRESETS = [
-  'Python Developer',
-  'S&P 500 US Tech',
-  'Nifty 500 India',
-  'YC / Accelerators',
-  'Full Stack React',
-  'AI / ML Engineer',
-  'Staff Backend',
+  '⚡ S&P 500 US Tech',
+  '🇮🇳 Nifty 500 Giants',
+  '🚀 YC / Unicorns',
+  '🔥 Python Backend',
+  '⚡ Full Stack React',
+  '🤖 AI / ML Engineer',
+  '💀 Ghost-Proof Roles',
 ];
 
 export const Dashboard: React.FC = () => {
@@ -176,69 +179,67 @@ export const Dashboard: React.FC = () => {
 
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto' }}>
-      {/* Hero Welcome Banner (ui.dev Deep Obsidian Gradient) */}
+      {/* Fireship Hero Welcome Banner */}
       <Box
         sx={{
           p: { xs: 3, md: 4 },
           mb: 4,
-          borderRadius: '20px',
-          background: 'linear-gradient(135deg, rgba(17, 24, 39, 0.95) 0%, rgba(30, 41, 59, 0.85) 50%, rgba(15, 23, 42, 0.95) 100%)',
-          color: '#F8FAFC',
+          borderRadius: '24px',
+          bgcolor: '#12181B',
+          border: '3.5px solid #000000',
+          boxShadow: '8px 8px 0px #FF3E00',
+          color: '#F6F1D7',
           position: 'relative',
           overflow: 'hidden',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          boxShadow: '0 20px 50px -10px rgba(0, 0, 0, 0.7)',
-          backdropFilter: 'blur(20px)',
         }}
       >
-        <Box sx={{ position: 'relative', zIndex: 1, maxWidth: 850 }}>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+        <Box sx={{ position: 'relative', zIndex: 1, maxWidth: 900 }}>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
             <Chip
-              icon={<AIIcon sx={{ fontSize: '16px !important', color: '#38BDF8 !important' }} />}
-              label="Autonomous Career Intelligence Active"
+              icon={<FlameIcon sx={{ fontSize: '16px !important', color: '#000000 !important' }} />}
+              label="100-Second Speedrun Mode"
               size="small"
               sx={{
-                bgcolor: 'rgba(56, 189, 248, 0.12)',
-                color: '#38BDF8',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
-                fontWeight: 700,
-                backdropFilter: 'blur(8px)',
+                bgcolor: '#FFDE59',
+                color: '#0A0D0E',
+                fontWeight: 900,
+                border: '2px solid #000',
               }}
             />
             <Chip
-              label="ui.dev Edition"
+              label="2,050+ Live Roles"
               size="small"
               sx={{
-                bgcolor: 'rgba(129, 140, 248, 0.12)',
-                color: '#818CF8',
-                border: '1px solid rgba(129, 140, 248, 0.3)',
-                fontWeight: 700,
+                bgcolor: '#00E676',
+                color: '#0A0D0E',
+                fontWeight: 900,
+                border: '2px solid #000',
               }}
             />
           </Stack>
-          <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: '-0.03em', mb: 1, color: '#F8FAFC' }}>
-            Welcome to your Career Command Center 👋
+          <Typography variant="h2" sx={{ fontWeight: 900, letterSpacing: '-0.04em', mb: 1, color: '#F6F1D7', textTransform: 'uppercase' }}>
+            Find your next 10x tech job <span style={{ color: '#FF3E00' }}>in 100 seconds</span>. 🔥
           </Typography>
-          <Typography variant="body1" sx={{ color: '#94A3B8', mb: 3, fontSize: '1rem', maxWidth: 650 }}>
-            Discover targeted roles across <strong>2,050+ live opportunities</strong> in S&P 500, Nifty 500, Y Combinator, and FinTech ecosystems with 1-click decision-maker outreach.
+          <Typography variant="body1" sx={{ color: '#A0AEC0', mb: 3, fontSize: '1.05rem', maxWidth: 700, fontWeight: 500 }}>
+            No BS cover letters. Direct ATS pipelines across <strong>S&P 500</strong>, <strong>Nifty 500</strong>, and <strong>YC Unicorns</strong> with 1-click decision maker outreach.
           </Typography>
         </Box>
       </Box>
 
       {/* Quick Search & AI Pipeline Trigger */}
-      <Card sx={{ mb: 4, p: 1, bgcolor: '#111827', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+      <Card sx={{ mb: 4, p: 1, bgcolor: '#12181B', border: '3px solid #2A363F', boxShadow: '6px 6px 0px #000000' }}>
         <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
           <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-            <FilterIcon sx={{ color: '#38BDF8' }} />
-            <Typography variant="h6" fontWeight={800} color="#F8FAFC">
-              Smart Job Search & Pipeline Ingestion
+            <FilterIcon sx={{ color: '#FFDE59' }} />
+            <Typography variant="h6" fontWeight={900} color="#F6F1D7" textTransform="uppercase">
+              Job Speedrun & Pipeline Search
             </Typography>
           </Stack>
 
           {/* Quick preset chips */}
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2.5 }}>
-            <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, alignSelf: 'center', mr: 0.5 }}>
-              Catalogs & presets:
+            <Typography variant="caption" sx={{ color: '#A0AEC0', fontWeight: 900, alignSelf: 'center', mr: 0.5, textTransform: 'uppercase' }}>
+              Quick Presets:
             </Typography>
             {QUICK_PRESETS.map((preset) => {
               const isSelected = searchQuery === preset;
@@ -247,14 +248,15 @@ export const Dashboard: React.FC = () => {
                   key={preset}
                   label={preset}
                   size="small"
-                  onClick={() => setSearchQuery(preset)}
+                  onClick={() => setSearchQuery(preset.replace(/^[^\w]+/, '').trim())}
                   sx={{
                     cursor: 'pointer',
-                    bgcolor: isSelected ? 'rgba(56, 189, 248, 0.18)' : 'rgba(255, 255, 255, 0.04)',
-                    color: isSelected ? '#38BDF8' : '#94A3B8',
-                    border: isSelected ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
-                    fontWeight: 700,
-                    '&:hover': { bgcolor: 'rgba(56, 189, 248, 0.12)', color: '#F8FAFC' },
+                    bgcolor: isSelected ? '#FFDE59' : '#181E24',
+                    color: isSelected ? '#0A0D0E' : '#F6F1D7',
+                    border: '2px solid #000',
+                    boxShadow: isSelected ? '3px 3px 0px #FF3E00' : '2px 2px 0px #000',
+                    fontWeight: 900,
+                    '&:hover': { bgcolor: '#FF3E00', color: '#FFFFFF', transform: 'translateY(-1px)' },
                   }}
                 />
               );
@@ -264,7 +266,7 @@ export const Dashboard: React.FC = () => {
           <Grid container spacing={2} alignItems="center">
             <Grid size={{ xs: 12, md: 5 }}>
               <TextField
-                placeholder="Enter role, skills, or target title..."
+                placeholder="Enter role, tech stack (Python, React, Go, PyTorch)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -273,7 +275,7 @@ export const Dashboard: React.FC = () => {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <SearchIcon sx={{ color: '#64748B' }} />
+                      <SearchIcon sx={{ color: '#A0AEC0' }} />
                     </InputAdornment>
                   ),
                 }}
@@ -282,8 +284,8 @@ export const Dashboard: React.FC = () => {
 
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <Box sx={{ px: 1 }}>
-                <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 600, display: 'block', mb: 0.5 }}>
-                  Min Match Score: <strong style={{ color: '#38BDF8' }}>{minScore}%</strong>
+                <Typography variant="caption" sx={{ color: '#A0AEC0', fontWeight: 900, display: 'block', mb: 0.5, textTransform: 'uppercase' }}>
+                  Min Match Score: <strong style={{ color: '#FFDE59' }}>{minScore}%</strong>
                 </Typography>
                 <Slider
                   value={minScore}
@@ -293,7 +295,7 @@ export const Dashboard: React.FC = () => {
                   step={5}
                   valueLabelDisplay="auto"
                   size="small"
-                  sx={{ color: '#38BDF8' }}
+                  sx={{ color: '#FF3E00' }}
                 />
               </Box>
             </Grid>
@@ -307,18 +309,19 @@ export const Dashboard: React.FC = () => {
                   onClick={handleFetchJobs}
                   disabled={isRunningQuery || !searchQuery.trim()}
                   startIcon={isRunningQuery ? <Skeleton variant="circular" width={18} height={18} /> : <FlashIcon />}
-                  sx={{ py: 1, fontWeight: 700 }}
+                  sx={{ py: 1.2, fontWeight: 900 }}
                 >
-                  {isRunningQuery ? 'AI Matching...' : 'Fetch & AI Match'}
+                  {isRunningQuery ? 'Speedrunning...' : '⚡ Match Roles'}
                 </Button>
                 <Button
-                  variant="outlined"
+                  variant="contained"
+                  color="secondary"
                   onClick={() => void handleProviderSync()}
                   disabled={providerWorking || !searchQuery.trim()}
-                  title="Enrich with JobDataAPI & AIDevBoard"
-                  sx={{ minWidth: 130, py: 1 }}
+                  title="Enrich with external boards"
+                  sx={{ minWidth: 130, py: 1.2, fontWeight: 900 }}
                 >
-                  {providerWorking ? 'Syncing...' : 'Sync Boards'}
+                  {providerWorking ? 'Syncing...' : 'Sync ATS'}
                 </Button>
               </Stack>
             </Grid>
@@ -332,7 +335,7 @@ export const Dashboard: React.FC = () => {
           <StatCard
             title="Total Opportunities"
             value={formatNumber(stats?.total_jobs)}
-            subtitle="2,050+ across S&P 500, Nifty & YC"
+            subtitle="2,050+ in S&P 500, Nifty & YC"
             icon={<JobsIcon />}
             color="primary"
             loading={isLoadingStats}
@@ -343,7 +346,7 @@ export const Dashboard: React.FC = () => {
           <StatCard
             title="Decision-Makers"
             value={formatNumber(stats?.total_contacts)}
-            subtitle="Verified Founders & CTOs"
+            subtitle="1,043 CTOs & Leads"
             icon={<ContactsIcon />}
             color="success"
             loading={isLoadingStats}
@@ -352,9 +355,9 @@ export const Dashboard: React.FC = () => {
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
-            title="Outreach Sent"
+            title="Emails Sent"
             value={formatNumber(stats?.emails_sent)}
-            subtitle={`${stats?.total_applications || 0} active applications`}
+            subtitle="Max 2/company cap active"
             icon={<OutreachIcon />}
             color="warning"
             loading={isLoadingStats}
@@ -363,9 +366,9 @@ export const Dashboard: React.FC = () => {
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
-            title="Delivery & Success"
+            title="Delivery Rate"
             value={formatPercentage(stats?.success_rate)}
-            subtitle="Strict <= 2/company cap active"
+            subtitle="Ghost-Proof Outreach"
             icon={<SuccessIcon />}
             color="secondary"
             loading={isLoadingStats}
@@ -378,29 +381,29 @@ export const Dashboard: React.FC = () => {
       <ActionQueue limit={6} />
 
       {/* External Intelligence & Market Trends */}
-      <Card sx={{ mb: 4, bgcolor: '#111827', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+      <Card sx={{ mb: 4, bgcolor: '#12181B', border: '3px solid #2A363F', boxShadow: '6px 6px 0px #000000' }}>
         <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 2 }}>
             <Stack direction="row" spacing={1.5} alignItems="center">
-              <Box sx={{ p: 1, borderRadius: '10px', bgcolor: 'rgba(56, 189, 248, 0.12)', color: '#38BDF8' }}>
+              <Box sx={{ p: 1.2, borderRadius: '12px', bgcolor: '#FFDE59', color: '#0A0D0E', border: '2px solid #000', boxShadow: '3px 3px 0px #000' }}>
                 <GlobeIcon />
               </Box>
               <Box>
-                <Typography variant="h6" fontWeight={800} color="#F8FAFC">
-                  Market & Multi-Catalog Intelligence
+                <Typography variant="h6" fontWeight={900} color="#F6F1D7" textTransform="uppercase">
+                  Global Multi-Catalog Intelligence
                 </Typography>
-                <Typography variant="body2" color="#94A3B8">
-                  Covers S&P 500 (US), Nifty 500 (NSE), Y Combinator, Global FinTech Fest, and Shark Tank startups.
+                <Typography variant="body2" color="#A0AEC0">
+                  Live benchmarks across S&P 500 (US), Nifty 500 (NSE), YC, and FinTech ecosystems.
                 </Typography>
               </Box>
             </Stack>
-            <Button variant="outlined" size="small" onClick={() => void handleLoadMarket()}>
+            <Button variant="outlined" size="small" onClick={() => void handleLoadMarket()} sx={{ fontWeight: 900 }}>
               Refresh Signals
             </Button>
           </Box>
 
           {providerSync && (
-            <Alert severity="success" sx={{ mb: 2.5, borderRadius: '10px', bgcolor: 'rgba(52, 211, 153, 0.12)', color: '#34D399', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
+            <Alert severity="success" sx={{ mb: 2.5, borderRadius: '14px', bgcolor: '#00E676', color: '#0A0D0E', border: '2px solid #000', fontWeight: 700 }}>
               Synced <strong>{providerSync.total_fetched}</strong> external roles · {providerSync.total_inserted} newly indexed · {providerSync.total_updated} updated.
             </Alert>
           )}
@@ -409,11 +412,11 @@ export const Dashboard: React.FC = () => {
             <Grid container spacing={2}>
               {Object.entries(market.data).slice(0, 4).map(([key, value]) => (
                 <Grid key={key} size={{ xs: 6, sm: 3 }}>
-                  <Paper variant="outlined" sx={{ p: 2, borderRadius: '12px', bgcolor: '#0E131F', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                    <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, textTransform: 'capitalize' }}>
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: '16px', bgcolor: '#0A0D0E', border: '2.5px solid #2A363F', boxShadow: '3px 3px 0px #000' }}>
+                    <Typography variant="caption" sx={{ color: '#A0AEC0', fontWeight: 900, textTransform: 'uppercase' }}>
                       {key.replaceAll('_', ' ')}
                     </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 800, color: '#F8FAFC', mt: 0.5 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 900, color: '#FFDE59', mt: 0.5 }}>
                       {String(value)}
                     </Typography>
                   </Paper>
@@ -421,36 +424,36 @@ export const Dashboard: React.FC = () => {
               ))}
             </Grid>
           ) : (
-            <Box sx={{ p: 2, borderRadius: '10px', bgcolor: '#0E131F', border: '1px solid rgba(255, 255, 255, 0.04)', textAlign: 'center' }}>
-              <Typography variant="body2" color="#94A3B8">
-                Click <strong>"Refresh Signals"</strong> or <strong>"Sync Boards"</strong> above to pull live market compensation and AI developer demand.
+            <Box sx={{ p: 2.5, borderRadius: '14px', bgcolor: '#0A0D0E', border: '2px solid #2A363F', textAlign: 'center' }}>
+              <Typography variant="body2" color="#A0AEC0" fontWeight={600}>
+                💡 <strong>Fireship Pro Tip:</strong> Click <strong>"Sync ATS"</strong> above to pull live market compensation and AI developer demand.
               </Typography>
             </Box>
           )}
         </CardContent>
       </Card>
 
-      {/* Recent Activity Feed & Pending Outreach */}
+      {/* Recent Activity Feed & Top Positions */}
       <Grid container spacing={3}>
         {/* Recent Outreach Feed */}
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: '100%', bgcolor: '#111827', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <Card sx={{ height: '100%', bgcolor: '#12181B', border: '3px solid #2A363F', boxShadow: '6px 6px 0px #000000' }}>
             <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Typography variant="h6" fontWeight={800} color="#F8FAFC">
-                  Recent Outreach Activity
+                <Typography variant="h6" fontWeight={900} color="#F6F1D7" textTransform="uppercase">
+                  Recent Outreach Dispatches
                 </Typography>
-                <Button size="small" onClick={() => navigate('/outreach')} endIcon={<ArrowForwardIcon fontSize="small" />} sx={{ color: '#38BDF8' }}>
+                <Button size="small" onClick={() => navigate('/outreach')} endIcon={<ArrowForwardIcon fontSize="small" />} sx={{ color: '#FFDE59', fontWeight: 900 }}>
                   View all
                 </Button>
               </Stack>
-              <Divider sx={{ mb: 1, borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+              <Divider sx={{ mb: 1, borderColor: '#2A363F' }} />
 
               {isLoadingStats ? (
                 <Stack spacing={1.5} sx={{ py: 2 }}>
-                  <Skeleton height={50} sx={{ bgcolor: '#1E293B' }} />
-                  <Skeleton height={50} sx={{ bgcolor: '#1E293B' }} />
-                  <Skeleton height={50} sx={{ bgcolor: '#1E293B' }} />
+                  <Skeleton height={50} sx={{ bgcolor: '#181E24' }} />
+                  <Skeleton height={50} sx={{ bgcolor: '#181E24' }} />
+                  <Skeleton height={50} sx={{ bgcolor: '#181E24' }} />
                 </Stack>
               ) : recentOutreach && recentOutreach.length > 0 ? (
                 <List disablePadding>
@@ -458,33 +461,32 @@ export const Dashboard: React.FC = () => {
                     <React.Fragment key={item.id}>
                       <ListItem disablePadding sx={{ py: 1.5 }}>
                         <ListItemIcon sx={{ minWidth: 38 }}>
-                          <Box sx={{ p: 0.75, borderRadius: '8px', bgcolor: 'rgba(56, 189, 248, 0.12)', color: '#38BDF8' }}>
+                          <Box sx={{ p: 0.75, borderRadius: '10px', bgcolor: '#FF3E00', color: '#FFFFFF', border: '1.5px solid #000' }}>
                             <OutreachIcon fontSize="small" />
                           </Box>
                         </ListItemIcon>
                         <ListItemText
                           primary={item.contact_email}
                           secondary={formatRelativeTime(item.sent_at)}
-                          primaryTypographyProps={{ variant: 'body2', fontWeight: 600, color: '#F8FAFC' }}
-                          secondaryTypographyProps={{ variant: 'caption', color: '#64748B' }}
+                          primaryTypographyProps={{ variant: 'body2', fontWeight: 700, color: '#F6F1D7' }}
+                          secondaryTypographyProps={{ variant: 'caption', color: '#A0AEC0' }}
                         />
                         <Chip
                           label={item.status}
                           size="small"
                           color={item.status === 'sent' ? 'success' : item.status === 'replied' ? 'primary' : 'default'}
-                          sx={{ textTransform: 'capitalize' }}
                         />
                       </ListItem>
-                      {index < Math.min(recentOutreach.length, 5) - 1 && <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.05)' }} />}
+                      {index < Math.min(recentOutreach.length, 5) - 1 && <Divider sx={{ borderColor: '#2A363F' }} />}
                     </React.Fragment>
                   ))}
                 </List>
               ) : (
                 <Box sx={{ py: 4, textAlign: 'center' }}>
-                  <Typography variant="body2" color="#94A3B8">
+                  <Typography variant="body2" color="#A0AEC0">
                     No outreach sent yet. Select an opportunity to send your first message!
                   </Typography>
-                  <Button variant="outlined" size="small" sx={{ mt: 1.5 }} onClick={() => navigate('/outreach')}>
+                  <Button variant="contained" color="secondary" size="small" sx={{ mt: 1.5, fontWeight: 900 }} onClick={() => navigate('/outreach')}>
                     Start Outreach
                   </Button>
                 </Box>
@@ -493,27 +495,27 @@ export const Dashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        {/* Top Opportunities & Ingested Positions Feed */}
+        {/* Top Opportunities Feed */}
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: '100%', bgcolor: '#111827', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <Card sx={{ height: '100%', bgcolor: '#12181B', border: '3px solid #2A363F', boxShadow: '6px 6px 0px #000000' }}>
             <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6" fontWeight={800} color="#F8FAFC">
-                  {pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? 'Top Opportunities Ready to Apply' : 'Recently Crawled Positions'}
+                <Typography variant="h6" fontWeight={900} color="#F6F1D7" textTransform="uppercase">
+                  {pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? '🔥 Top Speedrun Roles' : 'Recently Crawled Positions'}
                 </Typography>
                 <Chip
                   label={pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? `${pendingOutreach.total_jobs || 0} Ready` : `${allJobsTotal || 0} Ingested`}
                   size="small"
-                  sx={{ bgcolor: 'rgba(52, 211, 153, 0.12)', color: '#34D399', fontWeight: 700, border: '1px solid rgba(52, 211, 153, 0.3)' }}
+                  sx={{ bgcolor: '#00E676', color: '#0A0D0E', fontWeight: 900, border: '2px solid #000' }}
                 />
               </Box>
-              <Divider sx={{ mb: 1, borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+              <Divider sx={{ mb: 1, borderColor: '#2A363F' }} />
 
               {isPendingOutreachLoading || isAllJobsLoading ? (
                 <Stack spacing={1.5} sx={{ py: 2 }}>
-                  <Skeleton height={50} sx={{ bgcolor: '#1E293B' }} />
-                  <Skeleton height={50} sx={{ bgcolor: '#1E293B' }} />
-                  <Skeleton height={50} sx={{ bgcolor: '#1E293B' }} />
+                  <Skeleton height={50} sx={{ bgcolor: '#181E24' }} />
+                  <Skeleton height={50} sx={{ bgcolor: '#181E24' }} />
+                  <Skeleton height={50} sx={{ bgcolor: '#181E24' }} />
                 </Stack>
               ) : (pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? pendingOutreach.jobs : allJobs).length > 0 ? (
                 <List disablePadding>
@@ -524,36 +526,37 @@ export const Dashboard: React.FC = () => {
                         sx={{
                           py: 1.5,
                           cursor: 'pointer',
-                          borderRadius: '8px',
+                          borderRadius: '10px',
                           px: 1,
-                          '&:hover': { backgroundColor: 'rgba(56, 189, 248, 0.06)' },
+                          '&:hover': { backgroundColor: '#181E24', transform: 'translateX(4px)' },
+                          transition: 'all 0.12s ease',
                         }}
                         onClick={() => navigate(`/opportunities/${job.id}`)}
                       >
                         <ListItemIcon sx={{ minWidth: 38 }}>
-                          <Box sx={{ p: 0.75, borderRadius: '8px', bgcolor: 'rgba(52, 211, 153, 0.12)', color: '#34D399' }}>
+                          <Box sx={{ p: 0.75, borderRadius: '10px', bgcolor: '#00E676', color: '#0A0D0E', border: '1.5px solid #000' }}>
                             <JobsIcon fontSize="small" />
                           </Box>
                         </ListItemIcon>
                         <ListItemText
                           primary={job.title}
                           secondary={`${job.company || 'Unknown'} • ${job.location || 'Remote'}`}
-                          primaryTypographyProps={{ variant: 'body2', fontWeight: 700, color: '#F8FAFC' }}
-                          secondaryTypographyProps={{ variant: 'caption', color: '#64748B' }}
+                          primaryTypographyProps={{ variant: 'body2', fontWeight: 900, color: '#F6F1D7' }}
+                          secondaryTypographyProps={{ variant: 'caption', color: '#A0AEC0' }}
                         />
-                        <Button size="small" variant="text" endIcon={<ArrowForwardIcon fontSize="small" />} sx={{ color: '#38BDF8', fontWeight: 700 }}>
+                        <Button size="small" variant="contained" color="secondary" endIcon={<ArrowForwardIcon fontSize="small" />} sx={{ fontWeight: 900, fontSize: '0.75rem', px: 1.5, py: 0.5 }}>
                           Brief
                         </Button>
                       </ListItem>
                       {index < Math.min((pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? pendingOutreach.jobs : allJobs).length, 6) - 1 && (
-                        <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.05)' }} />
+                        <Divider sx={{ borderColor: '#2A363F' }} />
                       )}
                     </React.Fragment>
                   ))}
                 </List>
               ) : (
                 <Box sx={{ py: 4, textAlign: 'center' }}>
-                  <Typography variant="body2" color="#94A3B8">
+                  <Typography variant="body2" color="#A0AEC0">
                     No positions found. The autonomous crawler is scanning company boards in the background...
                   </Typography>
                 </Box>
