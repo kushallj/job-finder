@@ -21,7 +21,6 @@ import {
   Paper,
   Stack,
   Tooltip,
-  alpha,
   LinearProgress,
 } from '@mui/material';
 import {
@@ -63,15 +62,15 @@ export const Contacts: React.FC = () => {
   );
 
   return (
-    <Box sx={{ maxWidth: 1400, mx: 'auto' }}>
+    <Box sx={{ maxWidth: 1440, mx: 'auto', width: '100%', color: '#F8FAFC' }}>
       {/* Header Section */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3.5, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', mb: 0.5 }}>
+          <Typography variant="h3" sx={{ fontWeight: 900, background: 'linear-gradient(90deg, #00FFA3 0%, #00F0FF 50%, #FFE600 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.03em', mb: 0.5, textTransform: 'uppercase' }}>
             Decision-Maker & Contact CRM
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Discovered recruiters, engineering managers, and LinkedIn employee referrals linked to target opportunities.
+          <Typography variant="body2" sx={{ color: '#94A3B8' }}>
+            Discovered recruiters, engineering managers, and LinkedIn employee referrals across target companies.
           </Typography>
         </Box>
 
@@ -79,15 +78,16 @@ export const Contacts: React.FC = () => {
           variant="outlined"
           onClick={() => refetch()}
           disabled={isLoading}
-          startIcon={isLoading ? <CircularProgress size={16} /> : <RefreshIcon />}
+          startIcon={isLoading ? <CircularProgress size={16} sx={{ color: '#00F0FF' }} /> : <RefreshIcon />}
+          sx={{ borderRadius: '12px', fontWeight: 800 }}
         >
           Refresh Contacts
         </Button>
       </Box>
 
       {/* Filter Card */}
-      <Card sx={{ mb: 3, border: '1px solid #E2E8F0' }}>
-        <CardContent sx={{ p: 2.5 }}>
+      <Card sx={{ mb: 3.5, bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.25)', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.6)' }}>
+        <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
               placeholder="Search by name, title, company, or email..."
@@ -98,7 +98,7 @@ export const Contacts: React.FC = () => {
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon sx={{ color: '#94A3B8' }} fontSize="small" />
+                    <SearchIcon sx={{ color: '#00F0FF' }} fontSize="small" />
                   </InputAdornment>
                 ),
               }}
@@ -108,7 +108,7 @@ export const Contacts: React.FC = () => {
                 label={`Company: ${companyFilter}`}
                 onDelete={() => setCompanyFilter('')}
                 color="primary"
-                sx={{ alignSelf: 'center' }}
+                sx={{ alignSelf: 'center', fontWeight: 800 }}
               />
             )}
           </Stack>
@@ -116,7 +116,7 @@ export const Contacts: React.FC = () => {
       </Card>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 3.5, borderRadius: '14px', bgcolor: 'rgba(255, 0, 122, 0.15)', color: '#FF007A', border: '1px solid rgba(255, 0, 122, 0.4)' }}>
           Error loading contacts: {String(error)}
         </Alert>
       )}
@@ -124,48 +124,50 @@ export const Contacts: React.FC = () => {
       {/* Content */}
       {isLoading ? (
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 8 }}>
-          <CircularProgress />
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+          <CircularProgress sx={{ color: '#00FFA3', mb: 2 }} />
+          <Typography variant="body2" sx={{ color: '#94A3B8' }}>
             Loading contact intelligence...
           </Typography>
         </Box>
       ) : filteredContacts.length === 0 ? (
-        <Card sx={{ textAlign: 'center', py: 8 }}>
+        <Card sx={{ textAlign: 'center', py: 8, bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.2)' }}>
           <Box
             sx={{
-              width: 52,
-              height: 52,
+              width: 56,
+              height: 56,
               borderRadius: '50%',
-              bgcolor: alpha('#4F46E5', 0.1),
-              color: '#4F46E5',
+              bgcolor: 'rgba(0, 240, 255, 0.15)',
+              color: '#00F0FF',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               mb: 2,
+              border: '1px solid rgba(0, 240, 255, 0.4)',
+              boxShadow: '0 0 20px rgba(0, 240, 255, 0.25)',
             }}
           >
             <ContactsIcon />
           </Box>
-          <Typography variant="h6" fontWeight={700} color="#0F172A" gutterBottom>
+          <Typography variant="h5" fontWeight={900} sx={{ color: '#F8FAFC', mb: 1 }}>
             No contacts found
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 450, mx: 'auto', mb: 2 }}>
-            Contacts are automatically discovered when you run job queries, sync external listings, or run the LinkedIn Referral Automator.
+          <Typography variant="body2" sx={{ color: '#94A3B8', maxWidth: 460, mx: 'auto', mb: 3 }}>
+            Contacts are automatically discovered when you run job queries or sync external listings.
           </Typography>
-          <Button variant="contained" onClick={() => navigate('/')}>
+          <Button variant="contained" color="primary" onClick={() => navigate('/')}>
             Go to Command Center
           </Button>
         </Card>
       ) : (
-        <TableContainer component={Paper} sx={{ borderRadius: '16px', border: '1px solid #E2E8F0', mb: 3 }}>
+        <TableContainer component={Paper} sx={{ borderRadius: '20px', border: '1.5px solid rgba(0, 240, 255, 0.2)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.65)', mb: 3.5 }}>
           <Table size="medium">
-            <TableHead sx={{ bgcolor: '#F8FAFC' }}>
+            <TableHead sx={{ bgcolor: '#080C12' }}>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700, color: '#475569' }}>Contact</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: '#475569' }}>Company</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: '#475569' }}>Email & Confidence</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: '#475569' }}>Discovery Source</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700, color: '#475569' }}>Actions</TableCell>
+                <TableCell sx={{ fontWeight: 900, color: '#00F0FF' }}>Contact</TableCell>
+                <TableCell sx={{ fontWeight: 900, color: '#00F0FF' }}>Company</TableCell>
+                <TableCell sx={{ fontWeight: 900, color: '#00F0FF' }}>Email & Confidence</TableCell>
+                <TableCell sx={{ fontWeight: 900, color: '#00F0FF' }}>Discovery Source</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 900, color: '#00F0FF' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -181,24 +183,25 @@ export const Contacts: React.FC = () => {
                 const isLinkedIn = !isX && (contact.source === 'linkedin_referral' || !!contact.linkedin_url);
 
                 return (
-                  <TableRow key={contact.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                  <TableRow key={contact.id} hover sx={{ '&:hover': { bgcolor: 'rgba(0, 240, 255, 0.04)' } }}>
                     <TableCell>
                       <Stack direction="row" spacing={1.5} alignItems="center">
                         <Avatar
                           sx={{
-                            bgcolor: isX ? alpha('#0284C7', 0.1) : isLinkedIn ? alpha('#0077B5', 0.1) : alpha('#4F46E5', 0.1),
-                            color: isX ? '#0284C7' : isLinkedIn ? '#0077B5' : '#4F46E5',
-                            fontWeight: 700,
+                            bgcolor: isX ? 'rgba(0, 240, 255, 0.15)' : isLinkedIn ? 'rgba(0, 119, 181, 0.2)' : 'rgba(0, 255, 163, 0.15)',
+                            color: isX ? '#00F0FF' : isLinkedIn ? '#00F0FF' : '#00FFA3',
+                            border: '1px solid rgba(0, 240, 255, 0.3)',
+                            fontWeight: 900,
                             fontSize: '0.85rem',
                           }}
                         >
                           {initials || 'C'}
                         </Avatar>
                         <Box>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A' }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: '#F8FAFC' }}>
                             {contact.name}
                           </Typography>
-                          <Typography variant="caption" sx={{ color: '#64748B' }}>
+                          <Typography variant="caption" sx={{ color: '#94A3B8' }}>
                             {contact.title || 'Engineering / Talent'}
                           </Typography>
                         </Box>
@@ -207,10 +210,10 @@ export const Contacts: React.FC = () => {
 
                     <TableCell>
                       <Chip
-                        icon={<CompanyIcon fontSize="small" />}
+                        icon={<CompanyIcon fontSize="small" sx={{ color: '#FFE600 !important' }} />}
                         label={contact.company || 'Unknown'}
                         size="small"
-                        sx={{ fontWeight: 600, bgcolor: '#F1F5F9' }}
+                        sx={{ fontWeight: 800, bgcolor: 'rgba(255, 230, 0, 0.12)', color: '#FFE600', border: '1px solid rgba(255, 230, 0, 0.35)' }}
                       />
                     </TableCell>
 
@@ -218,13 +221,14 @@ export const Contacts: React.FC = () => {
                       {contact.email ? (
                         <Stack spacing={0.5}>
                           <Stack direction="row" spacing={0.5} alignItems="center">
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 800, color: '#00FFA3' }}>
                               {contact.email}
                             </Typography>
                             <Tooltip title={copiedEmail === contact.email ? 'Copied!' : 'Copy Email'}>
                               <IconButton
                                 size="small"
                                 onClick={() => contact.email && handleCopyEmail(contact.email)}
+                                sx={{ color: '#00F0FF' }}
                               >
                                 {copiedEmail === contact.email ? (
                                   <CheckIcon color="success" fontSize="small" />
@@ -242,53 +246,52 @@ export const Contacts: React.FC = () => {
                                 width: 70,
                                 height: 5,
                                 borderRadius: 3,
-                                bgcolor: '#E2E8F0',
+                                bgcolor: '#080C12',
                                 '& .MuiLinearProgress-bar': {
-                                  bgcolor: score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#64748B',
+                                  bgcolor: score >= 80 ? '#00FFA3' : score >= 60 ? '#FFE600' : '#94A3B8',
                                 },
                               }}
                             />
-                            <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600 }}>
-                              {score}% confidence
+                            <Typography variant="caption" sx={{ color: '#94A3B8', fontSize: '0.7rem', fontWeight: 700 }}>
+                              {score}%
                             </Typography>
                           </Box>
                         </Stack>
                       ) : (
-                        <Typography variant="caption" color="text.secondary">
-                          {isX ? 'Direct X (Twitter) Profile' : 'Direct LinkedIn profile'}
+                        <Typography variant="caption" sx={{ color: '#64748B' }}>
+                          Email not available
                         </Typography>
                       )}
                     </TableCell>
 
                     <TableCell>
                       <Chip
-                        label={isX ? 'X (Twitter) Referral' : isLinkedIn ? 'LinkedIn Referral' : contact.source || 'Apollo / Hunter'}
+                        label={contact.source ? contact.source.replace('_', ' ') : 'Generated'}
                         size="small"
-                        color={isX ? 'info' : isLinkedIn ? 'primary' : 'default'}
-                        variant={isX || isLinkedIn ? 'filled' : 'outlined'}
-                        sx={{ fontSize: '0.72rem', fontWeight: 700 }}
+                        sx={{ fontSize: '0.68rem', bgcolor: 'rgba(121, 40, 202, 0.15)', color: '#A855F7', border: '1px solid rgba(121, 40, 202, 0.35)', fontWeight: 800 }}
                       />
                     </TableCell>
 
                     <TableCell align="right">
                       <Stack direction="row" spacing={1} justifyContent="flex-end">
                         {contact.linkedin_url && (
-                          <Tooltip title={isX ? "Open X Profile" : "Open LinkedIn Profile"}>
-                            <IconButton
-                              size="small"
-                              onClick={() => window.open(contact.linkedin_url ?? undefined, '_blank')}
-                              sx={{ border: '1px solid #E2E8F0', borderRadius: '8px' }}
-                            >
-                              <OpenInNewIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+                          <IconButton
+                            size="small"
+                            href={contact.linkedin_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            sx={{ color: '#00F0FF', border: '1px solid rgba(0, 240, 255, 0.25)', borderRadius: '8px' }}
+                          >
+                            <OpenInNewIcon fontSize="small" />
+                          </IconButton>
                         )}
                         <Button
-                          variant="contained"
                           size="small"
+                          variant="contained"
+                          color="secondary"
                           startIcon={<SendIcon fontSize="small" />}
-                          onClick={() => navigate(`/outreach?email=${encodeURIComponent(contact.email || '')}&name=${encodeURIComponent(contact.name)}`)}
-                          sx={{ fontWeight: 700 }}
+                          onClick={() => navigate('/outreach')}
+                          sx={{ fontWeight: 900 }}
                         >
                           Outreach
                         </Button>

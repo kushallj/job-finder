@@ -30,7 +30,7 @@ import {
 } from '@mui/icons-material';
 import { useUIStore } from '../../stores/useUIStore';
 
-const DRAWER_WIDTH = 270;
+export const DRAWER_WIDTH = 260;
 
 interface SidebarProps {
   mobileOpen: boolean;
@@ -39,10 +39,10 @@ interface SidebarProps {
 
 const mainNavItems = [
   { text: 'Command Center', icon: <DashboardIcon fontSize="small" />, path: '/', tag: '100s' },
-  { text: 'Speedrun Jobs', icon: <JobsIcon fontSize="small" />, path: '/jobs', tag: '2,050+' },
+  { text: 'Opportunities', icon: <JobsIcon fontSize="small" />, path: '/jobs', tag: '2,050+' },
   { text: 'AI Agents Fleet', icon: <AgentsIcon fontSize="small" />, path: '/agents', tag: '15' },
   { text: 'AI OSINT Copilot', icon: <CopilotIcon fontSize="small" />, path: '/copilot', tag: 'AI' },
-  { text: 'Global Remote Radar', icon: <GlobalIcon fontSize="small" />, path: '/market-radar' },
+  { text: 'Global Radar', icon: <GlobalIcon fontSize="small" />, path: '/market-radar' },
   { text: 'Decision Makers', icon: <ContactsIcon fontSize="small" />, path: '/contacts', tag: '1,043' },
   { text: 'Outreach Engine', icon: <OutreachIcon fontSize="small" />, path: '/outreach', tag: '211' },
 ];
@@ -67,80 +67,74 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
   };
 
   const drawerContent = (
-    <Box sx={{ overflow: 'auto', height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#0A0D0E' }}>
-      {/* Fireship Brand Header */}
-      <Toolbar sx={{ px: 3, py: 2.5, minHeight: 70 }}>
+    <Box sx={{ overflow: 'auto', height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#080C12' }}>
+      {/* Brand Header */}
+      <Toolbar sx={{ px: 2.5, minHeight: '68px', height: '68px', display: 'flex', alignItems: 'center' }}>
         <Stack direction="row" alignItems="center" spacing={1.5}>
           <Box
             sx={{
-              width: 42,
-              height: 42,
-              borderRadius: '14px',
-              bgcolor: '#FF3E00',
-              border: '2.5px solid #000',
+              width: 38,
+              height: 38,
+              borderRadius: '12px',
+              bgcolor: 'rgba(0, 255, 163, 0.15)',
+              border: '1.5px solid #00FFA3',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '4px 4px 0px #000',
-              color: '#FFFFFF',
+              boxShadow: '0 0 15px rgba(0, 255, 163, 0.3)',
+              color: '#00FFA3',
             }}
           >
-            <FlameIcon sx={{ fontSize: '24px' }} />
+            <FlameIcon sx={{ fontSize: '22px' }} />
           </Box>
           <Box>
-            <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#F6F1D7', lineHeight: 1.1, textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
-              JobFinder <span style={{ color: '#FF3E00' }}>🔥</span>
+            <Typography variant="subtitle1" sx={{ fontWeight: 900, background: 'linear-gradient(90deg, #00FFA3 0%, #00F0FF 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1.1, textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
+              JobFinder AI
             </Typography>
-            <Typography variant="caption" sx={{ color: '#FFDE59', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase' }}>
-              Fireship Speedrun
+            <Typography variant="caption" sx={{ color: '#FFE600', fontWeight: 900, fontSize: '0.7rem', textTransform: 'uppercase' }}>
+              Web3 / HFT Alpha
             </Typography>
           </Box>
         </Stack>
       </Toolbar>
 
-      <Divider sx={{ borderColor: '#2A363F', borderWidth: '1px' }} />
+      <Divider sx={{ borderColor: 'rgba(0, 240, 255, 0.15)' }} />
 
-      {/* Nav List */}
-      <Box sx={{ px: 2, py: 2, flexGrow: 1 }}>
-        <Typography
-          variant="caption"
-          sx={{ px: 1.5, py: 0.5, color: '#A0AEC0', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}
-        >
-          Speedrun Pipeline
+      {/* Main Navigation */}
+      <Box sx={{ px: 1.5, py: 2, flexGrow: 1 }}>
+        <Typography variant="caption" sx={{ px: 1.5, py: 0.5, fontWeight: 900, color: '#00F0FF', display: 'block', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.7rem' }}>
+          Autonomous Sourcing
         </Typography>
-        <List sx={{ mt: 0.5, mb: 2 }}>
+
+        <List sx={{ mt: 0.5, p: 0 }}>
           {mainNavItems.map((item) => {
-            const isSelected = location.pathname === item.path;
+            const isSelected = item.path === '/'
+              ? location.pathname === '/'
+              : location.pathname.startsWith(item.path);
+
             return (
-              <ListItem key={item.text} disablePadding sx={{ mb: 1 }}>
+              <ListItem key={item.text} disablePadding sx={{ mb: 0.75 }}>
                 <ListItemButton
-                  selected={isSelected}
                   onClick={() => handleNavigation(item.path)}
                   sx={{
                     borderRadius: '12px',
-                    py: 1.2,
                     px: 1.5,
-                    border: '2px solid',
-                    borderColor: isSelected ? '#000000' : 'transparent',
-                    boxShadow: isSelected ? '4px 4px 0px #FFDE59' : 'none',
-                    bgcolor: isSelected ? '#FF3E00' : 'transparent',
-                    color: isSelected ? '#FFFFFF' : '#F6F1D7',
-                    transition: 'all 0.12s ease',
+                    py: 1,
+                    backgroundColor: isSelected ? 'rgba(0, 240, 255, 0.15)' : 'transparent',
+                    border: isSelected ? '1.5px solid #00F0FF' : '1.5px solid transparent',
+                    boxShadow: isSelected ? '0 0 15px rgba(0, 240, 255, 0.25)' : 'none',
+                    transition: 'all 0.15s ease',
                     '&:hover': {
-                      bgcolor: isSelected ? '#FF5722' : '#181E24',
-                      color: isSelected ? '#FFFFFF' : '#FFDE59',
-                      transform: 'translate(-2px, -2px)',
-                      boxShadow: '4px 4px 0px #000000',
-                    },
-                    '&.Mui-selected': {
-                      bgcolor: '#FF3E00',
+                      backgroundColor: 'rgba(0, 240, 255, 0.08)',
+                      borderColor: 'rgba(0, 240, 255, 0.4)',
+                      transform: 'translateX(3px)',
                     },
                   }}
                 >
                   <ListItemIcon
                     sx={{
-                      minWidth: 32,
-                      color: isSelected ? '#FFFFFF' : '#FF3E00',
+                      minWidth: 34,
+                      color: isSelected ? '#00FFA3' : '#94A3B8',
                     }}
                   >
                     {item.icon}
@@ -148,9 +142,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
                   <ListItemText
                     primary={item.text}
                     primaryTypographyProps={{
-                      fontSize: '0.875rem',
-                      fontWeight: 900,
-                      textTransform: 'uppercase',
+                      fontSize: '0.85rem',
+                      fontWeight: isSelected ? 900 : 700,
+                      color: isSelected ? '#F8FAFC' : '#94A3B8',
                     }}
                   />
                   {item.tag && (
@@ -158,11 +152,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
                       label={item.tag}
                       size="small"
                       sx={{
+                        height: 18,
                         fontSize: '0.65rem',
-                        height: 20,
-                        bgcolor: isSelected ? '#000000' : '#181E24',
-                        color: isSelected ? '#FFDE59' : '#00E676',
-                        border: '1.5px solid #000',
+                        fontWeight: 900,
+                        bgcolor: isSelected ? 'rgba(0, 255, 163, 0.2)' : 'rgba(0, 240, 255, 0.1)',
+                        color: isSelected ? '#00FFA3' : '#00F0FF',
+                        border: isSelected ? '1px solid #00FFA3' : '1px solid rgba(0, 240, 255, 0.3)',
                       }}
                     />
                   )}
@@ -172,45 +167,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
           })}
         </List>
 
-        <Typography
-          variant="caption"
-          sx={{ px: 1.5, py: 0.5, color: '#A0AEC0', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}
-        >
-          Config & Intel
+        <Typography variant="caption" sx={{ px: 1.5, pt: 2, pb: 0.5, fontWeight: 900, color: '#00F0FF', display: 'block', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.7rem' }}>
+          Intelligence & Analytics
         </Typography>
-        <List sx={{ mt: 0.5 }}>
+
+        <List sx={{ mt: 0.5, p: 0 }}>
           {intelligenceNavItems.map((item) => {
             const isSelected = location.pathname === item.path;
+
             return (
-              <ListItem key={item.text} disablePadding sx={{ mb: 1 }}>
+              <ListItem key={item.text} disablePadding sx={{ mb: 0.75 }}>
                 <ListItemButton
-                  selected={isSelected}
                   onClick={() => handleNavigation(item.path)}
                   sx={{
                     borderRadius: '12px',
-                    py: 1.2,
                     px: 1.5,
-                    border: '2px solid',
-                    borderColor: isSelected ? '#000000' : 'transparent',
-                    boxShadow: isSelected ? '4px 4px 0px #FFDE59' : 'none',
-                    bgcolor: isSelected ? '#FF3E00' : 'transparent',
-                    color: isSelected ? '#FFFFFF' : '#F6F1D7',
-                    transition: 'all 0.12s ease',
+                    py: 1,
+                    backgroundColor: isSelected ? 'rgba(0, 240, 255, 0.15)' : 'transparent',
+                    border: isSelected ? '1.5px solid #00F0FF' : '1.5px solid transparent',
+                    boxShadow: isSelected ? '0 0 15px rgba(0, 240, 255, 0.25)' : 'none',
+                    transition: 'all 0.15s ease',
                     '&:hover': {
-                      bgcolor: isSelected ? '#FF5722' : '#181E24',
-                      color: isSelected ? '#FFFFFF' : '#FFDE59',
-                      transform: 'translate(-2px, -2px)',
-                      boxShadow: '4px 4px 0px #000000',
-                    },
-                    '&.Mui-selected': {
-                      bgcolor: '#FF3E00',
+                      backgroundColor: 'rgba(0, 240, 255, 0.08)',
+                      borderColor: 'rgba(0, 240, 255, 0.4)',
+                      transform: 'translateX(3px)',
                     },
                   }}
                 >
                   <ListItemIcon
                     sx={{
-                      minWidth: 32,
-                      color: isSelected ? '#FFFFFF' : '#FF3E00',
+                      minWidth: 34,
+                      color: isSelected ? '#00FFA3' : '#94A3B8',
                     }}
                   >
                     {item.icon}
@@ -218,9 +205,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
                   <ListItemText
                     primary={item.text}
                     primaryTypographyProps={{
-                      fontSize: '0.875rem',
-                      fontWeight: 900,
-                      textTransform: 'uppercase',
+                      fontSize: '0.85rem',
+                      fontWeight: isSelected ? 900 : 700,
+                      color: isSelected ? '#F8FAFC' : '#94A3B8',
                     }}
                   />
                 </ListItemButton>
@@ -230,35 +217,51 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
         </List>
       </Box>
 
-      {/* Footer Sticker Card */}
-      <Box sx={{ p: 2, m: 2, borderRadius: '16px', bgcolor: '#12181B', border: '2.5px solid #000', boxShadow: '4px 4px 0px #000' }}>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-          <span style={{ fontSize: '18px' }}>🚀</span>
-          <Typography variant="caption" sx={{ fontWeight: 900, color: '#FFDE59', textTransform: 'uppercase' }}>
-            Push to Prod
+      {/* Footer System Status Card */}
+      <Box sx={{ p: 2, m: 1.5, borderRadius: '16px', bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.25)', boxShadow: '0 0 15px rgba(0, 0, 0, 0.5)' }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.75 }}>
+          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#00FFA3', boxShadow: '0 0 8px #00FFA3' }} />
+          <Typography variant="caption" sx={{ fontWeight: 900, color: '#00FFA3', letterSpacing: '0.04em' }}>
+            HFT CRAWLER: LIVE
           </Typography>
         </Stack>
-        <Typography variant="caption" sx={{ color: '#A0AEC0', display: 'block', fontSize: '0.72rem', lineHeight: 1.3 }}>
-          2,050 live jobs in S&P 500 & Nifty 500 with automatic &le; 2/company cap.
+        <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', fontSize: '0.72rem', lineHeight: 1.3 }}>
+          2,050 jobs ingested across S&P 500, Nifty 500 & YC.
         </Typography>
       </Box>
     </Box>
   );
 
   return (
-    <Box component="nav" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}>
+    <Box
+      component="nav"
+      sx={{
+        width: { md: sidebarOpen ? DRAWER_WIDTH : 0 },
+        flexShrink: { md: 0 },
+      }}
+    >
+      {/* Mobile Drawer */}
       <Drawer
         variant="temporary"
         open={mobileOpen}
         onClose={onMobileClose}
-        ModalProps={{ keepMounted: true }}
+        ModalProps={{
+          keepMounted: true,
+        }}
         sx={{
           display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': { boxSizing: 'border-box', width: DRAWER_WIDTH, borderRight: '3px solid #2A363F', bgcolor: '#0A0D0E' },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: DRAWER_WIDTH,
+            borderRight: '1.5px solid rgba(0, 240, 255, 0.25)',
+            bgcolor: '#080C12',
+          },
         }}
       >
         {drawerContent}
       </Drawer>
+
+      {/* Desktop Drawer */}
       <Drawer
         variant="persistent"
         open={sidebarOpen}
@@ -267,13 +270,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
           '& .MuiDrawer-paper': {
             boxSizing: 'border-box',
             width: DRAWER_WIDTH,
-            borderRight: '3px solid #2A363F',
-            bgcolor: '#0A0D0E',
-            transition: theme.transitions.create('transform', {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.leavingScreen,
-            }),
-            transform: sidebarOpen ? 'translateX(0)' : `translateX(-${DRAWER_WIDTH}px)`,
+            borderRight: '1.5px solid rgba(0, 240, 255, 0.2)',
+            bgcolor: '#080C12',
           },
         }}
       >

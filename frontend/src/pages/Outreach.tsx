@@ -22,7 +22,6 @@ import {
   Grid,
   Stack,
   Chip,
-  alpha,
   Paper,
 } from '@mui/material';
 import {
@@ -101,66 +100,67 @@ export const Outreach: React.FC = () => {
     }
   };
 
-  const handleSendOutreach = () => {
-    if (selectedJobId && contactEmail && contactName) {
-      sendOutreach({
-        job_id: Number(selectedJobId),
-        contact_email: contactEmail,
-        contact_name: contactName,
-        send_immediately: !dryRun,
-      });
-    }
+  const handleSend = () => {
+    if (!selectedJobId || !contactEmail) return;
+
+    sendOutreach({
+      job_id: Number(selectedJobId),
+      contact_email: contactEmail,
+      contact_name: contactName || 'Hiring Team',
+      send_immediately: !dryRun,
+    });
   };
 
   const jobs = pendingOutreach?.jobs || [];
 
   return (
-    <Box sx={{ maxWidth: 1400, mx: 'auto' }}>
-      {/* Header Section */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
+    <Box sx={{ maxWidth: 1440, mx: 'auto', width: '100%', color: '#F8FAFC' }}>
+      {/* Page Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3.5, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', mb: 0.5 }}>
-            Outreach & Campaign Engine
+          <Typography variant="h3" sx={{ fontWeight: 900, background: 'linear-gradient(90deg, #00FFA3 0%, #00F0FF 50%, #FFE600 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.03em', mb: 0.5, textTransform: 'uppercase' }}>
+            Autonomous Outreach Engine
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Multi-stage autonomous email outreach, automated follow-up scheduler, and reply detector.
+          <Typography variant="body2" sx={{ color: '#94A3B8' }}>
+            Personalized, rate-limited email campaigns dispatched to engineering leaders & recruiters.
           </Typography>
         </Box>
 
         <Stack direction="row" spacing={1.5}>
           <Button
-            variant="contained"
-            color="primary"
-            startIcon={<SendIcon />}
-            onClick={handleOpenDialog}
-            sx={{ fontWeight: 700 }}
-          >
-            Compose Outreach
-          </Button>
-          <Button
             variant="outlined"
             onClick={() => refetchStats()}
             disabled={isLoadingStats}
             startIcon={<RefreshIcon />}
+            sx={{ borderRadius: '12px', fontWeight: 800 }}
           >
             Refresh
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<SendIcon />}
+            onClick={handleOpenDialog}
+            sx={{ fontWeight: 900 }}
+          >
+            Compose Outreach
           </Button>
         </Stack>
       </Box>
 
-      {/* KPI Stats Grid */}
-      <Grid container spacing={2.5} sx={{ mb: 4 }}>
+      {/* Metrics Row */}
+      <Grid container spacing={2.5} sx={{ mb: 3.5 }}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1.5px solid rgba(0, 240, 255, 0.2)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.6)' }}>
             <Stack direction="row" spacing={1.5} alignItems="center">
-              <Box sx={{ p: 1.25, borderRadius: '10px', bgcolor: alpha('#4F46E5', 0.1), color: '#4F46E5' }}>
+              <Box sx={{ p: 1.25, borderRadius: '14px', bgcolor: 'rgba(0, 240, 255, 0.15)', color: '#00F0FF', border: '1px solid rgba(0, 240, 255, 0.4)', boxShadow: '0 0 15px rgba(0, 240, 255, 0.25)' }}>
                 <SendIcon />
               </Box>
               <Box>
-                <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>
-                  Total Sent
+                <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>
+                  Emails Sent
                 </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', mt: 0.25 }}>
+                <Typography variant="h4" sx={{ fontWeight: 900, color: '#F8FAFC', mt: 0.25 }}>
                   {isLoadingStats ? '-' : outreachStats?.emails_sent || 0}
                 </Typography>
               </Box>
@@ -169,17 +169,17 @@ export const Outreach: React.FC = () => {
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1.5px solid rgba(0, 255, 163, 0.2)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.6)' }}>
             <Stack direction="row" spacing={1.5} alignItems="center">
-              <Box sx={{ p: 1.25, borderRadius: '10px', bgcolor: alpha('#10B981', 0.1), color: '#10B981' }}>
+              <Box sx={{ p: 1.25, borderRadius: '14px', bgcolor: 'rgba(0, 255, 163, 0.15)', color: '#00FFA3', border: '1px solid rgba(0, 255, 163, 0.4)', boxShadow: '0 0 15px rgba(0, 255, 163, 0.25)' }}>
                 <RepliedIcon />
               </Box>
               <Box>
-                <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>
+                <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>
                   Replies Received
                 </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', mt: 0.25 }}>
-                  {isLoadingStats ? '-' : Math.round(((outreachStats?.success_rate || 0) * (outreachStats?.emails_sent || 0)) / 100)}
+                <Typography variant="h4" sx={{ fontWeight: 900, color: '#F8FAFC', mt: 0.25 }}>
+                  {isLoadingStats ? '-' : (outreachStats as any)?.replies_count || 0}
                 </Typography>
               </Box>
             </Stack>
@@ -187,16 +187,16 @@ export const Outreach: React.FC = () => {
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1.5px solid rgba(255, 230, 0, 0.2)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.6)' }}>
             <Stack direction="row" spacing={1.5} alignItems="center">
-              <Box sx={{ p: 1.25, borderRadius: '10px', bgcolor: alpha('#F59E0B', 0.1), color: '#F59E0B' }}>
+              <Box sx={{ p: 1.25, borderRadius: '14px', bgcolor: 'rgba(255, 230, 0, 0.15)', color: '#FFE600', border: '1px solid rgba(255, 230, 0, 0.4)', boxShadow: '0 0 15px rgba(255, 230, 0, 0.25)' }}>
                 <ScheduleIcon />
               </Box>
               <Box>
-                <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>
-                  Auto Follow-ups
+                <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>
+                  Follow-ups Dispatched
                 </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', mt: 0.25 }}>
+                <Typography variant="h4" sx={{ fontWeight: 900, color: '#F8FAFC', mt: 0.25 }}>
                   {isLoadingStats ? '-' : outreachStats?.follow_ups_sent || 0}
                 </Typography>
               </Box>
@@ -205,16 +205,16 @@ export const Outreach: React.FC = () => {
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1.5px solid rgba(121, 40, 202, 0.2)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.6)' }}>
             <Stack direction="row" spacing={1.5} alignItems="center">
-              <Box sx={{ p: 1.25, borderRadius: '10px', bgcolor: alpha('#7C3AED', 0.1), color: '#7C3AED' }}>
+              <Box sx={{ p: 1.25, borderRadius: '14px', bgcolor: 'rgba(121, 40, 202, 0.15)', color: '#A855F7', border: '1px solid rgba(121, 40, 202, 0.4)', boxShadow: '0 0 15px rgba(121, 40, 202, 0.25)' }}>
                 <SuccessIcon />
               </Box>
               <Box>
-                <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>
+                <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>
                   Success Rate
                 </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', mt: 0.25 }}>
+                <Typography variant="h4" sx={{ fontWeight: 900, color: '#F8FAFC', mt: 0.25 }}>
                   {isLoadingStats ? '-' : `${outreachStats?.success_rate || 0}%`}
                 </Typography>
               </Box>
@@ -224,17 +224,17 @@ export const Outreach: React.FC = () => {
       </Grid>
 
       {/* Safety Mode Banner */}
-      <Card sx={{ mb: 4, border: '1px solid #E2E8F0', bgcolor: '#F8FAFC' }}>
-        <CardContent sx={{ p: 2.5 }}>
+      <Card sx={{ mb: 3.5, border: '1.5px solid rgba(0, 255, 163, 0.3)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.6)' }}>
+        <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
           <Stack direction="row" spacing={2} alignItems="center">
-            <Box sx={{ p: 1, borderRadius: '8px', bgcolor: alpha('#10B981', 0.1), color: '#10B981' }}>
+            <Box sx={{ p: 1.2, borderRadius: '12px', bgcolor: 'rgba(0, 255, 163, 0.15)', color: '#00FFA3', border: '1px solid rgba(0, 255, 163, 0.4)' }}>
               <SafeIcon />
             </Box>
             <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle2" fontWeight={800} color="#0F172A">
-                Anti-Spam & Rate Limiting Active
+              <Typography variant="subtitle2" fontWeight={900} color="#00FFA3" textTransform="uppercase">
+                Anti-Spam & Max 2 Outreach/Company Protection Active
               </Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{ color: '#94A3B8' }}>
                 Smart throttling ensures you never exceed email provider limits. Dry-run mode allows full previewing before live transmission.
               </Typography>
             </Box>
@@ -243,16 +243,16 @@ export const Outreach: React.FC = () => {
       </Card>
 
       {/* Recent Outreach History Feed */}
-      <Card sx={{ border: '1px solid #E2E8F0' }}>
+      <Card sx={{ border: '1.5px solid rgba(0, 240, 255, 0.2)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.65)' }}>
         <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
-          <Typography variant="h6" fontWeight={800} color="#0F172A" sx={{ mb: 2 }}>
+          <Typography variant="h6" fontWeight={900} color="#F8FAFC" sx={{ mb: 2 }} textTransform="uppercase">
             Campaign Transmission Log
           </Typography>
-          <Divider sx={{ mb: 2 }} />
+          <Divider sx={{ mb: 2, borderColor: 'rgba(0, 240, 255, 0.15)' }} />
 
           {isLoadingStats ? (
             <Box sx={{ py: 6, display: 'flex', justifyContent: 'center' }}>
-              <CircularProgress />
+              <CircularProgress sx={{ color: '#00FFA3' }} />
             </Box>
           ) : recentOutreach && recentOutreach.length > 0 ? (
             <Stack spacing={1.5}>
@@ -262,22 +262,25 @@ export const Outreach: React.FC = () => {
                   variant="outlined"
                   sx={{
                     p: 2,
-                    borderRadius: '12px',
+                    borderRadius: '16px',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    bgcolor: '#FFFFFF',
+                    bgcolor: '#080C12',
+                    border: '1px solid rgba(0, 240, 255, 0.2)',
+                    transition: 'all 0.2s ease',
+                    '&:hover': { borderColor: '#00F0FF', boxShadow: '0 0 15px rgba(0, 240, 255, 0.2)' },
                   }}
                 >
                   <Stack direction="row" spacing={1.5} alignItems="center">
-                    <Box sx={{ p: 1, borderRadius: '8px', bgcolor: alpha('#4F46E5', 0.1), color: '#4F46E5' }}>
+                    <Box sx={{ p: 1, borderRadius: '10px', bgcolor: 'rgba(0, 240, 255, 0.15)', color: '#00F0FF' }}>
                       <SendIcon fontSize="small" />
                     </Box>
                     <Box>
-                      <Typography variant="subtitle2" fontWeight={700} color="#0F172A">
+                      <Typography variant="subtitle2" fontWeight={800} color="#F8FAFC">
                         {item.contact_email}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{ color: '#94A3B8' }}>
                         Transmission ID: #{item.id} · {formatRelativeTime(item.sent_at)}
                       </Typography>
                     </Box>
@@ -287,14 +290,14 @@ export const Outreach: React.FC = () => {
                     label={item.status}
                     size="small"
                     color={item.status === 'sent' ? 'success' : item.status === 'replied' ? 'primary' : 'default'}
-                    sx={{ fontWeight: 700, textTransform: 'capitalize' }}
+                    sx={{ fontWeight: 800, textTransform: 'capitalize' }}
                   />
                 </Paper>
               ))}
             </Stack>
           ) : (
             <Box sx={{ py: 6, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{ color: '#94A3B8' }}>
                 No active outreach logs recorded yet.
               </Typography>
             </Box>
@@ -303,15 +306,15 @@ export const Outreach: React.FC = () => {
       </Card>
 
       {/* Compose Outreach Dialog */}
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800, color: '#0F172A' }}>
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth PaperProps={{ sx: { bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.3)', borderRadius: '24px' } }}>
+        <DialogTitle sx={{ fontWeight: 900, color: '#F8FAFC', textTransform: 'uppercase' }}>
           Compose AI-Targeted Outreach
         </DialogTitle>
-        <DialogContent dividers>
+        <DialogContent dividers sx={{ borderColor: 'rgba(0, 240, 255, 0.15)' }}>
           {outreachResult && (
             <Alert
               severity={outreachResult.status === 'success' ? 'success' : 'error'}
-              sx={{ mb: 3 }}
+              sx={{ mb: 3, borderRadius: '12px', bgcolor: outreachResult.status === 'success' ? 'rgba(0, 255, 163, 0.15)' : 'rgba(255, 0, 122, 0.15)', color: outreachResult.status === 'success' ? '#00FFA3' : '#FF007A' }}
             >
               {outreachResult.message || (outreachResult.status === 'success' ? 'Outreach dispatched successfully!' : 'Transmission failed')}
             </Alert>
@@ -319,7 +322,7 @@ export const Outreach: React.FC = () => {
 
           <Stack spacing={2.5} sx={{ mt: 1 }}>
             <FormControl fullWidth size="small">
-              <InputLabel>Associated Target Job</InputLabel>
+              <InputLabel sx={{ color: '#94A3B8' }}>Associated Target Job</InputLabel>
               <Select
                 value={selectedJobId}
                 label="Associated Target Job"
@@ -357,10 +360,10 @@ export const Outreach: React.FC = () => {
             </Grid>
 
             <FormControl fullWidth size="small">
-              <InputLabel>Message Strategy Template</InputLabel>
+              <InputLabel sx={{ color: '#94A3B8' }}>Message Template</InputLabel>
               <Select
                 value={templateId}
-                label="Message Strategy Template"
+                label="Message Template"
                 onChange={(e) => handleTemplateChange(e.target.value)}
               >
                 {OUTREACH_TEMPLATES.map((tpl) => (
@@ -372,33 +375,43 @@ export const Outreach: React.FC = () => {
             </FormControl>
 
             <TextField
-              label="Email Body Preview"
+              label="Email Body Content"
               multiline
-              rows={7}
+              rows={6}
               value={messageBody}
               onChange={(e) => setMessageBody(e.target.value)}
               fullWidth
             />
 
             <FormControlLabel
-              control={<Switch checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />}
-              label="Dry-Run Mode (Test without sending real email)"
+              control={
+                <Switch
+                  checked={dryRun}
+                  onChange={(e) => setDryRun(e.target.checked)}
+                  color="warning"
+                />
+              }
+              label={
+                <Typography variant="body2" sx={{ color: '#FFE600', fontWeight: 800 }}>
+                  Dry-Run Mode (Simulation only — will not actually send SMTP email)
+                </Typography>
+              }
             />
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ p: 2.5 }}>
-          <Button onClick={handleCloseDialog} color="inherit">
+        <DialogActions sx={{ p: 2.5, borderColor: 'rgba(0, 240, 255, 0.15)' }}>
+          <Button onClick={handleCloseDialog} sx={{ color: '#94A3B8', fontWeight: 800 }}>
             Cancel
           </Button>
           <Button
             variant="contained"
             color="primary"
-            onClick={handleSendOutreach}
-            disabled={isSendingOutreach || !selectedJobId || !contactEmail || !contactName}
+            onClick={handleSend}
+            disabled={isSendingOutreach || !selectedJobId || !contactEmail}
             startIcon={isSendingOutreach ? <CircularProgress size={16} /> : <SendIcon />}
-            sx={{ fontWeight: 700 }}
+            sx={{ fontWeight: 900 }}
           >
-            {isSendingOutreach ? 'Transmitting...' : dryRun ? 'Execute Dry-Run' : 'Send Outreach Email'}
+            {isSendingOutreach ? 'Transmitting...' : dryRun ? 'Simulate Send' : 'Send Campaign Email'}
           </Button>
         </DialogActions>
       </Dialog>

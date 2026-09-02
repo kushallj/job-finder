@@ -9,7 +9,6 @@ import {
   Button,
   Stack,
   Chip,
-  alpha,
   Paper,
 } from '@mui/material';
 import {
@@ -32,12 +31,11 @@ import { useStats } from '../hooks/useStats';
 import { formatNumber, formatPercentage } from '../utils/formatters';
 import type { RecentOutreach } from '../api/types';
 
-const PIE_COLORS = ['#10B981', '#4F46E5', '#F59E0B', '#EF4444', '#8B5CF6'];
+const PIE_COLORS = ['#00FFA3', '#00F0FF', '#FFE600', '#FF007A', '#7928CA'];
 
 export const Stats: React.FC = () => {
   const { stats, recentOutreach, isLoadingStats, refetchStats, statsError, statsSource } = useStats();
 
-  // Prepare data for status pie chart
   const statusData = React.useMemo(() => {
     if (!recentOutreach || recentOutreach.length === 0) {
       return [
@@ -54,35 +52,34 @@ export const Stats: React.FC = () => {
     return Object.entries(statusCounts).map(([name, value]) => ({ name, value }));
   }, [recentOutreach, stats]);
 
-  // Funnel progression data
   const funnelData = React.useMemo(() => [
-    { stage: 'Indexed Jobs', count: stats?.total_jobs || 0, fill: '#4F46E5' },
-    { stage: 'Scored & Matched', count: stats?.total_applications || 0, fill: '#6366F1' },
-    { stage: 'Outreach Sent', count: stats?.emails_sent || 0, fill: '#8B5CF6' },
-    { stage: 'Follow-ups', count: stats?.follow_ups_sent || 0, fill: '#F59E0B' },
-    { stage: 'Replies', count: Math.round(((stats?.success_rate || 0) * (stats?.emails_sent || 0)) / 100), fill: '#10B981' },
+    { stage: 'Indexed Jobs', count: stats?.total_jobs || 0, fill: '#00F0FF' },
+    { stage: 'Scored & Matched', count: stats?.total_applications || 0, fill: '#00FFA3' },
+    { stage: 'Outreach Sent', count: stats?.emails_sent || 0, fill: '#FFE600' },
+    { stage: 'Follow-ups', count: stats?.follow_ups_sent || 0, fill: '#7928CA' },
+    { stage: 'Replies', count: Math.round(((stats?.success_rate || 0) * (stats?.emails_sent || 0)) / 100), fill: '#FF007A' },
   ], [stats]);
 
   if (isLoadingStats) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 400, gap: 2 }}>
-        <CircularProgress />
-        <Typography variant="body2" color="text.secondary">Loading analytics engine...</Typography>
+        <CircularProgress sx={{ color: '#00FFA3' }} />
+        <Typography variant="body2" sx={{ color: '#94A3B8' }}>Loading analytics engine...</Typography>
       </Box>
     );
   }
 
   if (statsError) {
     return (
-      <Card sx={{ textAlign: 'center', py: 6, maxWidth: 500, mx: 'auto', mt: 4 }}>
+      <Card sx={{ textAlign: 'center', py: 6, maxWidth: 500, mx: 'auto', mt: 4, bgcolor: '#0D131F', border: '1.5px solid rgba(255, 0, 122, 0.4)' }}>
         <CardContent>
-          <Typography variant="h6" color="error" gutterBottom fontWeight={700}>
+          <Typography variant="h6" color="error" gutterBottom fontWeight={800}>
             Failed to load statistics
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography variant="body2" sx={{ color: '#94A3B8', mb: 2 }}>
             {statsError instanceof Error ? statsError.message : 'Unknown error occurred'}
           </Typography>
-          <Button variant="contained" onClick={() => refetchStats()}>
+          <Button variant="contained" color="primary" onClick={() => refetchStats()}>
             Retry
           </Button>
         </CardContent>
@@ -91,14 +88,14 @@ export const Stats: React.FC = () => {
   }
 
   return (
-    <Box sx={{ maxWidth: 1400, mx: 'auto' }}>
+    <Box sx={{ maxWidth: 1440, mx: 'auto', width: '100%', color: '#F8FAFC' }}>
       {/* Header Section */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3.5, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', mb: 0.5 }}>
+          <Typography variant="h3" sx={{ fontWeight: 900, background: 'linear-gradient(90deg, #00FFA3 0%, #00F0FF 50%, #FFE600 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.03em', mb: 0.5, textTransform: 'uppercase' }}>
             Pipeline & Campaign Analytics
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{ color: '#94A3B8' }}>
             End-to-end conversion funnel metrics, response rates, and activity volume.
           </Typography>
         </Box>
@@ -107,12 +104,13 @@ export const Stats: React.FC = () => {
           <Chip
             label={`Source: ${statsSource === 'live' ? '⚡ Real-Time Engine' : 'Database'}`}
             size="small"
-            sx={{ bgcolor: alpha('#4F46E5', 0.1), color: '#4F46E5', fontWeight: 700 }}
+            sx={{ bgcolor: 'rgba(0, 240, 255, 0.15)', color: '#00F0FF', fontWeight: 800, border: '1px solid rgba(0, 240, 255, 0.4)' }}
           />
           <Button
             variant="outlined"
             onClick={() => refetchStats()}
             startIcon={<RefreshIcon />}
+            sx={{ borderRadius: '12px', fontWeight: 800 }}
           >
             Refresh
           </Button>
@@ -120,89 +118,85 @@ export const Stats: React.FC = () => {
       </Box>
 
       {/* Top Level Metric Cards */}
-      <Grid container spacing={2.5} sx={{ mb: 4 }}>
+      <Grid container spacing={2.5} sx={{ mb: 3.5 }}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E2E8F0' }}>
-            <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>
+          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1.5px solid rgba(0, 240, 255, 0.2)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.6)' }}>
+            <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>
               Jobs Cataloged
             </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 800, color: '#0F172A', my: 0.5 }}>
+            <Typography variant="h4" sx={{ fontWeight: 900, color: '#F8FAFC', my: 0.5 }}>
               {formatNumber(stats?.total_jobs)}
             </Typography>
-            <Typography variant="caption" sx={{ color: '#10B981', fontWeight: 600 }}>
-              Indexed across scrapers
+            <Typography variant="caption" sx={{ color: '#00FFA3', fontWeight: 700 }}>
+              S&P 500, Nifty 500 & YC
             </Typography>
           </Paper>
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E2E8F0' }}>
-            <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>
+          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1.5px solid rgba(0, 255, 163, 0.2)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.6)' }}>
+            <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>
               Contacts Extracted
             </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 800, color: '#0F172A', my: 0.5 }}>
+            <Typography variant="h4" sx={{ fontWeight: 900, color: '#F8FAFC', my: 0.5 }}>
               {formatNumber(stats?.total_contacts)}
             </Typography>
-            <Typography variant="caption" sx={{ color: '#4F46E5', fontWeight: 600 }}>
-              Hunter & Apollo verified
+            <Typography variant="caption" sx={{ color: '#00F0FF', fontWeight: 700 }}>
+              Verified CTOs & Leads
             </Typography>
           </Paper>
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E2E8F0' }}>
-            <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>
+          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1.5px solid rgba(255, 230, 0, 0.2)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.6)' }}>
+            <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>
               Messages Dispatched
             </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 800, color: '#0F172A', my: 0.5 }}>
+            <Typography variant="h4" sx={{ fontWeight: 900, color: '#F8FAFC', my: 0.5 }}>
               {formatNumber(stats?.emails_sent)}
             </Typography>
-            <Typography variant="caption" sx={{ color: '#F59E0B', fontWeight: 600 }}>
+            <Typography variant="caption" sx={{ color: '#FFE600', fontWeight: 700 }}>
               {stats?.follow_ups_sent || 0} automated follow-ups
             </Typography>
           </Paper>
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E2E8F0' }}>
-            <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>
+          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1.5px solid rgba(255, 0, 122, 0.2)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.6)' }}>
+            <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase' }}>
               Conversion Rate
             </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 800, color: '#10B981', my: 0.5 }}>
+            <Typography variant="h4" sx={{ fontWeight: 900, color: '#00FFA3', my: 0.5 }}>
               {formatPercentage(stats?.success_rate)}
             </Typography>
-            <Typography variant="caption" sx={{ color: '#10B981', fontWeight: 600 }}>
-              Industry benchmark: ~15%
+            <Typography variant="caption" sx={{ color: '#00FFA3', fontWeight: 700 }}>
+              Ghost-Proof Delivery
             </Typography>
           </Paper>
         </Grid>
       </Grid>
 
       {/* Visual Analytics Grid */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      <Grid container spacing={3} sx={{ mb: 3.5 }}>
         {/* Funnel Bar Chart */}
         <Grid size={{ xs: 12, md: 7 }}>
-          <Card sx={{ height: '100%', border: '1px solid #E2E8F0' }}>
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" fontWeight={800} color="#0F172A" sx={{ mb: 0.5 }}>
+          <Card sx={{ height: '100%', border: '1.5px solid rgba(0, 240, 255, 0.2)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.65)' }}>
+            <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
+              <Typography variant="h6" fontWeight={900} color="#F8FAFC" sx={{ mb: 0.5 }} textTransform="uppercase">
                 Opportunity Progression Funnel
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              <Typography variant="body2" sx={{ color: '#94A3B8', mb: 3 }}>
                 Conversion volume from raw discovery to interview replies.
               </Typography>
 
               <Box sx={{ width: '100%', height: 280 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={funnelData} layout="vertical" margin={{ left: 20, right: 30, top: 10, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F1F5F9" />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(0, 240, 255, 0.1)" />
                     <XAxis type="number" stroke="#94A3B8" />
-                    <YAxis dataKey="stage" type="category" stroke="#475569" width={110} tick={{ fontSize: 12, fontWeight: 600 }} />
-                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
-                    <Bar dataKey="count" radius={[0, 8, 8, 0]}>
-                      {funnelData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                      ))}
-                    </Bar>
+                    <YAxis dataKey="stage" type="category" stroke="#94A3B8" width={110} tick={{ fontSize: 12, fontWeight: 700 }} />
+                    <Tooltip contentStyle={{ borderRadius: 12, border: '1.5px solid rgba(0, 240, 255, 0.3)', backgroundColor: '#080C12', color: '#F8FAFC' }} />
+                    <Bar dataKey="count" radius={[0, 8, 8, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </Box>
@@ -210,15 +204,15 @@ export const Stats: React.FC = () => {
           </Card>
         </Grid>
 
-        {/* Status Distribution Pie Chart */}
+        {/* Status Distribution Pie */}
         <Grid size={{ xs: 12, md: 5 }}>
-          <Card sx={{ height: '100%', border: '1px solid #E2E8F0' }}>
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" fontWeight={800} color="#0F172A" sx={{ mb: 0.5 }}>
-                Outreach Status Breakdown
+          <Card sx={{ height: '100%', border: '1.5px solid rgba(0, 240, 255, 0.2)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.65)' }}>
+            <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
+              <Typography variant="h6" fontWeight={900} color="#F8FAFC" sx={{ mb: 0.5 }} textTransform="uppercase">
+                Transmission Distribution
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Distribution of recent campaign communication states.
+              <Typography variant="body2" sx={{ color: '#94A3B8', mb: 3 }}>
+                Status breakdown across recent outreach activities.
               </Typography>
 
               <Box sx={{ width: '100%', height: 280 }}>
@@ -235,11 +229,11 @@ export const Stats: React.FC = () => {
                       paddingAngle={4}
                     >
                       {statusData.map((_, index) => (
-                        <Cell key={`pie-cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #E2E8F0' }} />
-                    <Legend wrapperStyle={{ fontSize: '12px', fontWeight: 600 }} />
+                    <Tooltip contentStyle={{ borderRadius: 12, border: '1.5px solid rgba(0, 240, 255, 0.3)', backgroundColor: '#080C12', color: '#F8FAFC' }} />
+                    <Legend wrapperStyle={{ fontSize: '12px', fontWeight: 700 }} />
                   </PieChart>
                 </ResponsiveContainer>
               </Box>

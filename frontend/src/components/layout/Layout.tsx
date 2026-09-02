@@ -15,22 +15,21 @@ import {
   BarChart as StatsIcon,
 } from '@mui/icons-material';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import Header from './Header';
+import Header, { DRAWER_WIDTH } from './Header';
 import Sidebar from './Sidebar';
 import { useUIStore } from '../../stores/useUIStore';
-
-const DRAWER_WIDTH = 260;
 
 // Map paths to titles
 const pageTitles: Record<string, string> = {
   '/': 'Command Center',
-  '/jobs': 'Opportunities & Jobs',
-  '/contacts': 'Contacts CRM',
+  '/jobs': 'Opportunities & Alpha Pipeline',
+  '/contacts': 'Decision Makers CRM',
   '/outreach': 'Outreach Engine',
   '/stats': 'Analytics & Funnel',
   '/settings': 'Settings & System Health',
   '/agents': 'Autonomous Agents Hub',
-  '/copilot': 'AI Career Copilot',
+  '/copilot': 'AI OSINT Copilot',
+  '/market-radar': 'Global Remote Radar',
 };
 
 export const Layout: React.FC = () => {
@@ -48,16 +47,14 @@ export const Layout: React.FC = () => {
     setMobileOpen(false);
   };
 
-  // Handle dynamic paths like /opportunities/:id
   let currentTitle = pageTitles[location.pathname];
   if (!currentTitle && location.pathname.startsWith('/opportunities/')) {
     currentTitle = 'Executive Opportunity Brief';
   }
   if (!currentTitle) {
-    currentTitle = 'Job Finder AI';
+    currentTitle = 'JobFinder AI';
   }
 
-  // Determine current active mobile bottom tab
   const getActiveTab = () => {
     const path = location.pathname;
     if (path === '/') return '/';
@@ -69,7 +66,7 @@ export const Layout: React.FC = () => {
   };
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#0B0F19' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', width: '100%', bgcolor: '#06090E', overflowX: 'hidden' }}>
       <Header onMenuClick={handleMobileToggle} title={currentTitle} />
       <Sidebar mobileOpen={mobileOpen} onMobileClose={handleMobileClose} />
 
@@ -77,23 +74,25 @@ export const Layout: React.FC = () => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: { xs: 1.5, sm: 2.5, md: 4 },
-          pb: { xs: 9, md: 4 }, // Extra bottom padding on mobile for BottomNavigation bar
+          px: { xs: 2, sm: 3, md: 4, lg: 5 },
+          py: { xs: 2, sm: 3, md: 3.5 },
+          pb: { xs: 10, md: 5 }, // Extra bottom padding on mobile for BottomNavigation bar
           width: { md: sidebarOpen ? `calc(100% - ${DRAWER_WIDTH}px)` : '100%' },
           ml: { md: sidebarOpen ? `${DRAWER_WIDTH}px` : 0 },
           transition: theme.transitions.create(['width', 'margin'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,
           }),
-          backgroundColor: '#0B0F19',
-          backgroundImage: 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.12), transparent)',
+          backgroundColor: '#06090E',
           minHeight: '100vh',
           maxWidth: '100%',
           overflowX: 'hidden',
         }}
       >
-        <Toolbar sx={{ minHeight: { xs: '56px', sm: '70px' } }} />
-        <Outlet />
+        <Toolbar sx={{ minHeight: '68px', height: '68px' }} />
+        <Box sx={{ maxWidth: 1440, mx: 'auto', width: '100%' }}>
+          <Outlet />
+        </Box>
       </Box>
 
       {/* ── Mobile 1-Thumb Bottom Navigation Bar (Hidden on md/desktop) ── */}
@@ -104,40 +103,41 @@ export const Layout: React.FC = () => {
           left: 0,
           right: 0,
           display: { xs: 'block', md: 'none' },
-          zIndex: 1300,
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: '0 -4px 20px rgba(0,0,0,0.5)',
-          bgcolor: 'rgba(11, 15, 25, 0.92)',
-          backdropFilter: 'blur(16px)',
+          zIndex: 1200,
+          borderTop: '1.5px solid rgba(0, 240, 255, 0.25)',
+          bgcolor: '#080C12',
+          backdropFilter: 'blur(20px)',
         }}
-        elevation={3}
+        elevation={6}
       >
         <BottomNavigation
           showLabels
           value={getActiveTab()}
           onChange={(_event, newValue) => {
             navigate(newValue);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           sx={{
-            height: 62,
             bgcolor: 'transparent',
+            height: 64,
             '& .MuiBottomNavigationAction-root': {
-              minWidth: 0,
+              minWidth: 'auto',
               padding: '6px 0',
               color: '#94A3B8',
               '&.Mui-selected': {
-                color: '#38BDF8',
-                fontWeight: 700,
+                color: '#00FFA3',
+                '& .MuiBottomNavigationAction-label': {
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                },
               },
             },
           }}
         >
-          <BottomNavigationAction label="Dashboard" value="/" icon={<DashboardIcon fontSize="small" />} />
+          <BottomNavigationAction label="Command" value="/" icon={<DashboardIcon fontSize="small" />} />
           <BottomNavigationAction label="Jobs" value="/jobs" icon={<JobsIcon fontSize="small" />} />
-          <BottomNavigationAction label="Agents" value="/agents" icon={<AgentsIcon fontSize="small" />} />
+          <BottomNavigationAction label="AI Agents" value="/agents" icon={<AgentsIcon fontSize="small" />} />
           <BottomNavigationAction label="Outreach" value="/outreach" icon={<OutreachIcon fontSize="small" />} />
-          <BottomNavigationAction label="Stats" value="/stats" icon={<StatsIcon fontSize="small" />} />
+          <BottomNavigationAction label="Analytics" value="/stats" icon={<StatsIcon fontSize="small" />} />
         </BottomNavigation>
       </Paper>
     </Box>
