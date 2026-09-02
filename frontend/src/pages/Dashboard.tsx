@@ -41,7 +41,7 @@ import type { RecentOutreach, ProviderSyncResponse, MarketIntelligenceResponse }
 import ActionQueue from '../components/lifecycle/ActionQueue';
 import { providersApi } from '../api/endpoints/providers';
 
-// Neo-Brutalist Stat Card Component
+// Web3 / HFT Stat Card Component
 interface StatCardProps {
   title: string;
   value: number | string;
@@ -53,11 +53,11 @@ interface StatCardProps {
 }
 
 const colorMap = {
-  primary: { main: '#FF3E00', bg: '#FF3E00', text: '#FFFFFF', shadow: '#000000' },
-  success: { main: '#00E676', bg: '#00E676', text: '#0A0D0E', shadow: '#000000' },
-  warning: { main: '#FFDE59', bg: '#FFDE59', text: '#0A0D0E', shadow: '#000000' },
-  error: { main: '#FF007A', bg: '#FF007A', text: '#FFFFFF', shadow: '#000000' },
-  secondary: { main: '#8A2BE2', bg: '#8A2BE2', text: '#FFFFFF', shadow: '#000000' },
+  primary: { main: '#00F0FF', light: 'rgba(0, 240, 255, 0.15)', border: 'rgba(0, 240, 255, 0.4)' },
+  success: { main: '#00FFA3', light: 'rgba(0, 255, 163, 0.15)', border: 'rgba(0, 255, 163, 0.4)' },
+  warning: { main: '#FFE600', light: 'rgba(255, 230, 0, 0.15)', border: 'rgba(255, 230, 0, 0.4)' },
+  error: { main: '#FF007A', light: 'rgba(255, 0, 122, 0.15)', border: 'rgba(255, 0, 122, 0.4)' },
+  secondary: { main: '#7928CA', light: 'rgba(121, 40, 202, 0.2)', border: 'rgba(121, 40, 202, 0.4)' },
 };
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color, loading, onClick }) => {
@@ -68,15 +68,15 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
       sx={{
         height: '100%',
         cursor: onClick ? 'pointer' : 'default',
-        bgcolor: '#12181B',
-        border: '3px solid #2A363F',
-        boxShadow: '5px 5px 0px #000000',
+        bgcolor: '#0D131F',
+        border: '1.5px solid rgba(0, 240, 255, 0.2)',
+        boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.65)',
         borderRadius: '20px',
-        transition: 'all 0.15s ease-in-out',
+        transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
         '&:hover': onClick
           ? {
-              transform: 'translate(-2px, -2px)',
-              boxShadow: `7px 7px 0px ${c.main}`,
+              transform: 'translateY(-4px)',
+              boxShadow: `0 0 25px ${c.light}, 0 0 50px rgba(0, 240, 255, 0.15)`,
               borderColor: c.main,
             }
           : {},
@@ -86,18 +86,18 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
       <CardContent sx={{ p: 2.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1.5 }}>
           <Box>
-            <Typography variant="caption" sx={{ fontWeight: 900, color: '#A0AEC0', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            <Typography variant="caption" sx={{ fontWeight: 900, color: '#94A3B8', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
               {title}
             </Typography>
             {loading ? (
-              <Skeleton variant="text" width={90} height={42} sx={{ bgcolor: '#181E24' }} />
+              <Skeleton variant="text" width={90} height={42} sx={{ bgcolor: '#161F30' }} />
             ) : (
-              <Typography variant="h4" sx={{ fontWeight: 900, color: '#F6F1D7', my: 0.5, letterSpacing: '-0.03em' }}>
+              <Typography variant="h3" sx={{ fontWeight: 900, color: '#F8FAFC', my: 0.5, letterSpacing: '-0.03em' }}>
                 {value}
               </Typography>
             )}
             {subtitle && (
-              <Typography variant="caption" sx={{ color: '#A0AEC0', fontWeight: 600 }}>
+              <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 600 }}>
                 {subtitle}
               </Typography>
             )}
@@ -106,13 +106,13 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
             sx={{
               p: 1.25,
               borderRadius: '14px',
-              backgroundColor: c.bg,
-              color: c.text,
+              backgroundColor: c.light,
+              color: c.main,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '2px solid #000000',
-              boxShadow: '3px 3px 0px #000000',
+              border: `1px solid ${c.border}`,
+              boxShadow: `0 0 15px ${c.light}`,
             }}
           >
             {icon}
@@ -124,12 +124,12 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
 };
 
 const QUICK_PRESETS = [
-  '⚡ S&P 500 US Tech',
-  '🇮🇳 Nifty 500 Giants',
+  '⚡ S&P 500 US Alpha',
+  '🇮🇳 Nifty 500 Tech',
   '🚀 YC / Unicorns',
-  '🔥 Python Backend',
-  '⚡ Full Stack React',
-  '🤖 AI / ML Engineer',
+  '🔥 HFT & Distributed',
+  '⚡ Python & FastAPI',
+  '🤖 GenAI & LLMs',
   '💀 Ghost-Proof Roles',
 ];
 
@@ -178,68 +178,69 @@ export const Dashboard: React.FC = () => {
   };
 
   return (
-    <Box sx={{ maxWidth: 1400, mx: 'auto' }}>
-      {/* Fireship Hero Welcome Banner */}
+    <Box sx={{ maxWidth: 1400, mx: 'auto', color: '#F8FAFC' }}>
+      {/* Web3 & HFT Hero Cockpit Banner */}
       <Box
         sx={{
-          p: { xs: 3, md: 4 },
+          p: { xs: 3, md: 4.5 },
           mb: 4,
           borderRadius: '24px',
-          bgcolor: '#12181B',
-          border: '3.5px solid #000000',
-          boxShadow: '8px 8px 0px #FF3E00',
-          color: '#F6F1D7',
+          bgcolor: '#0D131F',
+          border: '1.5px solid rgba(0, 240, 255, 0.35)',
+          boxShadow: '0 0 35px rgba(0, 240, 255, 0.2), 0 0 70px rgba(0, 255, 163, 0.1)',
+          color: '#F8FAFC',
           position: 'relative',
           overflow: 'hidden',
         }}
       >
-        <Box sx={{ position: 'relative', zIndex: 1, maxWidth: 900 }}>
+        <Box sx={{ position: 'relative', zIndex: 1, maxWidth: 950 }}>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
             <Chip
-              icon={<FlameIcon sx={{ fontSize: '16px !important', color: '#000000 !important' }} />}
-              label="100-Second Speedrun Mode"
+              icon={<FlameIcon sx={{ fontSize: '16px !important', color: '#00FFA3 !important' }} />}
+              label="HFT Alpha Liquidity Active"
               size="small"
               sx={{
-                bgcolor: '#FFDE59',
-                color: '#0A0D0E',
+                bgcolor: 'rgba(0, 255, 163, 0.15)',
+                color: '#00FFA3',
                 fontWeight: 900,
-                border: '2px solid #000',
+                border: '1px solid rgba(0, 255, 163, 0.4)',
+                boxShadow: '0 0 10px rgba(0, 255, 163, 0.25)',
               }}
             />
             <Chip
-              label="2,050+ Live Roles"
+              label="2,050+ Live Pools"
               size="small"
               sx={{
-                bgcolor: '#00E676',
-                color: '#0A0D0E',
+                bgcolor: 'rgba(0, 240, 255, 0.15)',
+                color: '#00F0FF',
                 fontWeight: 900,
-                border: '2px solid #000',
+                border: '1px solid rgba(0, 240, 255, 0.4)',
               }}
             />
           </Stack>
-          <Typography variant="h2" sx={{ fontWeight: 900, letterSpacing: '-0.04em', mb: 1, color: '#F6F1D7', textTransform: 'uppercase' }}>
-            Find your next 10x tech job <span style={{ color: '#FF3E00' }}>in 100 seconds</span>. 🔥
+          <Typography variant="h2" sx={{ fontWeight: 900, letterSpacing: '-0.035em', mb: 1.5, background: 'linear-gradient(90deg, #00FFA3 0%, #00F0FF 50%, #FFE600 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', textTransform: 'uppercase' }}>
+            Next-Gen Career Intelligence Cockpit ⚡
           </Typography>
-          <Typography variant="body1" sx={{ color: '#A0AEC0', mb: 3, fontSize: '1.05rem', maxWidth: 700, fontWeight: 500 }}>
-            No BS cover letters. Direct ATS pipelines across <strong>S&P 500</strong>, <strong>Nifty 500</strong>, and <strong>YC Unicorns</strong> with 1-click decision maker outreach.
+          <Typography variant="body1" sx={{ color: '#94A3B8', mb: 3, fontSize: '1.1rem', maxWidth: 740, fontWeight: 500 }}>
+            Sub-millisecond direct ATS scraping across <strong>S&P 500</strong>, <strong>Nifty 500</strong>, and <strong>Top Tier-1 Unicorns</strong> with 1-click autonomous decision maker outreach.
           </Typography>
         </Box>
       </Box>
 
       {/* Quick Search & AI Pipeline Trigger */}
-      <Card sx={{ mb: 4, p: 1, bgcolor: '#12181B', border: '3px solid #2A363F', boxShadow: '6px 6px 0px #000000' }}>
+      <Card sx={{ mb: 4, p: 1, bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.25)', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.65)' }}>
         <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
           <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-            <FilterIcon sx={{ color: '#FFDE59' }} />
-            <Typography variant="h6" fontWeight={900} color="#F6F1D7" textTransform="uppercase">
-              Job Speedrun & Pipeline Search
+            <FilterIcon sx={{ color: '#00F0FF' }} />
+            <Typography variant="h6" fontWeight={900} color="#F8FAFC" textTransform="uppercase">
+              Alpha Search & Pipeline Ingestion
             </Typography>
           </Stack>
 
           {/* Quick preset chips */}
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2.5 }}>
-            <Typography variant="caption" sx={{ color: '#A0AEC0', fontWeight: 900, alignSelf: 'center', mr: 0.5, textTransform: 'uppercase' }}>
-              Quick Presets:
+            <Typography variant="caption" sx={{ color: '#00FFA3', fontWeight: 900, alignSelf: 'center', mr: 0.5, textTransform: 'uppercase' }}>
+              Alpha Presets:
             </Typography>
             {QUICK_PRESETS.map((preset) => {
               const isSelected = searchQuery === preset;
@@ -251,12 +252,12 @@ export const Dashboard: React.FC = () => {
                   onClick={() => setSearchQuery(preset.replace(/^[^\w]+/, '').trim())}
                   sx={{
                     cursor: 'pointer',
-                    bgcolor: isSelected ? '#FFDE59' : '#181E24',
-                    color: isSelected ? '#0A0D0E' : '#F6F1D7',
-                    border: '2px solid #000',
-                    boxShadow: isSelected ? '3px 3px 0px #FF3E00' : '2px 2px 0px #000',
-                    fontWeight: 900,
-                    '&:hover': { bgcolor: '#FF3E00', color: '#FFFFFF', transform: 'translateY(-1px)' },
+                    bgcolor: isSelected ? 'rgba(0, 240, 255, 0.25)' : 'rgba(0, 240, 255, 0.05)',
+                    color: isSelected ? '#00F0FF' : '#94A3B8',
+                    border: isSelected ? '1px solid #00F0FF' : '1px solid rgba(0, 240, 255, 0.2)',
+                    boxShadow: isSelected ? '0 0 15px rgba(0, 240, 255, 0.35)' : 'none',
+                    fontWeight: 800,
+                    '&:hover': { bgcolor: 'rgba(0, 240, 255, 0.15)', color: '#00F0FF', borderColor: '#00F0FF' },
                   }}
                 />
               );
@@ -275,7 +276,7 @@ export const Dashboard: React.FC = () => {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <SearchIcon sx={{ color: '#A0AEC0' }} />
+                      <SearchIcon sx={{ color: '#00F0FF' }} />
                     </InputAdornment>
                   ),
                 }}
@@ -284,8 +285,8 @@ export const Dashboard: React.FC = () => {
 
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <Box sx={{ px: 1 }}>
-                <Typography variant="caption" sx={{ color: '#A0AEC0', fontWeight: 900, display: 'block', mb: 0.5, textTransform: 'uppercase' }}>
-                  Min Match Score: <strong style={{ color: '#FFDE59' }}>{minScore}%</strong>
+                <Typography variant="caption" sx={{ color: '#00FFA3', fontWeight: 900, display: 'block', mb: 0.5, textTransform: 'uppercase' }}>
+                  Min Match Score: <strong style={{ color: '#FFE600' }}>{minScore}%</strong>
                 </Typography>
                 <Slider
                   value={minScore}
@@ -295,7 +296,7 @@ export const Dashboard: React.FC = () => {
                   step={5}
                   valueLabelDisplay="auto"
                   size="small"
-                  sx={{ color: '#FF3E00' }}
+                  sx={{ color: '#00F0FF' }}
                 />
               </Box>
             </Grid>
@@ -311,7 +312,7 @@ export const Dashboard: React.FC = () => {
                   startIcon={isRunningQuery ? <Skeleton variant="circular" width={18} height={18} /> : <FlashIcon />}
                   sx={{ py: 1.2, fontWeight: 900 }}
                 >
-                  {isRunningQuery ? 'Speedrunning...' : '⚡ Match Roles'}
+                  {isRunningQuery ? 'Sourcing...' : '⚡ Match Roles'}
                 </Button>
                 <Button
                   variant="contained"
@@ -381,18 +382,18 @@ export const Dashboard: React.FC = () => {
       <ActionQueue limit={6} />
 
       {/* External Intelligence & Market Trends */}
-      <Card sx={{ mb: 4, bgcolor: '#12181B', border: '3px solid #2A363F', boxShadow: '6px 6px 0px #000000' }}>
+      <Card sx={{ mb: 4, bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.25)', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.65)' }}>
         <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 2 }}>
             <Stack direction="row" spacing={1.5} alignItems="center">
-              <Box sx={{ p: 1.2, borderRadius: '12px', bgcolor: '#FFDE59', color: '#0A0D0E', border: '2px solid #000', boxShadow: '3px 3px 0px #000' }}>
+              <Box sx={{ p: 1.2, borderRadius: '12px', bgcolor: 'rgba(0, 240, 255, 0.15)', color: '#00F0FF', border: '1px solid rgba(0, 240, 255, 0.4)', boxShadow: '0 0 15px rgba(0, 240, 255, 0.3)' }}>
                 <GlobeIcon />
               </Box>
               <Box>
-                <Typography variant="h6" fontWeight={900} color="#F6F1D7" textTransform="uppercase">
+                <Typography variant="h6" fontWeight={900} color="#F8FAFC" textTransform="uppercase">
                   Global Multi-Catalog Intelligence
                 </Typography>
-                <Typography variant="body2" color="#A0AEC0">
+                <Typography variant="body2" color="#94A3B8">
                   Live benchmarks across S&P 500 (US), Nifty 500 (NSE), YC, and FinTech ecosystems.
                 </Typography>
               </Box>
@@ -403,7 +404,7 @@ export const Dashboard: React.FC = () => {
           </Box>
 
           {providerSync && (
-            <Alert severity="success" sx={{ mb: 2.5, borderRadius: '14px', bgcolor: '#00E676', color: '#0A0D0E', border: '2px solid #000', fontWeight: 700 }}>
+            <Alert severity="success" sx={{ mb: 2.5, borderRadius: '14px', bgcolor: 'rgba(0, 255, 163, 0.15)', color: '#00FFA3', border: '1px solid rgba(0, 255, 163, 0.4)', fontWeight: 800 }}>
               Synced <strong>{providerSync.total_fetched}</strong> external roles · {providerSync.total_inserted} newly indexed · {providerSync.total_updated} updated.
             </Alert>
           )}
@@ -412,11 +413,11 @@ export const Dashboard: React.FC = () => {
             <Grid container spacing={2}>
               {Object.entries(market.data).slice(0, 4).map(([key, value]) => (
                 <Grid key={key} size={{ xs: 6, sm: 3 }}>
-                  <Paper variant="outlined" sx={{ p: 2, borderRadius: '16px', bgcolor: '#0A0D0E', border: '2.5px solid #2A363F', boxShadow: '3px 3px 0px #000' }}>
-                    <Typography variant="caption" sx={{ color: '#A0AEC0', fontWeight: 900, textTransform: 'uppercase' }}>
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: '16px', bgcolor: '#080C12', border: '1.5px solid rgba(0, 240, 255, 0.2)', boxShadow: '0 0 15px rgba(0, 0, 0, 0.5)' }}>
+                    <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 900, textTransform: 'uppercase' }}>
                       {key.replaceAll('_', ' ')}
                     </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 900, color: '#FFDE59', mt: 0.5 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 900, color: '#FFE600', mt: 0.5 }}>
                       {String(value)}
                     </Typography>
                   </Paper>
@@ -424,9 +425,9 @@ export const Dashboard: React.FC = () => {
               ))}
             </Grid>
           ) : (
-            <Box sx={{ p: 2.5, borderRadius: '14px', bgcolor: '#0A0D0E', border: '2px solid #2A363F', textAlign: 'center' }}>
-              <Typography variant="body2" color="#A0AEC0" fontWeight={600}>
-                💡 <strong>Fireship Pro Tip:</strong> Click <strong>"Sync ATS"</strong> above to pull live market compensation and AI developer demand.
+            <Box sx={{ p: 2.5, borderRadius: '14px', bgcolor: '#080C12', border: '1px solid rgba(0, 240, 255, 0.15)', textAlign: 'center' }}>
+              <Typography variant="body2" color="#94A3B8" fontWeight={600}>
+                ⚡ Click <strong>"Sync ATS"</strong> above to pull live market compensation and AI developer demand.
               </Typography>
             </Box>
           )}
@@ -437,23 +438,23 @@ export const Dashboard: React.FC = () => {
       <Grid container spacing={3}>
         {/* Recent Outreach Feed */}
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: '100%', bgcolor: '#12181B', border: '3px solid #2A363F', boxShadow: '6px 6px 0px #000000' }}>
+          <Card sx={{ height: '100%', bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.25)', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.65)' }}>
             <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Typography variant="h6" fontWeight={900} color="#F6F1D7" textTransform="uppercase">
+                <Typography variant="h6" fontWeight={900} color="#F8FAFC" textTransform="uppercase">
                   Recent Outreach Dispatches
                 </Typography>
-                <Button size="small" onClick={() => navigate('/outreach')} endIcon={<ArrowForwardIcon fontSize="small" />} sx={{ color: '#FFDE59', fontWeight: 900 }}>
+                <Button size="small" onClick={() => navigate('/outreach')} endIcon={<ArrowForwardIcon fontSize="small" />} sx={{ color: '#00F0FF', fontWeight: 900 }}>
                   View all
                 </Button>
               </Stack>
-              <Divider sx={{ mb: 1, borderColor: '#2A363F' }} />
+              <Divider sx={{ mb: 1, borderColor: 'rgba(0, 240, 255, 0.15)' }} />
 
               {isLoadingStats ? (
                 <Stack spacing={1.5} sx={{ py: 2 }}>
-                  <Skeleton height={50} sx={{ bgcolor: '#181E24' }} />
-                  <Skeleton height={50} sx={{ bgcolor: '#181E24' }} />
-                  <Skeleton height={50} sx={{ bgcolor: '#181E24' }} />
+                  <Skeleton height={50} sx={{ bgcolor: '#161F30' }} />
+                  <Skeleton height={50} sx={{ bgcolor: '#161F30' }} />
+                  <Skeleton height={50} sx={{ bgcolor: '#161F30' }} />
                 </Stack>
               ) : recentOutreach && recentOutreach.length > 0 ? (
                 <List disablePadding>
@@ -461,15 +462,15 @@ export const Dashboard: React.FC = () => {
                     <React.Fragment key={item.id}>
                       <ListItem disablePadding sx={{ py: 1.5 }}>
                         <ListItemIcon sx={{ minWidth: 38 }}>
-                          <Box sx={{ p: 0.75, borderRadius: '10px', bgcolor: '#FF3E00', color: '#FFFFFF', border: '1.5px solid #000' }}>
+                          <Box sx={{ p: 0.75, borderRadius: '10px', bgcolor: 'rgba(0, 240, 255, 0.15)', color: '#00F0FF', border: '1px solid rgba(0, 240, 255, 0.4)' }}>
                             <OutreachIcon fontSize="small" />
                           </Box>
                         </ListItemIcon>
                         <ListItemText
                           primary={item.contact_email}
                           secondary={formatRelativeTime(item.sent_at)}
-                          primaryTypographyProps={{ variant: 'body2', fontWeight: 700, color: '#F6F1D7' }}
-                          secondaryTypographyProps={{ variant: 'caption', color: '#A0AEC0' }}
+                          primaryTypographyProps={{ variant: 'body2', fontWeight: 800, color: '#F8FAFC' }}
+                          secondaryTypographyProps={{ variant: 'caption', color: '#94A3B8' }}
                         />
                         <Chip
                           label={item.status}
@@ -477,13 +478,13 @@ export const Dashboard: React.FC = () => {
                           color={item.status === 'sent' ? 'success' : item.status === 'replied' ? 'primary' : 'default'}
                         />
                       </ListItem>
-                      {index < Math.min(recentOutreach.length, 5) - 1 && <Divider sx={{ borderColor: '#2A363F' }} />}
+                      {index < Math.min(recentOutreach.length, 5) - 1 && <Divider sx={{ borderColor: 'rgba(0, 240, 255, 0.08)' }} />}
                     </React.Fragment>
                   ))}
                 </List>
               ) : (
                 <Box sx={{ py: 4, textAlign: 'center' }}>
-                  <Typography variant="body2" color="#A0AEC0">
+                  <Typography variant="body2" color="#94A3B8">
                     No outreach sent yet. Select an opportunity to send your first message!
                   </Typography>
                   <Button variant="contained" color="secondary" size="small" sx={{ mt: 1.5, fontWeight: 900 }} onClick={() => navigate('/outreach')}>
@@ -497,25 +498,25 @@ export const Dashboard: React.FC = () => {
 
         {/* Top Opportunities Feed */}
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: '100%', bgcolor: '#12181B', border: '3px solid #2A363F', boxShadow: '6px 6px 0px #000000' }}>
+          <Card sx={{ height: '100%', bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.25)', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.65)' }}>
             <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6" fontWeight={900} color="#F6F1D7" textTransform="uppercase">
-                  {pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? '🔥 Top Speedrun Roles' : 'Recently Crawled Positions'}
+                <Typography variant="h6" fontWeight={900} color="#F8FAFC" textTransform="uppercase">
+                  {pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? '⚡ Top Alpha Roles' : 'Recently Crawled Positions'}
                 </Typography>
                 <Chip
                   label={pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? `${pendingOutreach.total_jobs || 0} Ready` : `${allJobsTotal || 0} Ingested`}
                   size="small"
-                  sx={{ bgcolor: '#00E676', color: '#0A0D0E', fontWeight: 900, border: '2px solid #000' }}
+                  sx={{ bgcolor: 'rgba(0, 255, 163, 0.15)', color: '#00FFA3', fontWeight: 900, border: '1px solid rgba(0, 255, 163, 0.4)' }}
                 />
               </Box>
-              <Divider sx={{ mb: 1, borderColor: '#2A363F' }} />
+              <Divider sx={{ mb: 1, borderColor: 'rgba(0, 240, 255, 0.15)' }} />
 
               {isPendingOutreachLoading || isAllJobsLoading ? (
                 <Stack spacing={1.5} sx={{ py: 2 }}>
-                  <Skeleton height={50} sx={{ bgcolor: '#181E24' }} />
-                  <Skeleton height={50} sx={{ bgcolor: '#181E24' }} />
-                  <Skeleton height={50} sx={{ bgcolor: '#181E24' }} />
+                  <Skeleton height={50} sx={{ bgcolor: '#161F30' }} />
+                  <Skeleton height={50} sx={{ bgcolor: '#161F30' }} />
+                  <Skeleton height={50} sx={{ bgcolor: '#161F30' }} />
                 </Stack>
               ) : (pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? pendingOutreach.jobs : allJobs).length > 0 ? (
                 <List disablePadding>
@@ -526,37 +527,46 @@ export const Dashboard: React.FC = () => {
                         sx={{
                           py: 1.5,
                           cursor: 'pointer',
-                          borderRadius: '10px',
-                          px: 1,
-                          '&:hover': { backgroundColor: '#181E24', transform: 'translateX(4px)' },
-                          transition: 'all 0.12s ease',
+                          borderRadius: '12px',
+                          px: 1.5,
+                          '&:hover': { backgroundColor: 'rgba(0, 240, 255, 0.06)', transform: 'translateX(4px)' },
+                          transition: 'all 0.18s ease',
                         }}
                         onClick={() => navigate(`/opportunities/${job.id}`)}
                       >
                         <ListItemIcon sx={{ minWidth: 38 }}>
-                          <Box sx={{ p: 0.75, borderRadius: '10px', bgcolor: '#00E676', color: '#0A0D0E', border: '1.5px solid #000' }}>
+                          <Box sx={{ p: 0.75, borderRadius: '10px', bgcolor: 'rgba(0, 255, 163, 0.15)', color: '#00FFA3', border: '1px solid rgba(0, 255, 163, 0.4)' }}>
                             <JobsIcon fontSize="small" />
                           </Box>
                         </ListItemIcon>
                         <ListItemText
                           primary={job.title}
                           secondary={`${job.company || 'Unknown'} • ${job.location || 'Remote'}`}
-                          primaryTypographyProps={{ variant: 'body2', fontWeight: 900, color: '#F6F1D7' }}
-                          secondaryTypographyProps={{ variant: 'caption', color: '#A0AEC0' }}
+                          primaryTypographyProps={{
+                            variant: 'body2',
+                            sx: {
+                              fontWeight: 900,
+                              background: 'linear-gradient(90deg, #00FFA3 0%, #00F0FF 100%)',
+                              WebkitBackgroundClip: 'text',
+                              WebkitTextFillColor: 'transparent',
+                            },
+                          }}
+                          secondaryTypographyProps={{ variant: 'caption', sx: { color: '#FFE600', fontWeight: 700 } }}
+
                         />
-                        <Button size="small" variant="contained" color="secondary" endIcon={<ArrowForwardIcon fontSize="small" />} sx={{ fontWeight: 900, fontSize: '0.75rem', px: 1.5, py: 0.5 }}>
+                        <Button size="small" variant="outlined" endIcon={<ArrowForwardIcon fontSize="small" />} sx={{ fontWeight: 900, fontSize: '0.75rem', px: 1.5, py: 0.5 }}>
                           Brief
                         </Button>
                       </ListItem>
                       {index < Math.min((pendingOutreach?.jobs && pendingOutreach.jobs.length > 0 ? pendingOutreach.jobs : allJobs).length, 6) - 1 && (
-                        <Divider sx={{ borderColor: '#2A363F' }} />
+                        <Divider sx={{ borderColor: 'rgba(0, 240, 255, 0.06)' }} />
                       )}
                     </React.Fragment>
                   ))}
                 </List>
               ) : (
                 <Box sx={{ py: 4, textAlign: 'center' }}>
-                  <Typography variant="body2" color="#A0AEC0">
+                  <Typography variant="body2" color="#94A3B8">
                     No positions found. The autonomous crawler is scanning company boards in the background...
                   </Typography>
                 </Box>

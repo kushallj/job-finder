@@ -10,30 +10,29 @@ import {
   Divider,
   Stack,
   Typography,
-  alpha,
 } from '@mui/material';
 import {
   ArrowForward as ArrowForwardIcon,
   CheckCircle as CheckIcon,
-  OpenInNew as OpenIcon,
   Bolt as FlashIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useActionQueue } from '../../hooks/useActionQueue';
 
+
 const stageColors: Record<string, { bg: string; text: string; border: string }> = {
-  saved: { bg: alpha('#64748B', 0.1), text: '#475569', border: alpha('#64748B', 0.2) },
-  ready: { bg: alpha('#4F46E5', 0.1), text: '#4F46E5', border: alpha('#4F46E5', 0.2) },
-  applied: { bg: alpha('#06B6D4', 0.1), text: '#0891B2', border: alpha('#06B6D4', 0.2) },
-  interview: { bg: alpha('#F59E0B', 0.1), text: '#D97706', border: alpha('#F59E0B', 0.2) },
-  offer: { bg: alpha('#10B981', 0.1), text: '#059669', border: alpha('#10B981', 0.2) },
-  negotiation: { bg: alpha('#8B5CF6', 0.1), text: '#7C3AED', border: alpha('#8B5CF6', 0.2) },
-  accepted: { bg: alpha('#10B981', 0.15), text: '#047857', border: alpha('#10B981', 0.3) },
+  saved: { bg: 'rgba(148, 163, 184, 0.12)', text: '#94A3B8', border: 'rgba(148, 163, 184, 0.3)' },
+  ready: { bg: 'rgba(0, 240, 255, 0.15)', text: '#00F0FF', border: 'rgba(0, 240, 255, 0.4)' },
+  applied: { bg: 'rgba(0, 255, 163, 0.15)', text: '#00FFA3', border: 'rgba(0, 255, 163, 0.4)' },
+  interview: { bg: 'rgba(255, 230, 0, 0.15)', text: '#FFE600', border: 'rgba(255, 230, 0, 0.4)' },
+  offer: { bg: 'rgba(0, 255, 163, 0.2)', text: '#00FFA3', border: 'rgba(0, 255, 163, 0.5)' },
+  negotiation: { bg: 'rgba(121, 40, 202, 0.2)', text: '#A855F7', border: 'rgba(121, 40, 202, 0.4)' },
+  accepted: { bg: 'rgba(0, 255, 163, 0.25)', text: '#00FFA3', border: 'rgba(0, 255, 163, 0.6)' },
 };
 
 const stageLabel: Record<string, string> = {
   saved: '📌 Saved',
-  ready: '✨ Ready to Apply',
+  ready: '⚡ Ready to Apply',
   applied: '📤 Applied',
   interview: '🎯 Interviewing',
   offer: '🎉 Offer Received',
@@ -48,17 +47,17 @@ export const ActionQueue: React.FC<{ limit?: number }> = ({ limit = 8 }) => {
 
   if (isLoading) {
     return (
-      <Card sx={{ mb: 4 }}>
+      <Card sx={{ mb: 4, bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.2)' }}>
         <CardContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 5, gap: 1.5 }}>
-          <CircularProgress size={28} />
-          <Typography variant="body2" color="text.secondary">Loading priority action queue...</Typography>
+          <CircularProgress size={28} sx={{ color: '#00FFA3' }} />
+          <Typography variant="body2" sx={{ color: '#94A3B8' }}>Loading priority action queue...</Typography>
         </CardContent>
       </Card>
     );
   }
 
   if (isError) {
-    return <Alert severity="error" sx={{ mb: 4 }}>Unable to load your next actions.</Alert>;
+    return <Alert severity="error" sx={{ mb: 4, bgcolor: 'rgba(255, 0, 122, 0.15)', color: '#FF007A', border: '1px solid rgba(255, 0, 122, 0.4)' }}>Unable to load your next actions.</Alert>;
   }
 
   const actions = data?.actions || [];
@@ -67,9 +66,10 @@ export const ActionQueue: React.FC<{ limit?: number }> = ({ limit = 8 }) => {
     <Card
       sx={{
         mb: 4,
-        background: 'linear-gradient(180deg, #FFFFFF 0%, #FBFDFF 100%)',
-        border: '1px solid #E2E8F0',
-        boxShadow: '0 4px 16px -4px rgba(0, 0, 0, 0.04)',
+        bgcolor: '#0D131F',
+        border: '1.5px solid rgba(0, 240, 255, 0.2)',
+        boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.65)',
+        backdropFilter: 'blur(16px)',
       }}
     >
       <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
@@ -78,21 +78,23 @@ export const ActionQueue: React.FC<{ limit?: number }> = ({ limit = 8 }) => {
             <Stack direction="row" spacing={1.5} alignItems="center">
               <Box
                 sx={{
-                  p: 1,
-                  borderRadius: '10px',
-                  bgcolor: alpha('#4F46E5', 0.1),
-                  color: '#4F46E5',
+                  p: 1.2,
+                  borderRadius: '12px',
+                  bgcolor: 'rgba(0, 255, 163, 0.15)',
+                  color: '#00FFA3',
+                  border: '1px solid rgba(0, 255, 163, 0.4)',
                   display: 'flex',
                   alignItems: 'center',
+                  boxShadow: '0 0 15px rgba(0, 255, 163, 0.25)',
                 }}
               >
                 <FlashIcon />
               </Box>
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: '#0F172A', letterSpacing: '-0.01em' }}>
+                <Typography variant="h6" sx={{ fontWeight: 900, color: '#F8FAFC', letterSpacing: '-0.02em', textTransform: 'uppercase' }}>
                   Do This Next — Career Action Queue
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{ color: '#94A3B8' }}>
                   Automated priority engine prescribing the highest ROI step for every opportunity.
                 </Typography>
               </Box>
@@ -102,15 +104,16 @@ export const ActionQueue: React.FC<{ limit?: number }> = ({ limit = 8 }) => {
             label={`${data?.total || 0} Recommended Actions`}
             size="small"
             sx={{
-              bgcolor: alpha('#4F46E5', 0.1),
-              color: '#4F46E5',
-              fontWeight: 700,
-              border: `1px solid ${alpha('#4F46E5', 0.2)}`,
+              bgcolor: 'rgba(0, 240, 255, 0.15)',
+              color: '#00F0FF',
+              fontWeight: 800,
+              border: '1px solid rgba(0, 240, 255, 0.4)',
+              boxShadow: '0 0 10px rgba(0, 240, 255, 0.2)',
             }}
           />
         </Stack>
 
-        <Divider sx={{ borderColor: '#F1F5F9', my: 2 }} />
+        <Divider sx={{ borderColor: 'rgba(0, 240, 255, 0.15)', my: 2 }} />
 
         {actions.length === 0 ? (
           <Box sx={{ py: 4, textAlign: 'center' }}>
@@ -119,8 +122,9 @@ export const ActionQueue: React.FC<{ limit?: number }> = ({ limit = 8 }) => {
                 width: 48,
                 height: 48,
                 borderRadius: '50%',
-                bgcolor: alpha('#10B981', 0.1),
-                color: '#10B981',
+                bgcolor: 'rgba(0, 255, 163, 0.15)',
+                color: '#00FFA3',
+                border: '1px solid rgba(0, 255, 163, 0.4)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -129,10 +133,10 @@ export const ActionQueue: React.FC<{ limit?: number }> = ({ limit = 8 }) => {
             >
               <CheckIcon fontSize="medium" />
             </Box>
-            <Typography variant="subtitle1" fontWeight={700} color="#0F172A">
+            <Typography variant="subtitle1" fontWeight={800} color="#F8FAFC">
               You're completely caught up!
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 460, mx: 'auto', mt: 0.5 }}>
+            <Typography variant="body2" sx={{ color: '#94A3B8', maxWidth: 460, mx: 'auto', mt: 0.5 }}>
               All current opportunities have been acted on. Run a new job search above to discover and match fresh roles.
             </Typography>
           </Box>
@@ -148,15 +152,15 @@ export const ActionQueue: React.FC<{ limit?: number }> = ({ limit = 8 }) => {
                   key={`${item.job_id}-${item.action.key}`}
                   sx={{
                     p: 2,
-                    borderRadius: '12px',
+                    borderRadius: '14px',
                     border: '1px solid',
-                    borderColor: isHighPriority ? alpha('#4F46E5', 0.2) : '#F1F5F9',
-                    backgroundColor: isHighPriority ? alpha('#4F46E5', 0.02) : '#FFFFFF',
-                    transition: 'all 0.2s ease',
+                    borderColor: isHighPriority ? 'rgba(0, 240, 255, 0.35)' : 'rgba(255, 255, 255, 0.08)',
+                    backgroundColor: isHighPriority ? 'rgba(0, 240, 255, 0.04)' : '#080C12',
+                    transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                     '&:hover': {
-                      borderColor: '#CBD5E1',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-                      transform: 'translateY(-1px)',
+                      borderColor: '#00F0FF',
+                      boxShadow: '0 0 20px rgba(0, 240, 255, 0.2)',
+                      transform: 'translateY(-2px)',
                     },
                   }}
                 >
@@ -166,88 +170,78 @@ export const ActionQueue: React.FC<{ limit?: number }> = ({ limit = 8 }) => {
                         <Typography
                           variant="subtitle1"
                           sx={{
-                            fontWeight: 800,
-                            color: '#0F172A',
+                            fontWeight: 900,
+                            background: 'linear-gradient(90deg, #00FFA3 0%, #00F0FF 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
                             cursor: 'pointer',
-                            '&:hover': { color: '#4F46E5' },
+                            '&:hover': { filter: 'brightness(1.2)' },
                           }}
                           onClick={() => navigate(`/opportunities/${item.job_id}`)}
                         >
                           {item.title}
                         </Typography>
                         {item.company && (
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#64748B' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: '#FFE600' }}>
                             @ {item.company}
                           </Typography>
                         )}
-                        <Chip
-                          label={stageLabel[item.stage] || item.stage}
-                          size="small"
-                          sx={{
-                            bgcolor: stageStyle.bg,
-                            color: stageStyle.text,
-                            border: `1px solid ${stageStyle.border}`,
-                            fontWeight: 700,
-                            fontSize: '0.72rem',
-                          }}
-                        />
                         {fitScore !== null && (
                           <Chip
                             label={`${fitScore}% Match`}
                             size="small"
                             sx={{
-                              bgcolor: fitScore >= 80 ? alpha('#10B981', 0.1) : alpha('#F59E0B', 0.1),
-                              color: fitScore >= 80 ? '#059669' : '#D97706',
-                              fontWeight: 700,
-                              fontSize: '0.72rem',
+                              fontSize: '0.7rem',
+                              height: 20,
+                              bgcolor: 'rgba(0, 255, 163, 0.15)',
+                              color: '#00FFA3',
+                              border: '1px solid rgba(0, 255, 163, 0.4)',
+                              fontWeight: 800,
                             }}
                           />
                         )}
+                        <Chip
+                          label={stageLabel[item.stage] || item.stage}
+                          size="small"
+                          sx={{
+                            fontSize: '0.7rem',
+                            height: 20,
+                            bgcolor: stageStyle.bg,
+                            color: stageStyle.text,
+                            border: `1px solid ${stageStyle.border}`,
+                            fontWeight: 700,
+                          }}
+                        />
                       </Stack>
 
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: '#1E293B', mb: 0.25 }}>
-                        👉 {item.action.label}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#64748B', display: 'block', lineHeight: 1.4 }}>
-                        {item.action.reason}
+                      <Typography variant="body2" sx={{ color: '#E2E8F0', fontWeight: 500 }}>
+                        {item.action.reason || item.action.label}
                       </Typography>
                     </Box>
 
-                    <Stack direction="row" spacing={1} sx={{ flexShrink: 0, width: { xs: '100%', md: 'auto' } }}>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
+                      <Button
+                        variant="contained"
+                        color={isHighPriority ? 'primary' : 'secondary'}
+                        size="small"
+                        onClick={() => doNext(item.job_id)}
+                        disabled={isWorking}
+                        startIcon={<FlashIcon fontSize="small" />}
+                        sx={{ fontWeight: 900 }}
+                      >
+                        {item.action.label}
+                      </Button>
                       <Button
                         variant="outlined"
                         size="small"
+                        endIcon={<ArrowForwardIcon fontSize="small" />}
                         onClick={() => navigate(`/opportunities/${item.job_id}`)}
-                        sx={{ flex: { xs: 1, md: 'none' } }}
+                        sx={{ fontWeight: 800 }}
                       >
-                        View Brief
-                      </Button>
-                      <Button
-                        variant={isHighPriority ? 'contained' : 'outlined'}
-                        color="primary"
-                        size="small"
-                        disabled={isWorking}
-                        endIcon={item.action.external ? <OpenIcon fontSize="small" /> : <ArrowForwardIcon fontSize="small" />}
-                        sx={{
-                          flex: { xs: 1, md: 'none' },
-                          fontWeight: 700,
-                        }}
-                        onClick={async () => {
-                          try {
-                            const result = await doNext(item.job_id);
-                            if (result.action === 'apply' && result.open_url) {
-                              window.open(result.open_url, '_blank', 'noopener,noreferrer');
-                              return;
-                            }
-                            navigate(`/opportunities/${item.job_id}`);
-                          } catch {
-                            navigate(`/opportunities/${item.job_id}`);
-                          }
-                        }}
-                      >
-                        {item.action.key === 'apply' ? 'Apply Direct' : 'Execute Step'}
+                        Brief
                       </Button>
                     </Stack>
+
                   </Stack>
                 </Box>
               );

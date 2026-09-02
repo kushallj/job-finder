@@ -14,7 +14,6 @@ import {
   InputAdornment,
   Pagination,
   Stack,
-  alpha,
   Table,
   TableBody,
   TableCell,
@@ -40,6 +39,7 @@ import {
   Clear as ClearIcon,
   Bolt as FlashIcon,
 } from '@mui/icons-material';
+
 import { jobsApi } from '../api';
 import { useFilterStore } from '../stores/useFilterStore';
 import { formatSource, formatRelativeTime } from '../utils/formatters';
@@ -51,26 +51,23 @@ const POPULAR_TECH_STACKS = [
   'FastAPI',
   'Go / Golang',
   'Rust',
-  'Java',
   'React / Next.js',
   'AWS / Cloud',
-  'Kubernetes / Docker',
-  'Kafka / Event-Driven',
+  'Kubernetes',
+  'Kafka',
   'GenAI & LLMs',
-  'AI / Machine Learning',
-  'Mobile (iOS / Android)',
-  'Security / Infosec',
-  'DevOps / SRE',
+  'PyTorch / AI',
+  'Distributed Systems',
+  'HFT / C++',
 ];
 
-const CACHE_TTL_MS = 60 * 1000; // 60 seconds TTL
+const CACHE_TTL_MS = 60 * 1000;
 
 export const Jobs: React.FC = () => {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [isCacheHit, setIsCacheHit] = useState<boolean>(false);
 
-  // ── Zustand Store for Job Filters ──────────────────────────────────────────
   const {
     jobSearch,
     setJobSearch,
@@ -95,20 +92,15 @@ export const Jobs: React.FC = () => {
     resetJobFilters,
   } = useFilterStore();
 
-  // Local state for immediate text input binding
   const [searchInput, setSearchInput] = useState(jobSearch);
-
-  // Data fetching state
   const [jobs, setJobs] = useState<Job[]>([]);
   const [totalJobs, setTotalJobs] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ── In-Memory Cache via useRef ─────────────────────────────────────────────
   const cacheRef = useRef<Map<string, { data: JobsResponse; timestamp: number }>>(new Map());
 
-  // ── Side Effect 1: Debounce Search Input into Zustand Store ────────────────
   useEffect(() => {
     const handler = setTimeout(() => {
       if (searchInput !== jobSearch) {
@@ -119,7 +111,6 @@ export const Jobs: React.FC = () => {
     return () => clearTimeout(handler);
   }, [searchInput, jobSearch, setJobSearch]);
 
-  // ── Side Effect 2: Fetch Data with Caching when Filters or Page Change ─────
   useEffect(() => {
     let isCancelled = false;
 
@@ -138,40 +129,36 @@ export const Jobs: React.FC = () => {
     };
 
     const cacheKey = JSON.stringify(queryParams);
-    const now = Date.now();
-    const cached = cacheRef.current.get(cacheKey);
+    const cachedEntry = cacheRef.current.get(cacheKey);
 
-    // Check cache validity
-    if (cached && now - cached.timestamp < CACHE_TTL_MS) {
-      setJobs(cached.data.jobs);
-      setTotalJobs(cached.data.pagination?.total ?? cached.data.jobs.length);
-      setTotalPages(cached.data.pagination?.pages ?? Math.ceil(cached.data.jobs.length / jobLimit));
+    if (cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_TTL_MS) {
+      setJobs(cachedEntry.data.jobs);
+      setTotalJobs(cachedEntry.data.pagination?.total || cachedEntry.data.jobs?.length || 0);
+      setTotalPages(cachedEntry.data.pagination?.pages || 1);
       setIsCacheHit(true);
-      setIsLoading(false);
       setError(null);
       return;
     }
 
-
-    setIsLoading(true);
     setIsCacheHit(false);
+    setIsLoading(true);
     setError(null);
 
     jobsApi
       .getAllJobs(queryParams)
-      .then((res: any) => {
-        if (isCancelled) return;
-        const jobList = res.jobs || [];
-        const total = res.pagination?.total ?? res.total ?? jobList.length;
-        const pages = res.pagination?.pages ?? Math.ceil(total / jobLimit);
-        setJobs(jobList);
-        setTotalJobs(total);
-        setTotalPages(pages);
-        cacheRef.current.set(cacheKey, { data: res, timestamp: Date.now() });
+      .then((data: JobsResponse) => {
+        if (!isCancelled) {
+          cacheRef.current.set(cacheKey, { data, timestamp: Date.now() });
+          setJobs(data.jobs);
+          setTotalJobs(data.pagination?.total || data.jobs?.length || 0);
+          setTotalPages(data.pagination?.pages || 1);
+        }
       })
+
       .catch((err: any) => {
-        if (isCancelled) return;
-        setError(err.message || 'Failed to fetch jobs.');
+        if (!isCancelled) {
+          setError(err?.response?.data?.message || err.message || 'Failed to fetch job opportunities');
+        }
       })
       .finally(() => {
         if (!isCancelled) {
@@ -196,71 +183,54 @@ export const Jobs: React.FC = () => {
     jobSortOrder,
   ]);
 
-  // ── Side Effect 3: Scroll to Top on Page Change ────────────────────────────
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [jobPage]);
-
-  // Handlers
-  const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
-    setJobPage(value);
-  };
-
-  const handleManualRefresh = () => {
-    cacheRef.current.clear();
-    setJobPage(1);
-    setSearchInput(jobSearch);
-  };
-
-  const handleJobClick = (job: Job) => {
-    navigate(`/opportunities/${job.id}`);
-  };
-
-  // Instant local filtering for immediate user feedback
-  const displayedJobs = useMemo(() => {
-    if (!searchInput.trim()) return jobs;
-    const term = searchInput.trim().toLowerCase();
-    return jobs.filter(
-      (job) =>
-        (job.title && job.title.toLowerCase().includes(term)) ||
-        (job.company && job.company.toLowerCase().includes(term)) ||
-        (job.location && job.location.toLowerCase().includes(term)) ||
-        (job.tags && (Array.isArray(job.tags) ? job.tags.join(' ') : String(job.tags)).toLowerCase().includes(term)) ||
-        (job.description && job.description.toLowerCase().includes(term))
-    );
-  }, [jobs, searchInput]);
-
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (jobSearch.trim()) count++;
     if (jobRegion !== 'all') count++;
     if (jobExperienceLevel !== 'all' || jobYearsOfExperience !== null) count++;
     if (jobDatePosted !== 'all') count++;
-    if (jobTechStack.length > 0) count += jobTechStack.length;
     if (jobSource !== 'all') count++;
+    if (jobTechStack.length > 0) count += jobTechStack.length;
     return count;
-  }, [jobSearch, jobRegion, jobExperienceLevel, jobYearsOfExperience, jobDatePosted, jobTechStack, jobSource]);
+  }, [jobSearch, jobRegion, jobExperienceLevel, jobYearsOfExperience, jobDatePosted, jobSource, jobTechStack]);
+
+  const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
+    setJobPage(value);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleJobClick = (job: Job) => {
+    navigate(`/opportunities/${job.id}`);
+  };
+
+  const handleManualRefresh = () => {
+    cacheRef.current.clear();
+    setIsCacheHit(false);
+    setJobPage(1);
+  };
+
+  const displayedJobs = useMemo(() => jobs || [], [jobs]);
 
   return (
-    <Box sx={{ maxWidth: 1400, mx: 'auto', pb: 6 }}>
-      {/* Header Section */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+    <Box sx={{ maxWidth: 1400, mx: 'auto', color: '#F8FAFC' }}>
+      {/* ── Page Header Banner ── */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
         <Box>
           <Stack direction="row" spacing={1.5} alignItems="center">
-            <Typography variant="h4" sx={{ fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
-              Opportunities & Job Pipeline
+            <Typography variant="h3" sx={{ fontWeight: 900, background: 'linear-gradient(90deg, #00FFA3 0%, #00F0FF 50%, #FFE600 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.03em', textTransform: 'uppercase' }}>
+              Opportunities & Alpha Liquidity
             </Typography>
             {isCacheHit && (
               <Chip
-                icon={<FlashIcon sx={{ fontSize: '14px !important' }} />}
-                label="Instant Cache"
+                icon={<FlashIcon sx={{ fontSize: '14px !important', color: '#00FFA3 !important' }} />}
+                label="Sub-5ms Cache"
                 size="small"
-                sx={{ bgcolor: alpha('#10B981', 0.1), color: '#059669', fontWeight: 700 }}
+                sx={{ bgcolor: 'rgba(0, 255, 163, 0.15)', color: '#00FFA3', fontWeight: 800, border: '1px solid rgba(0, 255, 163, 0.4)' }}
               />
             )}
           </Stack>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Explore <strong>{totalJobs.toLocaleString()}</strong> live engineering roles across 287+ Tier-1 companies, Indian startups & FinTech sponsors.
+          <Typography variant="body2" sx={{ color: '#94A3B8', mt: 0.5 }}>
+            Scanned <strong>{totalJobs.toLocaleString()}</strong> live engineering roles across S&P 500, Nifty 500, YC & FinTech ecosystems.
           </Typography>
         </Box>
 
@@ -271,20 +241,19 @@ export const Jobs: React.FC = () => {
               size="small"
               startIcon={<RefreshIcon />}
               onClick={handleManualRefresh}
-              sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 600 }}
+              sx={{ borderRadius: '12px', fontWeight: 800 }}
             >
               Refresh
             </Button>
           </Tooltip>
 
-          <Box sx={{ border: '1px solid #E2E8F0', borderRadius: '10px', p: 0.5, bgcolor: '#FFFFFF' }}>
+          <Box sx={{ border: '1.5px solid rgba(0, 240, 255, 0.3)', borderRadius: '12px', p: 0.5, bgcolor: '#080C12' }}>
             <IconButton
               size="small"
               onClick={() => setViewMode('cards')}
               sx={{
-                bgcolor: viewMode === 'cards' ? '#4F46E5' : 'transparent',
-                color: viewMode === 'cards' ? '#FFFFFF' : '#64748B',
-                '&:hover': { bgcolor: viewMode === 'cards' ? '#4338CA' : alpha('#4F46E5', 0.08) },
+                bgcolor: viewMode === 'cards' ? '#00F0FF' : 'transparent',
+                color: viewMode === 'cards' ? '#06090E' : '#94A3B8',
                 borderRadius: '8px',
               }}
             >
@@ -294,9 +263,8 @@ export const Jobs: React.FC = () => {
               size="small"
               onClick={() => setViewMode('table')}
               sx={{
-                bgcolor: viewMode === 'table' ? '#4F46E5' : 'transparent',
-                color: viewMode === 'table' ? '#FFFFFF' : '#64748B',
-                '&:hover': { bgcolor: viewMode === 'table' ? '#4338CA' : alpha('#4F46E5', 0.08) },
+                bgcolor: viewMode === 'table' ? '#00F0FF' : 'transparent',
+                color: viewMode === 'table' ? '#06090E' : '#94A3B8',
                 borderRadius: '8px',
               }}
             >
@@ -306,8 +274,8 @@ export const Jobs: React.FC = () => {
         </Stack>
       </Box>
 
-      {/* ── Multi-Facet Filter Bar ─────────────────────────────────────────── */}
-      <Card sx={{ mb: 3, border: '1px solid #E2E8F0', borderRadius: '16px', boxShadow: '0 4px 12px -2px rgba(0,0,0,0.03)' }}>
+      {/* ── Multi-Facet Filter Bar ── */}
+      <Card sx={{ mb: 3, bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.2)', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.6)' }}>
         <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
           <Grid container spacing={2} alignItems="center">
             {/* Search Input */}
@@ -321,36 +289,34 @@ export const Jobs: React.FC = () => {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <SearchIcon fontSize="small" sx={{ color: '#94A3B8' }} />
+                      <SearchIcon fontSize="small" sx={{ color: '#00F0FF' }} />
                     </InputAdornment>
                   ),
                   endAdornment: searchInput ? (
                     <InputAdornment position="end">
-                      <IconButton size="small" onClick={() => { setSearchInput(''); setJobSearch(''); }}>
+                      <IconButton size="small" onClick={() => { setSearchInput(''); setJobSearch(''); }} sx={{ color: '#94A3B8' }}>
                         <ClearIcon fontSize="small" />
                       </IconButton>
                     </InputAdornment>
                   ) : null,
                 }}
-                sx={{ bgcolor: '#F8FAFC', borderRadius: '10px' }}
               />
             </Grid>
 
             {/* Region Filter */}
             <Grid size={{ xs: 6, sm: 4, md: 2 }}>
               <FormControl fullWidth size="small">
-                <InputLabel id="region-select-label">Region</InputLabel>
+                <InputLabel id="region-select-label" sx={{ color: '#94A3B8' }}>Region</InputLabel>
                 <Select
                   labelId="region-select-label"
                   value={jobRegion}
                   label="Region"
                   onChange={(e) => setJobRegion(e.target.value)}
-                  sx={{ bgcolor: '#F8FAFC', borderRadius: '10px' }}
                 >
                   <MenuItem value="all">🌍 All Regions</MenuItem>
-                  <MenuItem value="india">🇮🇳 India (BLR, MUM)</MenuItem>
+                  <MenuItem value="us">🇺🇸 US / S&P 500</MenuItem>
+                  <MenuItem value="india">🇮🇳 India (NSE / BLR)</MenuItem>
                   <MenuItem value="remote">⚡ Global Remote</MenuItem>
-                  <MenuItem value="us">🇺🇸 US / Americas</MenuItem>
                   <MenuItem value="europe">🇪🇺 Europe / APAC</MenuItem>
                 </Select>
               </FormControl>
@@ -359,11 +325,11 @@ export const Jobs: React.FC = () => {
             {/* Experience / YOE Filter */}
             <Grid size={{ xs: 6, sm: 4, md: 2 }}>
               <FormControl fullWidth size="small">
-                <InputLabel id="exp-select-label">Experience (YOE)</InputLabel>
+                <InputLabel id="exp-select-label" sx={{ color: '#94A3B8' }}>Experience</InputLabel>
                 <Select
                   labelId="exp-select-label"
                   value={jobYearsOfExperience !== null ? String(jobYearsOfExperience) : jobExperienceLevel}
-                  label="Experience (YOE)"
+                  label="Experience"
                   onChange={(e) => {
                     const val = e.target.value;
                     if (val === 'all') {
@@ -376,7 +342,6 @@ export const Jobs: React.FC = () => {
                       setJobYearsOfExperience(null);
                     }
                   }}
-                  sx={{ bgcolor: '#F8FAFC', borderRadius: '10px' }}
                 >
                   <MenuItem value="all">🎯 All Experience</MenuItem>
                   <MenuItem value="1">🌱 Entry (0–2y)</MenuItem>
@@ -390,13 +355,12 @@ export const Jobs: React.FC = () => {
             {/* Date Posted Filter */}
             <Grid size={{ xs: 6, sm: 4, md: 1.8 }}>
               <FormControl fullWidth size="small">
-                <InputLabel id="date-select-label">Date Posted</InputLabel>
+                <InputLabel id="date-select-label" sx={{ color: '#94A3B8' }}>Date Posted</InputLabel>
                 <Select
                   labelId="date-select-label"
                   value={jobDatePosted}
                   label="Date Posted"
                   onChange={(e) => setJobDatePosted(e.target.value)}
-                  sx={{ bgcolor: '#F8FAFC', borderRadius: '10px' }}
                 >
                   <MenuItem value="all">⏱️ Anytime</MenuItem>
                   <MenuItem value="24h">Last 24 Hours</MenuItem>
@@ -410,19 +374,19 @@ export const Jobs: React.FC = () => {
             {/* Source Category Filter */}
             <Grid size={{ xs: 6, sm: 4, md: 1.8 }}>
               <FormControl fullWidth size="small">
-                <InputLabel id="source-select-label">Source</InputLabel>
+                <InputLabel id="source-select-label" sx={{ color: '#94A3B8' }}>Source Catalog</InputLabel>
                 <Select
                   labelId="source-select-label"
                   value={jobSource}
-                  label="Source"
+                  label="Source Catalog"
                   onChange={(e) => setJobSource(e.target.value)}
-                  sx={{ bgcolor: '#F8FAFC', borderRadius: '10px' }}
                 >
-                  <MenuItem value="all">🌐 All Sources</MenuItem>
-                  <MenuItem value="tier1">💎 Tier-1 Giants</MenuItem>
-                  <MenuItem value="startups">📱 Indian Startups</MenuItem>
+                  <MenuItem value="all">🌐 All Catalogs</MenuItem>
+                  <MenuItem value="sp500">🇺🇸 S&P 500 US</MenuItem>
+                  <MenuItem value="nifty500">🇮🇳 NSE Nifty 500</MenuItem>
+                  <MenuItem value="tier1">💎 Tier-1 Tech</MenuItem>
+                  <MenuItem value="startups">🚀 YC & Accelerators</MenuItem>
                   <MenuItem value="fintech">🏦 FinTech Sponsors</MenuItem>
-                  <MenuItem value="usajobs">🇺🇸 USAJOBS Federal</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -430,17 +394,16 @@ export const Jobs: React.FC = () => {
             {/* Sort Filter */}
             <Grid size={{ xs: 6, sm: 4, md: 1.4 }}>
               <FormControl fullWidth size="small">
-                <InputLabel id="sort-select-label">Sort</InputLabel>
+                <InputLabel id="sort-select-label" sx={{ color: '#94A3B8' }}>Sort Order</InputLabel>
                 <Select
                   labelId="sort-select-label"
                   value={jobSortBy}
-                  label="Sort"
+                  label="Sort Order"
                   onChange={(e) => setJobSortBy(e.target.value)}
-                  sx={{ bgcolor: '#F8FAFC', borderRadius: '10px' }}
                 >
                   <MenuItem value="fetched_at">Recent Crawl</MenuItem>
                   <MenuItem value="posted_date">Date Posted</MenuItem>
-                  <MenuItem value="title">Job Title</MenuItem>
+                  <MenuItem value="title">Role Title</MenuItem>
                   <MenuItem value="company">Company</MenuItem>
                 </Select>
               </FormControl>
@@ -448,9 +411,9 @@ export const Jobs: React.FC = () => {
           </Grid>
 
           {/* Tech Stack Chip Selector */}
-          <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px solid #F1F5F9' }}>
+          <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px solid rgba(0, 240, 255, 0.15)' }}>
             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ gap: 0.75 }}>
-              <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, mr: 1, textTransform: 'uppercase' }}>
+              <Typography variant="caption" sx={{ color: '#00FFA3', fontWeight: 900, mr: 1, textTransform: 'uppercase' }}>
                 Tech Stacks:
               </Typography>
               {POPULAR_TECH_STACKS.map((stack) => {
@@ -463,12 +426,11 @@ export const Jobs: React.FC = () => {
                     clickable
                     onClick={() => toggleJobTechStack(stack)}
                     sx={{
-                      fontWeight: isSelected ? 700 : 500,
-                      bgcolor: isSelected ? '#4F46E5' : '#F1F5F9',
-                      color: isSelected ? '#FFFFFF' : '#475569',
-                      '&:hover': {
-                        bgcolor: isSelected ? '#4338CA' : '#E2E8F0',
-                      },
+                      fontWeight: 800,
+                      bgcolor: isSelected ? 'rgba(0, 255, 163, 0.25)' : 'rgba(0, 240, 255, 0.06)',
+                      color: isSelected ? '#00FFA3' : '#94A3B8',
+                      borderColor: isSelected ? '#00FFA3' : 'rgba(0, 240, 255, 0.25)',
+                      boxShadow: isSelected ? '0 0 10px rgba(0, 255, 163, 0.3)' : 'none',
                     }}
                   />
                 );
@@ -482,7 +444,7 @@ export const Jobs: React.FC = () => {
                     resetJobFilters();
                     setSearchInput('');
                   }}
-                  sx={{ color: '#EF4444', textTransform: 'none', fontWeight: 600, ml: 'auto' }}
+                  sx={{ color: '#FF007A', textTransform: 'none', fontWeight: 800, ml: 'auto' }}
                 >
                   Reset ({activeFiltersCount})
                 </Button>
@@ -494,25 +456,25 @@ export const Jobs: React.FC = () => {
 
       {/* Error Alert */}
       {error && (
-        <Alert severity="error" sx={{ mb: 3, borderRadius: '12px' }}>
+        <Alert severity="error" sx={{ mb: 3, borderRadius: '14px', bgcolor: 'rgba(255, 0, 122, 0.15)', color: '#FF007A', border: '1px solid rgba(255, 0, 122, 0.4)' }}>
           {error}
         </Alert>
       )}
 
-      {/* ── Content View ───────────────────────────────────────────────────── */}
+      {/* ── Content View ── */}
       {isLoading ? (
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 8 }}>
-          <CircularProgress size={40} sx={{ color: '#4F46E5', mb: 2 }} />
-          <Typography variant="body2" color="text.secondary">
-            Querying SQLite with optimized ORM filters...
+          <CircularProgress size={40} sx={{ color: '#00FFA3', mb: 2 }} />
+          <Typography variant="body2" sx={{ color: '#94A3B8' }}>
+            Querying SQLite with optimized HFT & Web3 taxonomy filters...
           </Typography>
         </Box>
       ) : displayedJobs.length === 0 ? (
-        <Card sx={{ p: 5, textAlign: 'center', borderRadius: '16px' }}>
-          <Typography variant="h6" fontWeight={700} color="#0F172A" sx={{ mb: 1 }}>
+        <Card sx={{ p: 5, textAlign: 'center', bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.2)' }}>
+          <Typography variant="h5" fontWeight={900} sx={{ mb: 1, color: '#F8FAFC' }}>
             No opportunities matched your filters
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography variant="body2" sx={{ color: '#94A3B8', mb: 2 }}>
             Try resetting your filters or adjusting your tech stack keywords.
           </Typography>
           <Button
@@ -522,7 +484,6 @@ export const Jobs: React.FC = () => {
               resetJobFilters();
               setSearchInput('');
             }}
-            sx={{ bgcolor: '#4F46E5' }}
           >
             Clear All Filters
           </Button>
@@ -537,35 +498,41 @@ export const Jobs: React.FC = () => {
                   height: '100%',
                   display: 'flex',
                   flexDirection: 'column',
-                  borderRadius: '14px',
-                  border: '1px solid #E2E8F0',
-                  transition: 'all 0.2s ease',
+                  bgcolor: '#0D131F',
+                  border: '1.5px solid rgba(0, 240, 255, 0.18)',
+                  borderRadius: '20px',
+                  boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.65)',
+                  transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
                   '&:hover': {
-                    transform: 'translateY(-3px)',
-                    boxShadow: '0 12px 24px -6px rgba(0,0,0,0.08)',
-                    borderColor: '#4F46E5',
+                    transform: 'translateY(-4px)',
+                    borderColor: '#00F0FF',
+                    boxShadow: '0 0 30px rgba(0, 240, 255, 0.3), 0 0 60px rgba(0, 255, 163, 0.15)',
                   },
                 }}
               >
                 <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
                     <Box sx={{ flexGrow: 1, pr: 1 }}>
+                      {/* Vibrant Chromatic Gradient Job Title */}
                       <Typography
-                        variant="subtitle1"
+                        variant="h6"
                         sx={{
-                          fontWeight: 700,
-                          color: '#0F172A',
+                          fontWeight: 900,
+                          background: 'linear-gradient(90deg, #00FFA3 0%, #00F0FF 60%, #FFE600 100%)',
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
                           cursor: 'pointer',
-                          '&:hover': { color: '#4F46E5' },
                           lineHeight: 1.3,
+                          letterSpacing: '-0.02em',
+                          '&:hover': { filter: 'brightness(1.2)' },
                         }}
                         onClick={() => handleJobClick(job)}
                       >
                         {job.title}
                       </Typography>
-                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
-                        <CompanyIcon fontSize="inherit" sx={{ color: '#64748B' }} />
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.75 }}>
+                        <CompanyIcon fontSize="inherit" sx={{ color: '#00F0FF' }} />
+                        <Typography variant="body2" sx={{ fontWeight: 800, color: '#FFE600' }}>
                           {job.company || 'Unknown Company'}
                         </Typography>
                       </Stack>
@@ -573,13 +540,13 @@ export const Jobs: React.FC = () => {
                     <GhostBadge jobId={job.id} />
                   </Box>
 
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5, color: '#64748B' }}>
-                    <LocationIcon fontSize="inherit" />
-                    <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5, color: '#94A3B8' }}>
+                    <LocationIcon fontSize="inherit" sx={{ color: '#00F0FF' }} />
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#E2E8F0' }}>
                       {job.location || 'Remote'}
                     </Typography>
                     {job.has_remote && (
-                      <Chip label="Remote" size="small" sx={{ height: 20, fontSize: '0.65rem', bgcolor: alpha('#10B981', 0.1), color: '#059669' }} />
+                      <Chip label="REMOTE" size="small" sx={{ height: 20, fontSize: '0.65rem', bgcolor: 'rgba(0, 255, 163, 0.15)', color: '#00FFA3', border: '1px solid rgba(0, 255, 163, 0.4)' }} />
                     )}
                   </Stack>
 
@@ -589,33 +556,33 @@ export const Jobs: React.FC = () => {
                       <Chip
                         label={job.experience_level}
                         size="small"
-                        sx={{ height: 22, fontSize: '0.7rem', bgcolor: alpha('#4F46E5', 0.08), color: '#4F46E5', fontWeight: 600 }}
+                        sx={{ height: 22, fontSize: '0.7rem', bgcolor: 'rgba(0, 240, 255, 0.15)', color: '#00F0FF', fontWeight: 800 }}
                       />
                     )}
                     {job.salary_min && (
                       <Chip
-                        label={`${job.salary_currency || '₹'} ${job.salary_min.toLocaleString()} ${job.salary_max ? `- ${job.salary_max.toLocaleString()}` : ''}`}
+                        label={`$${job.salary_min.toLocaleString()} ${job.salary_max ? `- $${job.salary_max.toLocaleString()}` : ''}`}
                         size="small"
-                        sx={{ height: 22, fontSize: '0.7rem', bgcolor: alpha('#F59E0B', 0.1), color: '#D97706', fontWeight: 700 }}
+                        sx={{ height: 22, fontSize: '0.7rem', bgcolor: 'rgba(255, 230, 0, 0.15)', color: '#FFE600', fontWeight: 800, border: '1px solid rgba(255, 230, 0, 0.4)' }}
                       />
                     )}
                     <Chip
                       label={formatSource(job.source)}
                       size="small"
-                      sx={{ height: 22, fontSize: '0.65rem', bgcolor: '#F1F5F9', color: '#64748B' }}
+                      sx={{ height: 22, fontSize: '0.65rem', bgcolor: 'rgba(121, 40, 202, 0.15)', color: '#A855F7', border: '1px solid rgba(121, 40, 202, 0.3)' }}
                     />
                   </Stack>
 
-                  <Box sx={{ mt: 'auto', pt: 1.5, borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="caption" color="text.secondary">
+                  <Box sx={{ mt: 'auto', pt: 1.5, borderTop: '1px solid rgba(0, 240, 255, 0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600 }}>
                       {formatRelativeTime(job.posted_date || job.fetched_at)}
                     </Typography>
                     <Stack direction="row" spacing={1}>
-                      <Button size="small" variant="contained" onClick={() => handleJobClick(job)} sx={{ bgcolor: '#4F46E5', textTransform: 'none', fontWeight: 600 }}>
+                      <Button size="small" variant="contained" onClick={() => handleJobClick(job)} sx={{ fontWeight: 900 }}>
                         Evaluate
                       </Button>
                       {job.url && (
-                        <IconButton size="small" href={job.url} target="_blank" rel="noopener noreferrer" sx={{ color: '#64748B' }}>
+                        <IconButton size="small" href={job.url} target="_blank" rel="noopener noreferrer" sx={{ color: '#00F0FF', border: '1px solid rgba(0, 240, 255, 0.3)', borderRadius: '8px' }}>
                           <OpenInNewIcon fontSize="small" />
                         </IconButton>
                       )}
@@ -628,50 +595,50 @@ export const Jobs: React.FC = () => {
         </Grid>
       ) : (
         /* Table View */
-        <TableContainer component={Paper} sx={{ borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: 'none' }}>
+        <TableContainer component={Paper} sx={{ borderRadius: '20px', border: '1.5px solid rgba(0, 240, 255, 0.2)', bgcolor: '#0D131F', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.6)' }}>
           <Table size="small">
-            <TableHead sx={{ bgcolor: '#F8FAFC' }}>
+            <TableHead sx={{ bgcolor: '#080C12' }}>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Role & Company</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Experience Level</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Source</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Posted</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700 }}>Actions</TableCell>
+                <TableCell sx={{ fontWeight: 900, color: '#00F0FF' }}>Role & Company</TableCell>
+                <TableCell sx={{ fontWeight: 900, color: '#00F0FF' }}>Location</TableCell>
+                <TableCell sx={{ fontWeight: 900, color: '#00F0FF' }}>Experience Level</TableCell>
+                <TableCell sx={{ fontWeight: 900, color: '#00F0FF' }}>Source Catalog</TableCell>
+                <TableCell sx={{ fontWeight: 900, color: '#00F0FF' }}>Posted</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 900, color: '#00F0FF' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {displayedJobs.map((job) => (
-                <TableRow key={job.id} hover sx={{ cursor: 'pointer' }} onClick={() => handleJobClick(job)}>
+                <TableRow key={job.id} hover sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'rgba(0, 240, 255, 0.05)' } }} onClick={() => handleJobClick(job)}>
                   <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#0F172A' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 900, background: 'linear-gradient(90deg, #00FFA3 0%, #00F0FF 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                       {job.title}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{ color: '#FFE600', fontWeight: 700 }}>
                       {job.company || 'Unknown Company'}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">{job.location || 'Remote'}</Typography>
+                    <Typography variant="body2" sx={{ color: '#E2E8F0' }}>{job.location || 'Remote'}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip label={job.experience_level || 'Mid-Level'} size="small" sx={{ fontSize: '0.7rem' }} />
+                    <Chip label={job.experience_level || 'Mid-Level'} size="small" sx={{ fontSize: '0.7rem', bgcolor: 'rgba(0, 240, 255, 0.15)', color: '#00F0FF' }} />
                   </TableCell>
                   <TableCell>
-                    <Chip label={formatSource(job.source)} size="small" sx={{ fontSize: '0.65rem' }} />
+                    <Chip label={formatSource(job.source)} size="small" sx={{ fontSize: '0.65rem', bgcolor: 'rgba(121, 40, 202, 0.15)', color: '#A855F7' }} />
                   </TableCell>
                   <TableCell>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{ color: '#94A3B8' }}>
                       {formatRelativeTime(job.posted_date || job.fetched_at)}
                     </Typography>
                   </TableCell>
                   <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                     <Stack direction="row" spacing={1} justifyContent="flex-end">
-                      <Button size="small" variant="text" onClick={() => handleJobClick(job)}>
+                      <Button size="small" variant="text" onClick={() => handleJobClick(job)} sx={{ color: '#00FFA3', fontWeight: 900 }}>
                         Brief
                       </Button>
                       {job.url && (
-                        <IconButton size="small" href={job.url} target="_blank" rel="noopener noreferrer">
+                        <IconButton size="small" href={job.url} target="_blank" rel="noopener noreferrer" sx={{ color: '#00F0FF' }}>
                           <OpenInNewIcon fontSize="small" />
                         </IconButton>
                       )}
@@ -696,8 +663,15 @@ export const Jobs: React.FC = () => {
             showLastButton
             sx={{
               '& .MuiPaginationItem-root': {
-                fontWeight: 600,
-                borderRadius: '8px',
+                fontWeight: 800,
+                borderRadius: '10px',
+                color: '#F8FAFC',
+                border: '1px solid rgba(0, 240, 255, 0.2)',
+                '&.Mui-selected': {
+                  bgcolor: '#00F0FF',
+                  color: '#06090E',
+                  fontWeight: 900,
+                },
               },
             }}
           />
