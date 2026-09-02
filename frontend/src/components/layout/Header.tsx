@@ -9,8 +9,8 @@ import {
   Button,
   Chip,
   Stack,
-  alpha,
 } from '@mui/material';
+
 import {
   Menu as MenuIcon,
   RefreshOutlined as RefreshIcon,
@@ -43,9 +43,11 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, title }) => {
           easing: theme.transitions.easing.sharp,
           duration: theme.transitions.duration.leavingScreen,
         }),
-        backgroundColor: '#FFFFFF',
-        color: '#0F172A',
-        borderBottom: '1px solid #E2E8F0',
+        backgroundColor: 'rgba(11, 15, 25, 0.85)',
+        backdropFilter: 'blur(16px)',
+        color: '#F8FAFC',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        zIndex: theme.zIndex.drawer + 1,
       }}
     >
       <Toolbar sx={{ minHeight: 70, px: { xs: 2, sm: 3 } }}>
@@ -64,25 +66,26 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, title }) => {
           aria-label="toggle sidebar"
           edge="start"
           onClick={toggleSidebar}
-          sx={{ mr: 2, display: { xs: 'none', md: 'flex' } }}
+          sx={{ mr: 2, display: { xs: 'none', md: 'flex' }, color: '#94A3B8', '&:hover': { color: '#38BDF8' } }}
         >
           <MenuIcon />
         </IconButton>
 
         <Box sx={{ flexGrow: 1 }}>
-          <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+          <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.025em' }}>
             {title}
           </Typography>
         </Box>
 
         <Stack direction="row" alignItems="center" spacing={1.5}>
           <Chip
-            icon={<HealthyIcon sx={{ fontSize: '14px !important', color: '#10B981 !important' }} />}
+            icon={<HealthyIcon sx={{ fontSize: '14px !important', color: '#34D399 !important' }} />}
             label="System Online"
             size="small"
             sx={{
-              bgcolor: alpha('#10B981', 0.08),
-              color: '#059669',
+              bgcolor: 'rgba(52, 211, 153, 0.12)',
+              color: '#34D399',
+              border: '1px solid rgba(52, 211, 153, 0.3)',
               fontWeight: 700,
               fontSize: '0.75rem',
               display: { xs: 'none', sm: 'inline-flex' },
@@ -98,7 +101,6 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, title }) => {
             sx={{
               display: { xs: 'none', sm: 'inline-flex' },
               fontWeight: 700,
-              boxShadow: '0 2px 8px rgba(79, 70, 229, 0.25)',
             }}
           >
             Explore Jobs
@@ -109,10 +111,12 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, title }) => {
             title="Refresh View"
             onClick={() => window.location.reload()}
             sx={{
-              border: '1px solid #E2E8F0',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
               borderRadius: '10px',
               p: 1,
-              '&:hover': { bgcolor: '#F8FAFC' },
+              color: '#94A3B8',
+              backgroundColor: 'rgba(255, 255, 255, 0.02)',
+              '&:hover': { bgcolor: 'rgba(56, 189, 248, 0.1)', color: '#38BDF8', borderColor: 'rgba(56, 189, 248, 0.3)' },
             }}
           >
             <RefreshIcon fontSize="small" />

@@ -69,7 +69,7 @@ export const Layout: React.FC = () => {
   };
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#F8FAFC' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#0B0F19' }}>
       <Header onMenuClick={handleMobileToggle} title={currentTitle} />
       <Sidebar mobileOpen={mobileOpen} onMobileClose={handleMobileClose} />
 
@@ -85,7 +85,8 @@ export const Layout: React.FC = () => {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,
           }),
-          backgroundColor: 'background.default',
+          backgroundColor: '#0B0F19',
+          backgroundImage: 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.12), transparent)',
           minHeight: '100vh',
           maxWidth: '100%',
           overflowX: 'hidden',
@@ -104,9 +105,10 @@ export const Layout: React.FC = () => {
           right: 0,
           display: { xs: 'block', md: 'none' },
           zIndex: 1300,
-          borderTop: '1px solid #E2E8F0',
-          boxShadow: '0 -4px 16px rgba(0,0,0,0.06)',
-          bgcolor: '#FFFFFF',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.5)',
+          bgcolor: 'rgba(11, 15, 25, 0.92)',
+          backdropFilter: 'blur(16px)',
         }}
         elevation={3}
       >
@@ -119,12 +121,13 @@ export const Layout: React.FC = () => {
           }}
           sx={{
             height: 62,
+            bgcolor: 'transparent',
             '& .MuiBottomNavigationAction-root': {
               minWidth: 0,
               padding: '6px 0',
-              color: '#64748B',
+              color: '#94A3B8',
               '&.Mui-selected': {
-                color: '#4F46E5',
+                color: '#38BDF8',
                 fontWeight: 700,
               },
             },
