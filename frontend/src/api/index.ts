@@ -23,6 +23,8 @@ export { agentFleetApi } from './endpoints/agent_fleet';
 export { instagramReferralsApi } from './endpoints/instagram_referrals';
 export { skillBridgeApi } from './endpoints/skill_bridge';
 export { marketRadarApi } from './endpoints/market_radar';
+export { tsentaApi } from './endpoints/tsenta';
+
 
 
 

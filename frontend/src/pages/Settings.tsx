@@ -375,6 +375,70 @@ export const Settings: React.FC = () => {
           </Grid>
         </CardContent>
       </Card>
+
+      {/* Tsenta Auto-Apply Agent (YC S26) Card */}
+      <Card sx={{ mb: 3.5, border: '1.5px solid rgba(0, 255, 163, 0.35)', bgcolor: '#0D131F', boxShadow: '0 0 35px rgba(0, 255, 163, 0.15)' }}>
+        <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+            <Box sx={{ width: 32, height: 32, borderRadius: '8px', bgcolor: 'rgba(0, 255, 163, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #00FFA3' }}>
+              <Typography sx={{ fontWeight: 900, color: '#00FFA3', fontSize: '1rem' }}>⚡</Typography>
+            </Box>
+            <Typography variant="h6" fontWeight={900} color="#F8FAFC" textTransform="uppercase">
+              Tsenta Auto-Apply Agent & Multi-ATS Engine (YC S26)
+            </Typography>
+          </Stack>
+          <Typography variant="body2" sx={{ color: '#94A3B8', mb: 2.5 }}>
+            Automate high-volume application submissions across 18+ ATS systems (Workday, Greenhouse, Lever, Ashby, BambooHR, etc.) with AI resume tailoring, screening question resolution, and verifiable cryptographic receipts.
+          </Typography>
+
+          <Grid container spacing={2.5}>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                label="Tsenta Cloud API Key (Optional)"
+                placeholder="tsenta_live_sk_..."
+                fullWidth
+                size="small"
+                type="password"
+                helperText="Leave empty to use local autonomous ATS driver"
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                label="Tsenta API Endpoint"
+                defaultValue="https://api.tsenta.com/v1"
+                fullWidth
+                size="small"
+                sx={{ mb: 2 }}
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: '14px', bgcolor: '#080C12', border: '1px solid rgba(0, 255, 163, 0.3)' }}>
+                <Typography variant="caption" sx={{ fontWeight: 900, color: '#00FFA3', display: 'block', mb: 1, textTransform: 'uppercase' }}>
+                  ACTIVE ENGINE DIAGNOSTICS:
+                </Typography>
+                <Stack spacing={1}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="caption" sx={{ color: '#94A3B8' }}>Autonomous Engine:</Typography>
+                    <Typography variant="caption" sx={{ color: '#00FFA3', fontWeight: 800 }}>ONLINE (v2.4)</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="caption" sx={{ color: '#94A3B8' }}>Supported ATS Systems:</Typography>
+                    <Typography variant="caption" sx={{ color: '#00F0FF', fontWeight: 800 }}>18 Platforms</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="caption" sx={{ color: '#94A3B8' }}>Review Mode:</Typography>
+                    <Typography variant="caption" sx={{ color: '#FFE600', fontWeight: 800 }}>Human-in-the-Loop Diff Gate</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="caption" sx={{ color: '#94A3B8' }}>Lifetime Free Tier:</Typography>
+                    <Typography variant="caption" sx={{ color: '#F8FAFC', fontWeight: 800 }}>25 Free Apps Remaining</Typography>
+                  </Box>
+                </Stack>
+              </Paper>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
     </Box>
   );
 };

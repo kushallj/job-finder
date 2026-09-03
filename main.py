@@ -5018,6 +5018,193 @@ async def sync_sp500_referrals_and_contacts(
     return result
 
 
+# =====================================================================
+# TSENTA AUTO-APPLY AGENT (YC S26) INTEGRATION
+# =====================================================================
+
+def get_db():
+    from src.database import SessionLocal
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+class TsentaAutoApplyRequest(BaseModel):
+    job_id: int
+    mode_override: Optional[str] = None  # "review_required" | "full_auto"
+    sample_questions: Optional[List[str]] = None
+
+
+class TsentaApproveRequest(BaseModel):
+    submission_id: int
+    custom_cover_letter: Optional[str] = None
+    custom_answers: Optional[List[Dict[str, str]]] = None
+
+class TsentaBatchApplyRequest(BaseModel):
+    job_ids: Optional[List[int]] = None
+    min_score: int = 80
+    limit: int = 10
+
+class TsentaConfigRequest(BaseModel):
+    api_key: Optional[str] = None
+    api_url: Optional[str] = None
+    mode: Optional[str] = None
+    min_fit_score: Optional[int] = None
+    auto_apply_enabled: Optional[bool] = None
+    notification_webhook: Optional[str] = None
+
+
+@app.post("/api/tsenta/auto-apply", tags=["tsenta"])
+async def tsenta_auto_apply_job(
+    payload: TsentaAutoApplyRequest,
+    db: Session = Depends(get_db),
+):
+    """Prepares and queues (or auto-submits) an application for a target job via Tsenta."""
+    from src.tsenta.service import TsentaService
+
+    svc = TsentaService(db=db)
+    try:
+        result = await svc.auto_apply_job(
+            job_id=payload.job_id,
+            mode_override=payload.mode_override,
+            sample_questions=payload.sample_questions,
+        )
+        return result
+    except ValueError as val_err:
+        raise HTTPException(status_code=404, detail=str(val_err))
+    except Exception as exc:
+        log.error("Tsenta auto-apply failed for job %s: %s", payload.job_id, exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/tsenta/review-gate/approve", tags=["tsenta"])
+async def tsenta_approve_and_submit(
+    payload: TsentaApproveRequest,
+    db: Session = Depends(get_db),
+):
+    """User approves a review-ready submission packet with custom edits for 1-click execution."""
+    from src.tsenta.service import TsentaService
+
+    svc = TsentaService(db=db)
+    try:
+        result = await svc.approve_and_submit(
+            submission_id=payload.submission_id,
+            custom_cover_letter=payload.custom_cover_letter,
+            custom_answers=payload.custom_answers,
+        )
+        return result
+    except ValueError as val_err:
+        raise HTTPException(status_code=404, detail=str(val_err))
+    except Exception as exc:
+        log.error("Tsenta approval failed for submission %s: %s", payload.submission_id, exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/tsenta/batch-apply", tags=["tsenta"])
+async def tsenta_batch_apply(
+    payload: TsentaBatchApplyRequest = TsentaBatchApplyRequest(),
+    db: Session = Depends(get_db),
+):
+    """Batch applies to top matched opportunities with safeguards."""
+    from src.tsenta.service import TsentaService
+
+    svc = TsentaService(db=db)
+    result = await svc.batch_auto_apply(
+        job_ids=payload.job_ids,
+        min_score=payload.min_score,
+        limit=payload.limit,
+    )
+    return result
+
+
+@app.get("/api/tsenta/submissions", tags=["tsenta"])
+def tsenta_get_submissions(
+    status: Optional[str] = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+):
+    """Retrieves list of Tsenta submissions and audit receipts."""
+    from src.tsenta.service import TsentaService
+
+    svc = TsentaService(db=db)
+    submissions = svc.get_submissions(status=status, limit=limit)
+    return {"total": len(submissions), "submissions": submissions}
+
+
+@app.get("/api/tsenta/receipt/{receipt_id}", tags=["tsenta"])
+def tsenta_get_receipt(
+    receipt_id: str,
+    db: Session = Depends(get_db),
+):
+    """Fetches details and audit logs for a verified Tsenta submission receipt."""
+    from src.tsenta.service import TsentaService
+
+    svc = TsentaService(db=db)
+    receipt = svc.get_receipt(receipt_id=receipt_id)
+    if not receipt:
+        raise HTTPException(status_code=404, detail=f"Receipt {receipt_id} not found")
+    return receipt
+
+
+@app.get("/api/tsenta/status", tags=["tsenta"])
+async def tsenta_get_status(
+    db: Session = Depends(get_db),
+):
+    """Checks Tsenta connection status, active subscription tier, and remaining quota."""
+    from src.tsenta.service import TsentaService
+    from src.tsenta.ats_detector import SUPPORTED_ATS_LIST
+
+    svc = TsentaService(db=db)
+    client_status = await svc.client.get_account_status()
+    quota_dict = svc.quota.to_dict()
+    config_dict = svc.config.to_dict()
+
+    return {
+        "status": "online",
+        "client": client_status,
+        "quota": quota_dict,
+        "config": config_dict,
+        "supported_ats": [
+            {
+                "code": ats.code,
+                "name": ats.name,
+                "category": ats.category,
+                "color_token": ats.color_token,
+                "supports_direct_api": ats.supports_direct_api,
+            }
+            for ats in SUPPORTED_ATS_LIST
+        ],
+    }
+
+
+@app.post("/api/tsenta/config", tags=["tsenta"])
+def tsenta_update_config(
+    payload: TsentaConfigRequest,
+    db: Session = Depends(get_db),
+):
+    """Updates Tsenta API credentials, operational mode, and preferences."""
+    from src.tsenta.service import TsentaService
+
+    svc = TsentaService(db=db)
+    update_data = {k: v for k, v in payload.dict().items() if v is not None}
+    updated = svc.update_config(update_data)
+    return {"status": "success", "config": updated}
+
+
+@app.post("/api/tsenta/webhook", tags=["tsenta"])
+async def tsenta_webhook_receiver(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db),
+):
+    """Receives asynchronous telemetry and interview detection webhooks from Tsenta."""
+    event_type = payload.get("event", "application.status_update")
+    receipt_id = payload.get("receipt_id")
+    log.info("Tsenta webhook received: event=%s, receipt_id=%s", event_type, receipt_id)
+    return {"status": "received", "event": event_type}
+
+
+
 
 
 

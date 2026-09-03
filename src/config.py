@@ -111,7 +111,15 @@ class Settings(BaseSettings):
     sender_name: Optional[str] = None
     linkedin_url: Optional[str] = None
     tagline: Optional[str] = None
+
+    # Tsenta Auto-Apply Agent (YC S26)
+    tsenta_api_key: Optional[str] = None
+    tsenta_api_url: str = "https://api.tsenta.com/v1"
+    tsenta_mode: str = "review_required"  # "review_required" | "full_auto"
+    tsenta_auto_submit: bool = False
+    tsenta_min_fit_score: int = 75
     
     # Note: Pydantic v2 uses `model_config` above; the old inner `Config` is ignored.
 
 settings = Settings()
+

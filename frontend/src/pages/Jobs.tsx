@@ -44,6 +44,9 @@ import { jobsApi } from '../api';
 import { useFilterStore } from '../stores/useFilterStore';
 import { formatSource, formatRelativeTime } from '../utils/formatters';
 import { GhostBadge } from '../components/ghost_hunter/GhostBadge';
+import { TsentaAutoApplyButton } from '../components/tsenta/TsentaAutoApplyButton';
+import { TsentaReviewGateModal } from '../components/tsenta/TsentaReviewGateModal';
+import type { TsentaSubmissionData } from '../api/endpoints/tsenta';
 import type { Job, JobsResponse, JobQueryParams } from '../api/types';
 
 const POPULAR_TECH_STACKS = [
@@ -67,6 +70,9 @@ export const Jobs: React.FC = () => {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [isCacheHit, setIsCacheHit] = useState<boolean>(false);
+  const [selectedSubmission, setSelectedSubmission] = useState<TsentaSubmissionData | null>(null);
+  const [reviewModalOpen, setReviewModalOpen] = useState<boolean>(false);
+
 
   const {
     jobSearch,
@@ -577,7 +583,20 @@ export const Jobs: React.FC = () => {
                     <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600 }}>
                       {formatRelativeTime(job.posted_date || job.fetched_at)}
                     </Typography>
-                    <Stack direction="row" spacing={1}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <TsentaAutoApplyButton
+                        jobId={job.id}
+                        company={job.company || undefined}
+                        applicationStatus={job.application_status}
+                        onReviewRequested={(sub) => {
+                          setSelectedSubmission(sub);
+                          setReviewModalOpen(true);
+                        }}
+                        onSubmitted={(sub) => {
+                          setSelectedSubmission(sub);
+                          setReviewModalOpen(true);
+                        }}
+                      />
                       <Button size="small" variant="contained" onClick={() => handleJobClick(job)} sx={{ fontWeight: 900 }}>
                         Evaluate
                       </Button>
@@ -633,7 +652,20 @@ export const Jobs: React.FC = () => {
                     </Typography>
                   </TableCell>
                   <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
+                      <TsentaAutoApplyButton
+                        jobId={job.id}
+                        company={job.company || undefined}
+                        applicationStatus={job.application_status}
+                        onReviewRequested={(sub) => {
+                          setSelectedSubmission(sub);
+                          setReviewModalOpen(true);
+                        }}
+                        onSubmitted={(sub) => {
+                          setSelectedSubmission(sub);
+                          setReviewModalOpen(true);
+                        }}
+                      />
                       <Button size="small" variant="text" onClick={() => handleJobClick(job)} sx={{ color: '#00FFA3', fontWeight: 900 }}>
                         Brief
                       </Button>
@@ -677,6 +709,14 @@ export const Jobs: React.FC = () => {
           />
         </Box>
       )}
+
+      {/* Tsenta Review Gate Modal */}
+      <TsentaReviewGateModal
+        open={reviewModalOpen}
+        onClose={() => setReviewModalOpen(false)}
+        submission={selectedSubmission}
+        onSubmitted={(updated) => setSelectedSubmission(updated)}
+      />
     </Box>
   );
 };
