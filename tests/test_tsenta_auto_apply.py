@@ -92,12 +92,13 @@ async def test_payload_builder_and_screening_resolution(db_session):
         sample_questions=["How many years of Python experience do you have?", "Are you authorized to work?"],
     )
 
-    assert packet["applicant"]["full_name"] == "Kushall Jain"
+    assert packet["applicant"]["full_name"] == builder.candidate_name
     assert "Databricks" in packet["job"]["company"]
     assert len(packet["screening_questions"]) == 2
     assert "Python" in packet["screening_questions"][0]["question"]
     assert "experience" in packet["screening_questions"][0]["answer"].lower()
     assert "Databricks" in packet["cover_letter"]
+
 
 
 

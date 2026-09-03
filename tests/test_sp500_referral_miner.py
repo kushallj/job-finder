@@ -50,8 +50,9 @@ def test_compose_referral_outreach_linkedin():
     assert "Sarah" in body_text
     assert "on LinkedIn" in body_text
     assert "FastAPI, React" in body_text
-    assert "Kushall Jain" in body_text
-    assert "https://linkedin.com/in/kushall-jain-263009261" in body_text
+    assert miner.sender_name in body_text
+    assert (miner.sender_linkedin or "") in body_text
+
 
 
 def test_compose_referral_outreach_x_twitter():

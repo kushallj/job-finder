@@ -33,13 +33,14 @@ class TsentaPayloadBuilder:
         self.answer_bank = AnswerBankService(db=self.db, ai_service=self.ai_service)
         
         # Default candidate profile
-        self.candidate_name = os.getenv("SENDER_NAME", "Kushall Jain")
-        self.candidate_email = os.getenv("GMAIL_ADDRESS", "canaby007@gmail.com")
-        self.candidate_phone = os.getenv("CANDIDATE_PHONE", "+91 98765 43210")
-        self.candidate_linkedin = os.getenv("LINKEDIN_URL", "https://linkedin.com/in/kushall-jain-263009261")
-        self.candidate_github = os.getenv("GITHUB_URL", "https://github.com/kushallj")
-        self.candidate_location = os.getenv("CANDIDATE_LOCATION", "Bengaluru, India / Remote")
+        self.candidate_name = os.getenv("SENDER_NAME", "Job Applicant")
+        self.candidate_email = os.getenv("GMAIL_ADDRESS", "applicant@example.com")
+        self.candidate_phone = os.getenv("CANDIDATE_PHONE", "+1 555-0199")
+        self.candidate_linkedin = os.getenv("LINKEDIN_URL", "https://linkedin.com/in/applicant")
+        self.candidate_github = os.getenv("GITHUB_URL", "https://github.com/applicant")
+        self.candidate_location = os.getenv("CANDIDATE_LOCATION", "Remote / United States")
         self.yoe = 4.0
+
 
     def extract_job_keywords(self, job_desc: str, title: str) -> List[str]:
         """Extract prominent tech tokens and requirements from job details."""

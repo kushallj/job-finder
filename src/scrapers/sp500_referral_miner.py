@@ -102,14 +102,15 @@ class SP500ReferralMiner:
 
     def __init__(self):
         self.serpapi_key = os.getenv("SERPAPI_API_KEY") or os.getenv("SERP_API_KEY")
-        self.gmail_user = os.getenv("GMAIL_ADDRESS", "canaby007@gmail.com")
-        self.gmail_pass = os.getenv("GMAIL_PASSWORD", "ujjk wwig znwp lise")
-        self.sender_name = os.getenv("SENDER_NAME", "Kushall Jain")
-        self.sender_linkedin = os.getenv("LINKEDIN_URL", "https://linkedin.com/in/kushall-jain-263009261")
+        self.gmail_user = os.getenv("GMAIL_ADDRESS")
+        self.gmail_pass = os.getenv("GMAIL_PASSWORD")
+        self.sender_name = os.getenv("SENDER_NAME", "Job Applicant")
+        self.sender_linkedin = os.getenv("LINKEDIN_URL")
         self.linkedin_url = self.sender_linkedin
         self.sender_email = self.gmail_user
         self.total_mined = 0
         self.total_saved = 0
+
 
 
     def synthesize_email(self, full_name: str, domain: str) -> str:
