@@ -291,8 +291,9 @@ Software Engineer
             return False
 
     async def mine_and_outreach_startup(
-        self, startup: AcceleratorStartup, auto_send: bool = True
+        self, startup: AcceleratorStartup, auto_send: bool = False
     ) -> List[Dict[str, Any]]:
+
         """Mine decision makers for single accelerator startup and dispatch outreach with strict <= 2 cap."""
         from sqlalchemy import func
 

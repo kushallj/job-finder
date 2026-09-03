@@ -220,8 +220,9 @@ Software Engineer
             return False
 
     async def mine_and_outreach_company(
-        self, company: SP500Company, auto_send: bool = True
+        self, company: SP500Company, auto_send: bool = False
     ) -> List[Dict[str, Any]]:
+
         """Mine decision makers for single S&P 500 company and dispatch outreach with strict <= 2 cap."""
         from sqlalchemy import func
 

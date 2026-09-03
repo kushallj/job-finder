@@ -307,8 +307,9 @@ Software Engineer
             return False
 
     async def mine_and_store_company(
-        self, company: FinTechFestivalCompany, auto_send: bool = True
+        self, company: FinTechFestivalCompany, auto_send: bool = False
     ) -> List[DecisionMakerContact]:
+
         """Mine decision makers for single company, store in DB, and optionally dispatch outreach (strictly <= 2/company)."""
         from sqlalchemy import func
         contacts = await self.search_company_decision_makers_serpapi(company, max_results=6)
@@ -480,7 +481,7 @@ Software Engineer
         }
 
 
-    async def run_full_gff_decision_maker_sweep(self, auto_send: bool = True) -> Dict[str, Any]:
+    async def run_full_gff_decision_maker_sweep(self, auto_send: bool = False) -> Dict[str, Any]:
         """Execute sweep across all 150+ FinTech festival partners."""
         self._log_event("INFO", f"Starting Full GFF Decision Maker Mining Sweep across {len(FINTECH_FESTIVAL_REGISTRY)} companies (Auto-Send: {auto_send})...")
         total_discovered = 0
@@ -506,7 +507,7 @@ Software Engineer
         }
 
 
-    def start_background_miner(self, interval_seconds: int = 3600, auto_send: bool = True):
+    def start_background_miner(self, interval_seconds: int = 3600, auto_send: bool = False):
         """Start continuous self-healing background miner."""
         if self.is_running:
             return

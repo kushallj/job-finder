@@ -105,7 +105,8 @@ class Settings(BaseSettings):
     # App
     env: str = "development"
     log_level: str = "INFO"
-    auto_send_emails: bool = True  # Automatically send outreach emails after job matching
+    auto_send_emails: bool = False  # Human-in-the-loop review gate by default
+
 
     # Sender identity (used in outreach emails, cover letters, etc.)
     sender_name: Optional[str] = None

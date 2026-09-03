@@ -241,3 +241,65 @@ class DiscoveredEmailCache(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class CandidateProfile(Base):
+    """Multi-user candidate profile model to replace singleton config/profile.yml."""
+    __tablename__ = "candidate_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_identifier = Column(String(255), default="default_user", unique=True, index=True)
+    full_name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False)
+    phone = Column(String(100), nullable=True)
+    location = Column(String(255), default="Remote")
+    linkedin_url = Column(String(500), nullable=True)
+    github_url = Column(String(500), nullable=True)
+    portfolio_url = Column(String(500), nullable=True)
+    years_of_experience = Column(Float, default=3.0)
+    current_title = Column(String(255), nullable=True)
+    bio_summary = Column(Text, nullable=True)
+    skills = Column(Text, default="[]")  # JSON array of skills e.g. ["Python", "FastAPI", "React"]
+    target_roles = Column(Text, default="[]")  # JSON array of desired titles
+    target_locations = Column(Text, default="[]")  # JSON array
+    min_desired_salary = Column(Float, nullable=True)
+    resume_raw_text = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TargetCompanyRecord(Base):
+    """Database-backed target company list to replace singleton config/target_companies.yml."""
+    __tablename__ = "target_companies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_identifier = Column(String(255), default="default_user", index=True)
+    name = Column(String(255), nullable=False, index=True)
+    domain = Column(String(255), nullable=False)
+    tier = Column(String(50), default="tier1")  # tier1, fintech, ai_ml, accelerator, gcc, enterprise
+    industry = Column(String(100), nullable=True)
+    headquarters = Column(String(255), nullable=True)
+    funding_stage = Column(String(100), nullable=True)
+    signal_score = Column(Float, default=85.0)
+    signal_notes = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OutreachFunnelEvent(Base):
+    """Tracks conversion events from lead discovery to interview/offer."""
+    __tablename__ = "outreach_funnel_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_identifier = Column(String(255), default="default_user", index=True)
+    event_type = Column(String(50), nullable=False)  # lead_discovered, packet_generated, review_approved, email_sent, reply_received, interview_scheduled, offer_received
+    company = Column(String(255), index=True)
+    role_title = Column(String(255), nullable=True)
+    contact_name = Column(String(255), nullable=True)
+    contact_email = Column(String(255), nullable=True)
+    channel = Column(String(50), default="email")  # email, linkedin, x_twitter, ats
+    match_score = Column(Float, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+

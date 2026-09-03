@@ -5633,6 +5633,207 @@ async def validate_api_keys(req: KeyValidationRequest):
     return {"status": "success", "results": results}
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Candidate Profile & Target Company Management Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+from src.services.profile_service import ProfileService
+from fastapi import UploadFile, File
+
+class ProfileUpdateRequest(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    location: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    github_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    years_of_experience: Optional[float] = None
+    current_title: Optional[str] = None
+    bio_summary: Optional[str] = None
+    skills: Optional[List[str]] = None
+    target_roles: Optional[List[str]] = None
+    target_locations: Optional[List[str]] = None
+
+class TargetCompanyCreateRequest(BaseModel):
+    name: str
+    domain: str
+    tier: Optional[str] = "tier1"
+    industry: Optional[str] = "Technology"
+    headquarters: Optional[str] = "Remote"
+    funding_stage: Optional[str] = "Series B+"
+    signal_score: Optional[float] = 85.0
+    signal_notes: Optional[str] = None
+
+class FunnelEventLogRequest(BaseModel):
+    event_type: str
+    company: str
+    role_title: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    channel: Optional[str] = "email"
+    match_score: Optional[float] = None
+    notes: Optional[str] = None
+
+@app.post("/api/profile/upload-resume", tags=["profile"])
+async def upload_and_parse_resume(
+    file: Optional[UploadFile] = File(None),
+    raw_text: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Upload resume PDF or text, extract structured candidate profile, and update DB."""
+    try:
+        service = ProfileService(db=db)
+        if file:
+            contents = await file.read()
+            text = service.parse_resume_pdf(contents)
+        elif raw_text:
+            text = raw_text
+        else:
+            raise HTTPException(status_code=400, detail="Must provide either a PDF file or raw_text")
+
+        extracted = service.extract_profile_from_text(text)
+        extracted["resume_raw_text"] = text
+        profile = service.update_profile("default_user", extracted)
+
+        return {
+            "status": "success",
+            "message": "Resume uploaded and skills extracted successfully",
+            "profile": {
+                "id": profile.id,
+                "full_name": profile.full_name,
+                "email": profile.email,
+                "phone": profile.phone,
+                "location": profile.location,
+                "linkedin_url": profile.linkedin_url,
+                "github_url": profile.github_url,
+                "years_of_experience": profile.years_of_experience,
+                "skills": json.loads(profile.skills or "[]"),
+                "bio_summary": profile.bio_summary,
+                "target_roles": json.loads(profile.target_roles or "[]"),
+                "target_locations": json.loads(profile.target_locations or "[]"),
+            }
+        }
+    except Exception as exc:
+        log.error("Resume parse failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to process resume: {str(exc)}")
+
+@app.get("/api/profile/current", tags=["profile"])
+async def get_current_profile(db: Session = Depends(get_db)):
+    """Fetch active candidate profile."""
+    service = ProfileService(db=db)
+    profile = service.get_or_create_profile("default_user")
+    return {
+        "status": "success",
+        "profile": {
+            "id": profile.id,
+            "full_name": profile.full_name,
+            "email": profile.email,
+            "phone": profile.phone,
+            "location": profile.location,
+            "linkedin_url": profile.linkedin_url,
+            "github_url": profile.github_url,
+            "portfolio_url": profile.portfolio_url,
+            "years_of_experience": profile.years_of_experience,
+            "current_title": profile.current_title,
+            "bio_summary": profile.bio_summary,
+            "skills": json.loads(profile.skills or "[]"),
+            "target_roles": json.loads(profile.target_roles or "[]"),
+            "target_locations": json.loads(profile.target_locations or "[]"),
+            "updated_at": profile.updated_at.isoformat() if profile.updated_at else None,
+        }
+    }
+
+@app.post("/api/profile/current", tags=["profile"])
+async def update_current_profile(req: ProfileUpdateRequest, db: Session = Depends(get_db)):
+    """Update active candidate profile."""
+    service = ProfileService(db=db)
+    updates = req.model_dump(exclude_unset=True)
+    profile = service.update_profile("default_user", updates)
+    return {
+        "status": "success",
+        "profile": {
+            "id": profile.id,
+            "full_name": profile.full_name,
+            "email": profile.email,
+            "phone": profile.phone,
+            "location": profile.location,
+            "linkedin_url": profile.linkedin_url,
+            "github_url": profile.github_url,
+            "years_of_experience": profile.years_of_experience,
+            "skills": json.loads(profile.skills or "[]"),
+            "bio_summary": profile.bio_summary,
+            "target_roles": json.loads(profile.target_roles or "[]"),
+            "target_locations": json.loads(profile.target_locations or "[]"),
+        }
+    }
+
+@app.get("/api/profile/target-companies", tags=["profile"])
+async def get_target_companies(db: Session = Depends(get_db)):
+    """Get user's curated target company list."""
+    service = ProfileService(db=db)
+    companies = service.get_target_companies("default_user")
+    return {
+        "status": "success",
+        "total": len(companies),
+        "companies": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "domain": c.domain,
+                "tier": c.tier,
+                "industry": c.industry,
+                "headquarters": c.headquarters,
+                "funding_stage": c.funding_stage,
+                "signal_score": c.signal_score,
+                "signal_notes": c.signal_notes,
+                "is_active": c.is_active,
+            }
+            for c in companies
+        ]
+    }
+
+@app.post("/api/profile/target-companies", tags=["profile"])
+async def add_target_company(req: TargetCompanyCreateRequest, db: Session = Depends(get_db)):
+    """Add a new target company to user's pipeline."""
+    service = ProfileService(db=db)
+    rec = service.add_target_company("default_user", req.model_dump())
+    return {
+        "status": "success",
+        "company": {
+            "id": rec.id,
+            "name": rec.name,
+            "domain": rec.domain,
+            "tier": rec.tier,
+            "industry": rec.industry,
+            "signal_score": rec.signal_score,
+        }
+    }
+
+@app.get("/api/funnel/metrics", tags=["funnel"])
+async def get_funnel_metrics(db: Session = Depends(get_db)):
+    """Aggregate funnel conversion rates from discovery to interview."""
+    service = ProfileService(db=db)
+    return service.get_funnel_metrics("default_user")
+
+@app.post("/api/funnel/event", tags=["funnel"])
+async def log_funnel_event(req: FunnelEventLogRequest, db: Session = Depends(get_db)):
+    """Log an outreach reply, interview, or offer conversion event."""
+    service = ProfileService(db=db)
+    evt = service.log_funnel_event(
+        event_type=req.event_type,
+        company=req.company,
+        role_title=req.role_title,
+        contact_name=req.contact_name,
+        contact_email=req.contact_email,
+        channel=req.channel or "email",
+        match_score=req.match_score,
+        notes=req.notes,
+        user_id="default_user",
+    )
+    return {"status": "success", "event_id": evt.id}
+
+
 # =============================================================================
 # Dev entry point
 # =============================================================================

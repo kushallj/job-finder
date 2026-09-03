@@ -40,6 +40,9 @@ import { formatRelativeTime, formatPercentage, formatNumber } from '../utils/for
 import type { RecentOutreach, ProviderSyncResponse, MarketIntelligenceResponse } from '../api/types';
 import ActionQueue from '../components/lifecycle/ActionQueue';
 import { providersApi } from '../api/endpoints/providers';
+import { FunnelConversionTracker } from '../components/analytics/FunnelConversionTracker';
+
+
 
 // Web3 / HFT Stat Card Component
 interface StatCardProps {
@@ -227,7 +230,11 @@ export const Dashboard: React.FC = () => {
         </Box>
       </Box>
 
+      {/* Account-Based Outreach Conversion Funnel */}
+      <FunnelConversionTracker />
+
       {/* Quick Search & AI Pipeline Trigger */}
+
       <Card sx={{ mb: 4, p: 1, bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.25)', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.65)' }}>
         <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
           <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>

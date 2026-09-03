@@ -10,11 +10,13 @@ import {
   Paper,
 } from '@mui/material';
 import {
+  Person as PersonIcon,
   Key as KeyIcon,
   CloudUpload as CloudUploadIcon,
   Public as PublicIcon,
 } from '@mui/icons-material';
 import { ApiKeySetupWizard } from '../components/setup/ApiKeySetupWizard';
+import { ResumeOnboardingWizard } from '../components/onboarding/ResumeOnboardingWizard';
 
 export const SetupGuide: React.FC = () => {
   const [tabIndex, setTabIndex] = useState(0);
@@ -27,6 +29,8 @@ export const SetupGuide: React.FC = () => {
           value={tabIndex}
           onChange={(_, val) => setTabIndex(val)}
           textColor="inherit"
+          variant="scrollable"
+          scrollButtons="auto"
           TabIndicatorProps={{ style: { backgroundColor: '#00FFA3', height: 3 } }}
           sx={{
             '& .MuiTab-root': {
@@ -38,17 +42,21 @@ export const SetupGuide: React.FC = () => {
             },
           }}
         >
-          <Tab icon={<KeyIcon />} iconPosition="start" label="Interactive API Setup & .env" />
-          <Tab icon={<CloudUploadIcon />} iconPosition="start" label="Deploy Backend (Render / Cloud)" />
-          <Tab icon={<PublicIcon />} iconPosition="start" label="Deploy Frontend (GitHub Pages)" />
+          <Tab icon={<PersonIcon />} iconPosition="start" label="1. Candidate Profile & Target Accounts" />
+          <Tab icon={<KeyIcon />} iconPosition="start" label="2. Interactive API Setup & .env" />
+          <Tab icon={<CloudUploadIcon />} iconPosition="start" label="3. Deploy Backend (Render / Cloud)" />
+          <Tab icon={<PublicIcon />} iconPosition="start" label="4. Deploy Frontend (GitHub Pages)" />
         </Tabs>
       </Box>
 
-      {/* Tab 0: Interactive Setup Wizard */}
-      {tabIndex === 0 && <ApiKeySetupWizard />}
+      {/* Tab 0: Resume & Profile Onboarding */}
+      {tabIndex === 0 && <ResumeOnboardingWizard />}
 
-      {/* Tab 1: Backend Cloud Deploy Guide */}
-      {tabIndex === 1 && (
+      {/* Tab 1: Interactive API Keys Wizard */}
+      {tabIndex === 1 && <ApiKeySetupWizard />}
+
+      {/* Tab 2: Backend Cloud Deploy Guide */}
+      {tabIndex === 2 && (
         <Box sx={{ maxWidth: '1000px', mx: 'auto', p: { xs: 2, md: 4 } }}>
           <Card sx={{ bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.25)', borderRadius: '20px', mb: 3 }}>
             <CardContent sx={{ p: 4 }}>
@@ -96,8 +104,8 @@ export const SetupGuide: React.FC = () => {
         </Box>
       )}
 
-      {/* Tab 2: Frontend GitHub Pages Guide */}
-      {tabIndex === 2 && (
+      {/* Tab 3: Frontend GitHub Pages Guide */}
+      {tabIndex === 3 && (
         <Box sx={{ maxWidth: '1000px', mx: 'auto', p: { xs: 2, md: 4 } }}>
           <Card sx={{ bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.25)', borderRadius: '20px', mb: 3 }}>
             <CardContent sx={{ p: 4 }}>

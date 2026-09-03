@@ -70,7 +70,8 @@ class ProcessorConfig:
     retry_base_delay: float = 1.0  # seconds; doubles each attempt
 
     # Whether to send emails automatically
-    auto_send_emails: bool = getattr(settings, "auto_send_emails", True)
+    auto_send_emails: bool = getattr(settings, "auto_send_emails", False)
+
 
 
 # ---------------------------------------------------------------------------
