@@ -27,6 +27,7 @@ import {
   SmartToyOutlined as AgentsIcon,
   Public as GlobalIcon,
   Psychology as CopilotIcon,
+  RocketLaunch as RocketIcon,
 } from '@mui/icons-material';
 import { useUIStore } from '../../stores/useUIStore';
 
@@ -48,9 +49,11 @@ const mainNavItems = [
 ];
 
 const intelligenceNavItems = [
+  { text: 'Setup & Deploy Guide', icon: <RocketIcon fontSize="small" />, path: '/setup', tag: 'FREE' },
   { text: 'Analytics & Funnel', icon: <StatsIcon fontSize="small" />, path: '/stats' },
   { text: 'Settings & Config', icon: <SettingsIcon fontSize="small" />, path: '/settings' },
 ];
+
 
 export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) => {
   const theme = useTheme();

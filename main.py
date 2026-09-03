@@ -5535,14 +5535,109 @@ async def get_market_radar_opportunities(req: Request = None):
         raise APIError(f"Market radar retrieval failed: {str(exc)}")
 
 
-# =============================================================================
+# ═══════════════════════════════════════════════════════════════════════════
+# Live Deployment Configuration & Key Validation Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
 
+class KeyValidationRequest(BaseModel):
+    gemini_api_key: Optional[str] = None
+    serpapi_key: Optional[str] = None
+    hunter_api_key: Optional[str] = None
+    gmail_address: Optional[str] = None
+    gmail_password: Optional[str] = None
+
+@app.get("/api/config/status", tags=["config"])
+async def get_config_status():
+    """Returns the operational status of configured backend services without exposing raw secrets."""
+    return {
+        "status": "online",
+        "version": "2.5.0",
+        "backend_time": datetime.utcnow().isoformat(),
+        "services": {
+            "gemini_configured": bool(os.getenv("GEMINI_API_KEY")),
+            "serpapi_configured": bool(os.getenv("SERPAPI_API_KEY") or os.getenv("SERP_API_KEY")),
+            "hunter_configured": bool(os.getenv("HUNTER_API_KEY")),
+            "apollo_configured": bool(os.getenv("APOLLO_API_KEY")),
+            "smtp_configured": bool(os.getenv("GMAIL_ADDRESS") and os.getenv("GMAIL_PASSWORD")),
+            "telegram_configured": bool(os.getenv("TELEGRAM_BOT_TOKEN")),
+            "discord_configured": bool(os.getenv("DISCORD_WEBHOOK_URL")),
+            "slack_configured": bool(os.getenv("SLACK_WEBHOOK_URL")),
+            "tsenta_configured": bool(os.getenv("TSENTA_API_KEY")),
+        },
+        "database": {
+            "type": "postgresql" if (os.getenv("DATABASE_URL") or "").startswith("postgresql") else "sqlite",
+            "url_configured": bool(os.getenv("DATABASE_URL")),
+        },
+    }
+
+@app.post("/api/config/validate-keys", tags=["config"])
+async def validate_api_keys(req: KeyValidationRequest):
+    """Live validation for Gemini, SerpAPI, Hunter, and SMTP credentials."""
+    results = {}
+
+    # 1. Test Gemini API Key
+    gemini_k = req.gemini_api_key or os.getenv("GEMINI_API_KEY")
+    if gemini_k:
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                res = await client.get(
+                    f"https://generativelanguage.googleapis.com/v1beta/models?key={gemini_k}"
+                )
+                if res.status_code == 200:
+                    results["gemini"] = {"valid": True, "message": "Gemini API key is valid and connected to Google AI Studio"}
+                else:
+                    results["gemini"] = {"valid": False, "message": f"Gemini rejected key: HTTP {res.status_code}"}
+        except Exception as exc:
+            results["gemini"] = {"valid": False, "message": f"Gemini connection error: {str(exc)}"}
+
+    # 2. Test SerpAPI Key
+    serp_k = req.serpapi_key or os.getenv("SERPAPI_API_KEY") or os.getenv("SERP_API_KEY")
+    if serp_k:
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                res = await client.get(f"https://serpapi.com/account?api_key={serp_k}")
+                if res.status_code == 200:
+                    data = res.json()
+                    searches_left = data.get("total_searches_left", "N/A")
+                    results["serpapi"] = {"valid": True, "message": f"SerpAPI key is active ({searches_left} searches remaining)"}
+                else:
+                    results["serpapi"] = {"valid": False, "message": f"SerpAPI rejected key: HTTP {res.status_code}"}
+        except Exception as exc:
+            results["serpapi"] = {"valid": False, "message": f"SerpAPI connection error: {str(exc)}"}
+
+    # 3. Test Hunter.io Key
+    hunter_k = req.hunter_api_key or os.getenv("HUNTER_API_KEY")
+    if hunter_k:
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                res = await client.get(f"https://api.hunter.io/v2/account?api_key={hunter_k}")
+                if res.status_code == 200:
+                    results["hunter"] = {"valid": True, "message": "Hunter.io key is active and ready for decision maker discovery"}
+                else:
+                    results["hunter"] = {"valid": False, "message": f"Hunter.io rejected key: HTTP {res.status_code}"}
+        except Exception as exc:
+            results["hunter"] = {"valid": False, "message": f"Hunter connection error: {str(exc)}"}
+
+    # 4. Test SMTP / Gmail
+    gmail_addr = req.gmail_address or os.getenv("GMAIL_ADDRESS")
+    gmail_pwd = req.gmail_password or os.getenv("GMAIL_PASSWORD")
+    if gmail_addr and gmail_pwd:
+        try:
+            import aiosmtplib
+            async with aiosmtplib.SMTP(hostname="smtp.gmail.com", port=587, start_tls=True, timeout=8.0) as smtp:
+                await smtp.login(gmail_addr, gmail_pwd)
+                results["smtp"] = {"valid": True, "message": f"Gmail SMTP authenticated successfully for {gmail_addr}"}
+        except Exception as exc:
+            results["smtp"] = {"valid": False, "message": f"Gmail authentication failed: {str(exc)}"}
+
+    return {"status": "success", "results": results}
+
+
+# =============================================================================
 # Dev entry point
 # =============================================================================
 
 if __name__ == "__main__":
     import uvicorn
-
-
 
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
