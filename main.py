@@ -791,6 +791,14 @@ register_error_handlers(app)
 if _AGENTS_ROUTER_OK:
     app.include_router(agents_router)
 
+try:
+    from src.sidekick.api.sidekick_router import router as sidekick_router
+    app.include_router(sidekick_router)
+except Exception as e:
+    log.warning(f"Could not load sidekick_router: {e}")
+
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -5832,6 +5840,22 @@ async def log_funnel_event(req: FunnelEventLogRequest, db: Session = Depends(get
         user_id="default_user",
     )
     return {"status": "success", "event_id": evt.id}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Labor Market Intelligence & Alpha Lead Magnet Report Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+from src.services.labor_market_report import LaborMarketReportService
+
+@app.get("/api/reports/labor-market-intelligence", tags=["reports"])
+async def get_labor_market_intelligence(
+    sector: Optional[str] = "FinTech & Distributed Systems",
+    db: Session = Depends(get_db)
+):
+    """Generates real-time Labor Market Intelligence and Tech Hiring Reports."""
+    service = LaborMarketReportService(db=db)
+    return service.generate_report(target_sector=sector)
 
 
 # =============================================================================

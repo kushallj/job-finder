@@ -165,6 +165,89 @@ def _normalize_profile(raw: Dict[str, Any]) -> Dict[str, Any]:
     return profile
 
 
+def _profile_from_db(user_id: str = "default_user") -> Optional[Dict[str, Any]]:
+    """Attempt to load candidate profile from database."""
+    try:
+        from src.database import SessionLocal
+        from src.models import CandidateProfile
+        with SessionLocal() as db:
+            cp = db.query(CandidateProfile).filter(CandidateProfile.user_identifier == user_id).first()
+            if not cp:
+                return None
+            skills = json.loads(cp.skills or "[]")
+            target_roles = json.loads(cp.target_roles or "[]")
+            target_locs = json.loads(cp.target_locations or "[]")
+
+            raw = {
+                "candidate": {
+                    "name": cp.full_name,
+                    "email": cp.email,
+                    "phone": cp.phone or "",
+                    "experience_years": cp.years_of_experience,
+                    "linkedin_url": cp.linkedin_url or "",
+                    "github_url": cp.github_url or "",
+                },
+                "tech_stack": {
+                    "strong": skills[:8],
+                    "familiar": skills[8:],
+                },
+                "target_roles": {
+                    "primary": target_roles[:2] or ["Senior Backend Engineer"],
+                    "secondary": target_roles[2:] or ["Full Stack Engineer"],
+                },
+                "location_preferences": {
+                    "remote": True,
+                    "on_site_cities": [loc for loc in target_locs if loc.lower() != "remote"],
+                },
+                "narrative": {
+                    "summary": cp.bio_summary or f"Software Engineer with {cp.years_of_experience:g}+ years of experience in {', '.join(skills[:4])}.",
+                    "one_liner": f"Full-stack engineer with expertise in {', '.join(skills[:3])}."
+                },
+                "positioning": {
+                    "headline": cp.current_title or f"Software Engineer ({', '.join(skills[:3])})",
+                    "differentiators": [
+                        f"Core Tech: {', '.join(skills[:5])}",
+                        f"{cp.years_of_experience:g}+ Years Production Experience",
+                    ]
+                }
+            }
+            return _normalize_profile(raw)
+    except Exception as exc:
+        log.debug("DB candidate profile load fallback to YAML: %s", exc)
+        return None
+
+
+def _companies_from_db(user_id: str = "default_user") -> List[Dict[str, Any]]:
+    """Attempt to load target companies from database."""
+    try:
+        from src.database import SessionLocal
+        from src.models import TargetCompanyRecord
+        with SessionLocal() as db:
+            records = db.query(TargetCompanyRecord).filter(
+                TargetCompanyRecord.user_identifier == user_id,
+                TargetCompanyRecord.is_active == True
+            ).all()
+            if not records:
+                return []
+            comps = []
+            for r in records:
+                tier_num = 1 if r.tier in ["tier1", "1"] else 2
+                comps.append({
+                    "name": r.name,
+                    "domain": r.domain,
+                    "tier": tier_num,
+                    "industry": r.industry or "Technology",
+                    "headquarters": r.headquarters or "Remote",
+                    "stage": r.funding_stage or "Series B+",
+                    "signal_score": r.signal_score or 85.0,
+                    "notes": r.signal_notes or "",
+                })
+            return comps
+    except Exception as exc:
+        log.debug("DB target companies load fallback to YAML: %s", exc)
+        return []
+
+
 @dataclass
 class AgentContext:
     """Loaded once per run, passed to every agent.
@@ -179,14 +262,27 @@ class AgentContext:
 
     @classmethod
     def load(cls, profile_path: Path = PROFILE_PATH,
-              companies_path: Path = TARGET_COMPANIES_PATH) -> "AgentContext":
-        profile = _normalize_profile(_load_yaml(profile_path))
-        target_cfg = _load_yaml(companies_path)
+              companies_path: Path = TARGET_COMPANIES_PATH,
+              user_id: str = "default_user") -> "AgentContext":
+        # First attempt to load dynamic DB profile and target companies
+        db_profile = _profile_from_db(user_id)
+        profile = db_profile if db_profile else _normalize_profile(_load_yaml(profile_path))
+
+        db_companies = _companies_from_db(user_id)
+        if db_companies:
+            companies = db_companies
+            sector_context = {}
+        else:
+            target_cfg = _load_yaml(companies_path)
+            companies = target_cfg.get("companies", [])
+            sector_context = target_cfg.get("sector_context", {})
+
         return cls(
             profile=profile,
-            companies=target_cfg.get("companies", []),
-            sector_context=target_cfg.get("sector_context", {}),
+            companies=companies,
+            sector_context=sector_context,
         )
+
 
     def company(self, name: str) -> Optional[Dict[str, Any]]:
         """Case-insensitive lookup by name or alias."""

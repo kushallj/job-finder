@@ -97,6 +97,10 @@ class FeedbackStrategistAgent(BaseAgent):
                 .join(Job, OutreachRecord.job_id == Job.id)
                 .all()
             )
+            from src.models import OutreachFunnelEvent
+            funnel_events = session.query(OutreachFunnelEvent).all()
+        except Exception:
+            funnel_events = []
         finally:
             session.close()
 
@@ -109,6 +113,16 @@ class FeedbackStrategistAgent(BaseAgent):
             sent_by_tier[tier] += 1
             if status in ("replied",):
                 replied_by_tier[tier] += 1
+
+        for evt in funnel_events:
+            company_cfg = self.context.company(evt.company or "") or {}
+            tier = company_cfg.get("tier", 99)
+            if evt.event_type in ("email_sent",):
+                sent_by_tier[tier] += 1
+            elif evt.event_type in ("reply_received", "interview_scheduled", "offer_received"):
+                replied_by_tier[tier] += 1
+                sent_by_tier[tier] = max(sent_by_tier[tier], replied_by_tier[tier])
+
 
         stats = {}
         for tier, sent in sent_by_tier.items():

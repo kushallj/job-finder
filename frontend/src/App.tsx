@@ -15,6 +15,8 @@ import AgentsHub from './pages/AgentsHub';
 import Copilot from './pages/Copilot';
 import MarketRadar from './pages/MarketRadar';
 import { SetupGuide } from './pages/SetupGuide';
+import { InterviewCopilotPage } from './pages/InterviewCopilotPage';
+import { InterviewSidekickHUD } from './components/sidekick/InterviewSidekickHUD';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -34,12 +36,14 @@ const App: React.FC = () => {
         <CssBaseline />
         <BrowserRouter>
           <Routes>
+            <Route path="/copilot-hud" element={<InterviewSidekickHUD />} />
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
               <Route path="jobs" element={<Jobs />} />
               <Route path="opportunities/:jobId" element={<OpportunityBrief />} />
               <Route path="agents" element={<AgentsHub />} />
               <Route path="copilot" element={<Copilot />} />
+              <Route path="interview-copilot" element={<InterviewCopilotPage />} />
               <Route path="market-radar" element={<MarketRadar />} />
               <Route path="contacts" element={<Contacts />} />
               <Route path="outreach" element={<Outreach />} />
@@ -53,6 +57,7 @@ const App: React.FC = () => {
     </QueryClientProvider>
   );
 };
+
 
 
 

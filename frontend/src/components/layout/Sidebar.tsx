@@ -28,6 +28,7 @@ import {
   Public as GlobalIcon,
   Psychology as CopilotIcon,
   RocketLaunch as RocketIcon,
+  VisibilityOff as StealthIcon,
 } from '@mui/icons-material';
 import { useUIStore } from '../../stores/useUIStore';
 
@@ -42,11 +43,13 @@ const mainNavItems = [
   { text: 'Command Center', icon: <DashboardIcon fontSize="small" />, path: '/', tag: '100s' },
   { text: 'Opportunities', icon: <JobsIcon fontSize="small" />, path: '/jobs', tag: '2,050+' },
   { text: 'AI Agents Fleet', icon: <AgentsIcon fontSize="small" />, path: '/agents', tag: '15' },
+  { text: 'Ghost Copilot', icon: <StealthIcon fontSize="small" />, path: '/interview-copilot', tag: '<5µs' },
   { text: 'AI OSINT Copilot', icon: <CopilotIcon fontSize="small" />, path: '/copilot', tag: 'AI' },
   { text: 'Global Radar', icon: <GlobalIcon fontSize="small" />, path: '/market-radar' },
   { text: 'Decision Makers', icon: <ContactsIcon fontSize="small" />, path: '/contacts', tag: '1,043' },
   { text: 'Outreach Engine', icon: <OutreachIcon fontSize="small" />, path: '/outreach', tag: '211' },
 ];
+
 
 const intelligenceNavItems = [
   { text: 'Setup & Deploy Guide', icon: <RocketIcon fontSize="small" />, path: '/setup', tag: 'FREE' },

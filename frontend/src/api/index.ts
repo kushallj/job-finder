@@ -26,6 +26,8 @@ export { marketRadarApi } from './endpoints/market_radar';
 export { tsentaApi } from './endpoints/tsenta';
 export { configApi } from './endpoints/config';
 export { profileApi } from './endpoints/profile';
+export { sidekickApi } from './endpoints/sidekick';
+
 
 
 

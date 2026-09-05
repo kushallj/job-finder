@@ -41,6 +41,9 @@ import type { RecentOutreach, ProviderSyncResponse, MarketIntelligenceResponse }
 import ActionQueue from '../components/lifecycle/ActionQueue';
 import { providersApi } from '../api/endpoints/providers';
 import { FunnelConversionTracker } from '../components/analytics/FunnelConversionTracker';
+import { LaborMarketReportModal } from '../components/intel/LaborMarketReportModal';
+import { Assessment as ReportIcon } from '@mui/icons-material';
+
 
 
 
@@ -147,6 +150,8 @@ export const Dashboard: React.FC = () => {
   const [providerSync, setProviderSync] = useState<ProviderSyncResponse | null>(null);
   const [market, setMarket] = useState<MarketIntelligenceResponse | null>(null);
   const [providerWorking, setProviderWorking] = useState(false);
+  const [openReportModal, setOpenReportModal] = useState(false);
+
 
   const handleFetchJobs = () => {
     if (searchQuery.trim()) {
@@ -197,7 +202,7 @@ export const Dashboard: React.FC = () => {
         }}
       >
         <Box sx={{ position: 'relative', zIndex: 1, maxWidth: 950 }}>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+          <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
             <Chip
               icon={<FlameIcon sx={{ fontSize: '16px !important', color: '#00FFA3 !important' }} />}
               label="HFT Alpha Liquidity Active"
@@ -220,7 +225,26 @@ export const Dashboard: React.FC = () => {
                 border: '1px solid rgba(0, 240, 255, 0.4)',
               }}
             />
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<ReportIcon />}
+              onClick={() => setOpenReportModal(true)}
+              sx={{
+                borderColor: '#00FFA3',
+                color: '#00FFA3',
+                fontWeight: 800,
+                fontSize: '0.75rem',
+                height: 24,
+                textTransform: 'none',
+                borderRadius: '12px',
+                '&:hover': { bgcolor: 'rgba(0, 255, 163, 0.1)', borderColor: '#00F0FF' },
+              }}
+            >
+              📊 2026 Labor Market Report
+            </Button>
           </Stack>
+
           <Typography variant="h2" sx={{ fontWeight: 900, letterSpacing: '-0.035em', mb: 1.5, background: 'linear-gradient(90deg, #00FFA3 0%, #00F0FF 50%, #FFE600 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', textTransform: 'uppercase' }}>
             Next-Gen Career Intelligence Cockpit ⚡
           </Typography>
@@ -582,8 +606,12 @@ export const Dashboard: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Labor Market Intelligence Report Modal */}
+      <LaborMarketReportModal open={openReportModal} onClose={() => setOpenReportModal(false)} />
     </Box>
   );
 };
 
 export default Dashboard;
+

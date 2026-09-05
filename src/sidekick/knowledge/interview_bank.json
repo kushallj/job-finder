@@ -1,0 +1,163 @@
+{
+  "version": "2.0.0",
+  "dsa_patterns": [
+    {
+      "id": "lru_cache",
+      "keywords": ["lru cache", "least recently used", "cache eviction", "lru", "design lru"],
+      "title": "LRU Cache (Least Recently Used)",
+      "category": "Data Structures & Design",
+      "bullets": [
+        "Core Pattern: Doubly Linked List + Hash Map (HashMap maps keys to DLL Nodes for O(1) lookup & eviction).",
+        "Complexity: Get: O(1) time | Put: O(1) time | Space: O(Capacity) memory overhead.",
+        "Edge Cases: Node update moves to head | Capacity overflow evicts tail prev | Duplicate keys overwrite existing node value."
+      ]
+    },
+    {
+      "id": "two_sum",
+      "keywords": ["two sum", "pair with target sum", "find two numbers that add up to"],
+      "title": "Two Sum / Hash Map Lookup",
+      "category": "Arrays & Hashing",
+      "bullets": [
+        "Core Pattern: Single-pass Hash Map storing complement (target - current_val -> index).",
+        "Complexity: Time: O(N) linear pass | Space: O(N) for dictionary.",
+        "Edge Cases: Exactly one solution guaranteed vs multiple pairs | Negative numbers and zero handling."
+      ]
+    },
+    {
+      "id": "sliding_window_max",
+      "keywords": ["sliding window maximum", "sliding window", "maximum in sliding window", "monotonic queue"],
+      "title": "Sliding Window Maximum (Monotonic Deque)",
+      "category": "Queues & Monotonic Deque",
+      "bullets": [
+        "Core Pattern: Decreasing Monotonic Deque storing indices of elements. Pop smaller elements from back before inserting.",
+        "Complexity: Time: O(N) amortized (each element pushed and popped at most once) | Space: O(K) deque window size.",
+        "Edge Cases: Evict indices out of current window [i - k + 1] | Initial window ramp-up."
+      ]
+    },
+    {
+      "id": "top_k_frequent",
+      "keywords": ["top k frequent", "k most frequent elements", "bucket sort frequency"],
+      "title": "Top K Frequent Elements",
+      "category": "Heaps & Bucket Sort",
+      "bullets": [
+        "Core Pattern: Count frequencies in Map, then use Bucket Sort array where index = frequency (or Min-Heap of size K).",
+        "Complexity: Bucket Sort: O(N) time & O(N) space | Min-Heap: O(N log K) time & O(N) space.",
+        "Edge Cases: K equals number of unique elements | All elements have identical frequency."
+      ]
+    },
+    {
+      "id": "merge_intervals",
+      "keywords": ["merge intervals", "overlapping intervals", "interval scheduling", "insert interval"],
+      "title": "Merge Overlapping Intervals",
+      "category": "Intervals & Sorting",
+      "bullets": [
+        "Core Pattern: Sort intervals by start time; iterate and merge if current.start <= previous.end by taking max(previous.end, current.end).",
+        "Complexity: Time: O(N log N) dominated by sorting | Space: O(N) or O(1) in-place.",
+        "Edge Cases: Single interval | Completely nested intervals [1, 10] and [2, 5] | Disjoint intervals."
+      ]
+    },
+    {
+      "id": "course_schedule_topo",
+      "keywords": ["course schedule", "topological sort", "cycle detection in directed graph", "kahns algorithm"],
+      "title": "Course Schedule (Topological Sort / Kahn's)",
+      "category": "Graphs & Topological Sort",
+      "bullets": [
+        "Core Pattern: Directed Graph in-degree array + Queue (Kahn's BFS) or 3-color DFS (White/Gray/Black) cycle detection.",
+        "Complexity: Time: O(V + E) vertices + edges | Space: O(V + E) adjacency list & in-degree tracker.",
+        "Edge Cases: Disconnected graph components | Self-dependency loops (Course A requires Course A)."
+      ]
+    },
+    {
+      "id": "coin_change_dp",
+      "keywords": ["coin change", "fewest coins", "minimum coins to make amount", "unbounded knapsack"],
+      "title": "Coin Change (Bottom-Up Dynamic Programming)",
+      "category": "Dynamic Programming",
+      "bullets": [
+        "Core Pattern: 1D DP array dp[i] = min number of coins for amount i. Recurrence: dp[i] = min(dp[i], dp[i - coin] + 1).",
+        "Complexity: Time: O(Amount * Coins.length) | Space: O(Amount) array.",
+        "Edge Cases: Amount = 0 returns 0 | Unreachable amount returns -1 (initialized to infinity)."
+      ]
+    }
+  ],
+  "system_design_archetypes": [
+    {
+      "id": "distributed_rate_limiter",
+      "keywords": ["rate limiter", "distributed rate limiting", "token bucket", "leaky bucket", "sliding window rate limit"],
+      "title": "Distributed Rate Limiter",
+      "category": "High-Throughput Infra",
+      "bullets": [
+        "Architecture: API Gateway -> Redis Cluster with Lua scripts running Token Bucket or Sliding Window Log for atomic checks.",
+        "Trade-offs: Token Bucket allows bursts with low memory; Sliding Window Counter gives smooth rate at cost of slight approximation.",
+        "Scale & Failure: Local in-memory fallback cache if Redis cluster degrades | Return HTTP 429 with 'Retry-After' header."
+      ]
+    },
+    {
+      "id": "url_shortener",
+      "keywords": ["url shortener", "design tinyurl", "bitly", "short link generator"],
+      "title": "URL Shortener (TinyURL / Bitly)",
+      "category": "Scalable Web Services",
+      "bullets": [
+        "Architecture: Base62 encoding on 64-bit unique ID (Twitter Snowflake or Range-allocated DB counter) -> 7 chars yields 3.5 trillion URLs.",
+        "Storage & Cache: NoSQL / DynamoDB (Key: short_hash -> original_url) + Redis caching top 20% hot links with LRU eviction.",
+        "Redirect Logic: HTTP 301 (Permanent cacheable by browser) vs HTTP 302/307 (Temporary, enables real-time click analytics)."
+      ]
+    },
+    {
+      "id": "consistent_hashing",
+      "keywords": ["consistent hashing", "virtual nodes", "distributed cache sharding", "ring hashing"],
+      "title": "Consistent Hashing & Virtual Nodes",
+      "category": "Distributed Systems Core",
+      "bullets": [
+        "Architecture: Hash ring [0, 2^32 - 1]. Both server nodes and keys are hashed onto the ring; key assigned to first node clockwise.",
+        "Virtual Nodes: Assign 100-250 virtual tokens per physical node to prevent hotspot skew and ensure uniform distribution.",
+        "Rebalancing: When node N joins or leaves, only K/N keys are migrated rather than entire database."
+      ]
+    },
+    {
+      "id": "realtime_chat",
+      "keywords": ["chat application", "design whatsapp", "real time messaging", "websocket cluster", "slack architecture"],
+      "title": "Real-Time Chat & Messaging (WhatsApp / Slack)",
+      "category": "Real-Time Distributed Systems",
+      "bullets": [
+        "Connection Tier: Stateful WebSocket Gateway servers holding active TCP connections, coordinated by Redis Pub/Sub or Kafka.",
+        "Message Ingestion: Cassandra / ScyllaDB for write-heavy chat history (Partition Key: conversation_id, Clustering Key: message_timestamp).",
+        "Offline Delivery: Push Notification Service (APNs/FCM) triggered when recipient socket is disconnected."
+      ]
+    },
+    {
+      "id": "kafka_stream_processing",
+      "keywords": ["kafka", "event streaming", "message broker", "at least once", "exactly once", "kafka partition"],
+      "title": "Kafka High-Throughput Event Streaming",
+      "category": "Data Engineering & Messaging",
+      "bullets": [
+        "Partitioning: Topics partitioned across brokers. Partition key hash ensures strict ordered delivery within each partition.",
+        "Zero-Copy Disk I/O: Sequential write to OS PageCache + `sendfile()` syscall bypasses user space directly to network socket.",
+        "Consumer Groups: Scaled horizontally up to partition count. Offset commits enable At-Least-Once or Exactly-Once via 2PC transactional producer."
+      ]
+    }
+  ],
+  "behavioral_star_matrix": [
+    {
+      "id": "production_outage_conflict",
+      "keywords": ["tell me about a time you resolved a production issue", "major outage", "production incident", "system failure"],
+      "title": "Major Production Outage & Root-Cause Resolution",
+      "category": "Leadership & Crisis Management",
+      "bullets": [
+        "Situation & Task: Payment webhook processing latency spiked to 45s during peak flash sale, causing cascading timeout failures.",
+        "Action: Instated immediate circuit breaker, scaled Redis read-replicas, and optimized unindexed query causing table locks.",
+        "Result: Restored sub-50ms latency in 14 minutes; published blameless post-mortem and automated latency regression CI tests."
+      ]
+    },
+    {
+      "id": "technical_disagreement",
+      "keywords": ["disagreement with tech lead", "technical disagreement", "conflict with engineer", "convinced your team"],
+      "title": "Technical Architecture Disagreement & Consensus",
+      "category": "Collaboration & Technical Integrity",
+      "bullets": [
+        "Situation & Task: Team was debating migrating monolithic auth service to gRPC microservices vs optimizing existing connection pooling.",
+        "Action: Built a benchmark spike proving 90% of latency was DB connection starvation, not HTTP/JSON overhead.",
+        "Result: Saved 3 months of refactor engineering time; deployed connection pool fix that reduced p99 latency by 68%."
+      ]
+    }
+  ]
+}
