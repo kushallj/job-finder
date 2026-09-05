@@ -5930,6 +5930,37 @@ def defuse_exploding_deadline(req: DefuseDeadlineRequest) -> Dict[str, Any]:
     )
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Sprint 2: Live Voice Biomarker & Cadence Telemetry Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+from src.services.cadence_coach_service import (
+    CadenceCoachService,
+    CadenceAnalysisRequest,
+    VoiceScorecardRequest,
+)
+
+@app.post("/api/sidekick/cadence/analyze", tags=["cadence"])
+def analyze_speech_cadence(req: CadenceAnalysisRequest) -> Dict[str, Any]:
+    """Analyzes WPM, filler word count, clarity score, and ramble threshold."""
+    service = CadenceCoachService()
+    return service.analyze_cadence(
+        transcript=req.transcript,
+        duration_seconds=req.duration_seconds,
+    )
+
+@app.post("/api/sidekick/cadence/scorecard", tags=["cadence"])
+def generate_voice_scorecard(req: VoiceScorecardRequest) -> Dict[str, Any]:
+    """Generates an end-of-interview executive delivery scorecard with STAR framework score."""
+    service = CadenceCoachService()
+    return service.generate_scorecard(
+        session_id=req.session_id,
+        total_duration_seconds=req.total_duration_seconds,
+        transcripts=req.transcripts,
+    )
+
+
+
 
 # =============================================================================
 # Dev entry point

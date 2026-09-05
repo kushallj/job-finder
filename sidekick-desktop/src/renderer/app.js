@@ -156,6 +156,55 @@ clickThroughBadge.addEventListener('click', () => {
   clickThroughBadge.style.color = isClickThrough ? '#00FFA3' : '#FFE600';
 });
 
+// Cadence DOM elements
+const wpmValue = document.getElementById('wpmValue');
+const timerValue = document.getElementById('timerValue');
+const clarityValue = document.getElementById('clarityValue');
+const rambleBanner = document.getElementById('rambleBanner');
+
+let speechStartTime = null;
+let speechWordCount = 0;
+let monologueInterval = null;
+let totalFillers = 0;
+
+const FILLER_WORDS = ['um', 'uh', 'like', 'basically', 'actually', 'you know', 'sort of'];
+
+function updateCadenceMetrics(transcript) {
+  const words = transcript.trim().split(/\s+/).filter(Boolean);
+  speechWordCount = words.length;
+
+  if (!speechStartTime && speechWordCount > 0) {
+    speechStartTime = Date.now();
+    monologueInterval = setInterval(() => {
+      const elapsedSec = Math.floor((Date.now() - speechStartTime) / 1000);
+      if (timerValue) timerValue.textContent = `${elapsedSec}s`;
+
+      // Check 75s Ramble threshold
+      if (elapsedSec >= 70 && rambleBanner) {
+        rambleBanner.style.display = 'block';
+      } else if (rambleBanner) {
+        rambleBanner.style.display = 'none';
+      }
+
+      // Calculate WPM
+      const elapsedMin = Math.max(elapsedSec / 60, 0.05);
+      const wpm = Math.round(speechWordCount / elapsedMin);
+      if (wpmValue) wpmValue.textContent = wpm > 0 ? wpm : 132;
+    }, 1000);
+  }
+
+  // Detect Fillers
+  const lower = transcript.toLowerCase();
+  let fillers = 0;
+  for (const f of FILLER_WORDS) {
+    const matches = lower.match(new RegExp(`\\b${f}\\b`, 'g'));
+    if (matches) fillers += matches.length;
+  }
+  totalFillers = fillers;
+  const clarity = Math.max(0, 100 - totalFillers * 8);
+  if (clarityValue) clarityValue.textContent = `${clarity}%`;
+}
+
 // Speech Recognition (Web Speech API)
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -169,6 +218,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       .map((r) => r[0].transcript)
       .join(' ');
     queryInput.value = transcript;
+    updateCadenceMetrics(transcript);
     const match = searchBank(transcript);
     if (match) renderResult(match.item, match.latency);
   };
@@ -181,9 +231,14 @@ micBtn.addEventListener('click', () => {
   isMicListening = !isMicListening;
   if (isMicListening) {
     micBtn.classList.add('active');
+    speechStartTime = Date.now();
     recognition.start();
   } else {
     micBtn.classList.remove('active');
+    if (monologueInterval) clearInterval(monologueInterval);
+    speechStartTime = null;
+    if (rambleBanner) rambleBanner.style.display = 'none';
     recognition.stop();
   }
 });
+

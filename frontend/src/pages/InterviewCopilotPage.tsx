@@ -23,12 +23,14 @@ import {
   PersonSearch as ProfilerIcon,
   AccountBalance as NegotiationIcon,
   LiveTv as HUDIcon,
+  GraphicEq as MicWaveIcon,
 } from '@mui/icons-material';
 
 import { sidekickApi, type KnowledgeDocument, type SidekickStatus } from '../api/endpoints/sidekick';
 import { InterviewSidekickHUD } from '../components/sidekick/InterviewSidekickHUD';
 import { InterviewerProfilerCard } from '../components/profiler/InterviewerProfilerCard';
 import { OfferArbitrageWarRoom } from '../components/negotiation/OfferArbitrageWarRoom';
+import { VoiceCadenceCoachWidget } from '../components/cadence/VoiceCadenceCoachWidget';
 
 export const InterviewCopilotPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -129,7 +131,7 @@ export const InterviewCopilotPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* 3 Strategic Feature Tabs */}
+      {/* 4 Strategic Feature Tabs */}
       <Box sx={{ mb: 3, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
         <Tabs
           value={activeTab}
@@ -149,6 +151,7 @@ export const InterviewCopilotPage: React.FC = () => {
           <Tab icon={<HUDIcon />} iconPosition="start" label="⚡ Live HUD & Knowledge Bank" />
           <Tab icon={<ProfilerIcon />} iconPosition="start" label="🧠 Interviewer Cognitive Profiler" />
           <Tab icon={<NegotiationIcon />} iconPosition="start" label="⚖️ Offer Arbitrage War-Room" />
+          <Tab icon={<MicWaveIcon />} iconPosition="start" label="🎙️ Voice Biomarker & Cadence HUD" />
         </Tabs>
       </Box>
 
@@ -298,6 +301,9 @@ export const InterviewCopilotPage: React.FC = () => {
 
       {/* Tab 2: Multi-Offer Arbitrage & Negotiation War-Room */}
       {activeTab === 2 && <OfferArbitrageWarRoom />}
+
+      {/* Tab 3: Voice Biomarker & Cadence Telemetry HUD */}
+      {activeTab === 3 && <VoiceCadenceCoachWidget />}
     </Box>
   );
 };
