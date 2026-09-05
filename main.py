@@ -6024,6 +6024,19 @@ from src.services.executive_decision_memo import (
     SynthesizeMemoRequest,
 )
 
+from src.services.reverse_headhunter_service import (
+    ReverseHeadhunterService,
+    PitchPackRequest,
+)
+from src.services.geo_arbitrage_service import (
+    GeoArbitrageService,
+    PppCalculationRequest,
+)
+from src.services.web3_bounty_harvester import (
+    Web3BountyHarvesterService,
+    BountyProposalRequest,
+)
+
 @app.get("/api/frontier-ai/platforms", tags=["frontier-ai"])
 def get_frontier_ai_platforms() -> Dict[str, Any]:
     """Returns directory of top frontier AI post-training and code evaluation platforms ($40-$120/hr USD)."""
@@ -6060,6 +6073,63 @@ def synthesize_executive_decision_memo(req: SynthesizeMemoRequest) -> Dict[str, 
         competing_offer_anchor=req.competing_offer_anchor,
         target_compensation_lpa=req.target_compensation_lpa,
     )
+
+# ── Sprint 5 Endpoints: Reverse Headhunter, Geo-Arbitrage & Web3 Bounties ──────
+
+@app.get("/api/bounties/headhunter/listings", tags=["reverse-headhunter"])
+def get_headhunter_listings(company: Optional[str] = None, min_bounty: float = 0.0) -> Dict[str, Any]:
+    """Returns high-value referral bounties ($1k–$5k USD) across top tech employers."""
+    service = ReverseHeadhunterService()
+    return {"status": "success", "listings": service.get_listings(company_filter=company, min_bounty_usd=min_bounty)}
+
+@app.post("/api/bounties/headhunter/pitch-pack", tags=["reverse-headhunter"])
+def generate_headhunter_pitch_pack(req: PitchPackRequest) -> Dict[str, Any]:
+    """Synthesizes referral pitch pack, hiring manager introduction, and escrow milestones."""
+    service = ReverseHeadhunterService()
+    return service.generate_pitch_pack(
+        candidate_name=req.candidate_name,
+        target_company=req.target_company,
+        role_title=req.role_title,
+        referrer_name=req.referrer_name,
+        key_strengths=req.key_strengths,
+        years_experience=req.years_experience,
+        github_portfolio=req.github_portfolio,
+    )
+
+@app.get("/api/geo-arbitrage/markets", tags=["geo-arbitrage"])
+def get_geo_arbitrage_markets(region: Optional[str] = None) -> Dict[str, Any]:
+    """Returns curated international relocation markets (Japan, Singapore, Germany, Netherlands, UK)."""
+    service = GeoArbitrageService()
+    return {"status": "success", "markets": service.get_markets(region_filter=region)}
+
+@app.post("/api/geo-arbitrage/ppp-calc", tags=["geo-arbitrage"])
+def calculate_geo_arbitrage_ppp(req: PppCalculationRequest) -> Dict[str, Any]:
+    """Calculates tax-adjusted net take-home, disposable savings, and PPP comparison vs India baseline."""
+    service = GeoArbitrageService()
+    return service.calculate_net_ppp(
+        gross_annual_salary=req.gross_annual_salary,
+        market_id=req.market_id,
+        current_inr_ctc_lpa=req.current_inr_ctc_lpa or 35.0,
+    )
+
+@app.get("/api/web3-bounties/listings", tags=["web3-bounties"])
+def get_web3_bounties(ecosystem: Optional[str] = None, min_reward: float = 0.0) -> Dict[str, Any]:
+    """Returns curated Web3 and open-source bounties ($500–$25,000 USD) across Solana, Ethereum, Arbitrum, Algora."""
+    service = Web3BountyHarvesterService()
+    return {"status": "success", "bounties": service.get_bounties(ecosystem_or_skill_filter=ecosystem, min_reward_usd=min_reward)}
+
+@app.post("/api/web3-bounties/proposal", tags=["web3-bounties"])
+def synthesize_web3_bounty_proposal(req: BountyProposalRequest) -> Dict[str, Any]:
+    """Synthesizes a 1-page formal RFC Proposal and implementation blueprint for a high-reward bounty."""
+    service = Web3BountyHarvesterService()
+    return service.synthesize_proposal(
+        bounty_id=req.bounty_id,
+        candidate_name=req.candidate_name,
+        proposed_architecture=req.proposed_architecture,
+        timeline_days=req.timeline_days,
+        github_profile=req.github_profile,
+    )
+
 
 
 # Dev entry point

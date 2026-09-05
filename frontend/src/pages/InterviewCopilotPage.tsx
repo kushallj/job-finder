@@ -28,6 +28,9 @@ import {
   Sensors as RadarIcon,
   MonetizationOn as FrontierIcon,
   Description as MemoIcon,
+  Handshake as HandshakeIcon,
+  Public as WorldIcon,
+  CurrencyBitcoin as Web3Icon,
 } from '@mui/icons-material';
 
 import { sidekickApi, type KnowledgeDocument, type SidekickStatus } from '../api/endpoints/sidekick';
@@ -39,6 +42,9 @@ import { ProofOfWorkFabricatorCard } from '../components/pow/ProofOfWorkFabricat
 import { AntiGhostingSlaCard } from '../components/antighosting/AntiGhostingSlaCard';
 import { FrontierAiRadarCard } from '../components/frontier/FrontierAiRadarCard';
 import { ExecutiveDecisionMemoCard } from '../components/memo/ExecutiveDecisionMemoCard';
+import { ReverseHeadhunterCard } from '../components/headhunter/ReverseHeadhunterCard';
+import { GeoArbitrageCard } from '../components/geo/GeoArbitrageCard';
+import { Web3BountyCard } from '../components/web3/Web3BountyCard';
 
 export const InterviewCopilotPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -166,6 +172,9 @@ export const InterviewCopilotPage: React.FC = () => {
           <Tab icon={<RadarIcon />} iconPosition="start" label="📡 Anti-Ghosting SLA Radar" />
           <Tab icon={<FrontierIcon />} iconPosition="start" label="🌐 Frontier AI Radar" />
           <Tab icon={<MemoIcon />} iconPosition="start" label="📑 Executive Decision Memo" />
+          <Tab icon={<HandshakeIcon />} iconPosition="start" label="🤝 Reverse Headhunter" />
+          <Tab icon={<WorldIcon />} iconPosition="start" label="🌍 Global Geo-Arbitrage" />
+          <Tab icon={<Web3Icon />} iconPosition="start" label="⚡ Web3 & OSS Bounties" />
         </Tabs>
       </Box>
 
@@ -330,6 +339,15 @@ export const InterviewCopilotPage: React.FC = () => {
 
       {/* Tab 7: Executive Decision Memo Closer */}
       {activeTab === 7 && <ExecutiveDecisionMemoCard />}
+
+      {/* Tab 8: Reverse Headhunter Bounty Network */}
+      {activeTab === 8 && <ReverseHeadhunterCard />}
+
+      {/* Tab 9: Global Geo-Arbitrage & Cross-Border Engine */}
+      {activeTab === 9 && <GeoArbitrageCard />}
+
+      {/* Tab 10: Web3 & Open-Source Bounty Harvester */}
+      {activeTab === 10 && <Web3BountyCard />}
     </Box>
   );
 };
