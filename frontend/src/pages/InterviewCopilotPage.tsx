@@ -24,6 +24,8 @@ import {
   AccountBalance as NegotiationIcon,
   LiveTv as HUDIcon,
   GraphicEq as MicWaveIcon,
+  Build as BuildIcon,
+  Sensors as RadarIcon,
 } from '@mui/icons-material';
 
 import { sidekickApi, type KnowledgeDocument, type SidekickStatus } from '../api/endpoints/sidekick';
@@ -31,6 +33,8 @@ import { InterviewSidekickHUD } from '../components/sidekick/InterviewSidekickHU
 import { InterviewerProfilerCard } from '../components/profiler/InterviewerProfilerCard';
 import { OfferArbitrageWarRoom } from '../components/negotiation/OfferArbitrageWarRoom';
 import { VoiceCadenceCoachWidget } from '../components/cadence/VoiceCadenceCoachWidget';
+import { ProofOfWorkFabricatorCard } from '../components/pow/ProofOfWorkFabricatorCard';
+import { AntiGhostingSlaCard } from '../components/antighosting/AntiGhostingSlaCard';
 
 export const InterviewCopilotPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -131,27 +135,31 @@ export const InterviewCopilotPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* 4 Strategic Feature Tabs */}
+      {/* 6 Strategic Intelligence Feature Tabs */}
       <Box sx={{ mb: 3, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
         <Tabs
           value={activeTab}
           onChange={(_, val) => setActiveTab(val)}
           textColor="inherit"
+          variant="scrollable"
+          scrollButtons="auto"
           sx={{
             '& .MuiTabs-indicator': { bgcolor: '#00FFA3', height: 3 },
             '& .MuiTab-root': {
               color: '#94A3B8',
               fontWeight: 800,
               textTransform: 'none',
-              fontSize: '0.9rem',
+              fontSize: '0.88rem',
               '&.Mui-selected': { color: '#00FFA3' },
             },
           }}
         >
           <Tab icon={<HUDIcon />} iconPosition="start" label="⚡ Live HUD & Knowledge Bank" />
-          <Tab icon={<ProfilerIcon />} iconPosition="start" label="🧠 Interviewer Cognitive Profiler" />
-          <Tab icon={<NegotiationIcon />} iconPosition="start" label="⚖️ Offer Arbitrage War-Room" />
-          <Tab icon={<MicWaveIcon />} iconPosition="start" label="🎙️ Voice Biomarker & Cadence HUD" />
+          <Tab icon={<ProfilerIcon />} iconPosition="start" label="🧠 Interviewer Profiler" />
+          <Tab icon={<NegotiationIcon />} iconPosition="start" label="⚖️ Offer Arbitrage" />
+          <Tab icon={<MicWaveIcon />} iconPosition="start" label="🎙️ Voice Cadence HUD" />
+          <Tab icon={<BuildIcon />} iconPosition="start" label="🛠️ Proof-of-Work Fabricator" />
+          <Tab icon={<RadarIcon />} iconPosition="start" label="📡 Anti-Ghosting SLA Radar" />
         </Tabs>
       </Box>
 
@@ -304,6 +312,12 @@ export const InterviewCopilotPage: React.FC = () => {
 
       {/* Tab 3: Voice Biomarker & Cadence Telemetry HUD */}
       {activeTab === 3 && <VoiceCadenceCoachWidget />}
+
+      {/* Tab 4: Trojan-Horse Proof-of-Work Fabricator */}
+      {activeTab === 4 && <ProofOfWorkFabricatorCard />}
+
+      {/* Tab 5: Anti-Ghosting SLA & Recruiter Escalation Radar */}
+      {activeTab === 5 && <AntiGhostingSlaCard />}
     </Box>
   );
 };

@@ -5960,9 +5960,58 @@ def generate_voice_scorecard(req: VoiceScorecardRequest) -> Dict[str, Any]:
     )
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Sprint 3: Proof-of-Work Fabricator & Anti-Ghosting SLA Radar Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+from src.services.proof_of_work_fabricator import (
+    ProofOfWorkFabricatorService,
+    FabricatePoWRequest,
+)
+from src.services.anti_ghosting_service import (
+    AntiGhostingService,
+    EscalationRequest,
+)
+
+@app.get("/api/pow/templates", tags=["proof-of-work"])
+def get_pow_templates() -> Dict[str, Any]:
+    """Lists curated high-conviction micro-repository archetypes."""
+    service = ProofOfWorkFabricatorService()
+    return {"status": "success", "templates": service.get_templates()}
+
+@app.post("/api/pow/fabricate", tags=["proof-of-work"])
+def fabricate_proof_of_work(req: FabricatePoWRequest) -> Dict[str, Any]:
+    """Fabricates containerized micro-repository code, tests, CI/CD, and PR description."""
+    service = ProofOfWorkFabricatorService()
+    return service.fabricate(
+        company_name=req.company_name,
+        role_title=req.role_title,
+        archetype_id=req.archetype_id,
+        custom_problem_statement=req.custom_problem_statement,
+        target_tech_stack=req.target_tech_stack,
+    )
+
+@app.get("/api/anti-ghosting/sla-index", tags=["anti-ghosting"])
+def get_community_sla_index() -> Dict[str, Any]:
+    """Returns turnaround times, ghosting rates, and fast-track badges for top tech employers."""
+    service = AntiGhostingService()
+    return {"status": "success", "companies": service.get_all_company_benchmarks()}
+
+@app.post("/api/anti-ghosting/escalate", tags=["anti-ghosting"])
+def synthesize_anti_ghosting_escalation(req: EscalationRequest) -> Dict[str, Any]:
+    """Calculates ghosting risk and generates 3-tier calibrated follow-up escalation drafts."""
+    service = AntiGhostingService()
+    return service.synthesize_escalations(
+        company_name=req.company_name,
+        interview_stage=req.interview_stage,
+        days_elapsed=req.days_elapsed,
+        recruiter_name=req.recruiter_name,
+        candidate_leverage=req.candidate_leverage,
+        competing_company=req.competing_company,
+    )
 
 
-# =============================================================================
+
 # Dev entry point
 # =============================================================================
 
