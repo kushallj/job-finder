@@ -5858,6 +5858,79 @@ async def get_labor_market_intelligence(
     return service.generate_report(target_sector=sector)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Sprint 1: Interviewer Cognitive Profiler & Offer Arbitrage War-Room
+# ═══════════════════════════════════════════════════════════════════════════
+
+from src.services.interviewer_profiler import InterviewerProfilerService
+from src.services.offer_arbitrage import OfferArbitrageService, CompensationOffer
+
+class InterviewerProfileRequest(BaseModel):
+    name: str
+    company: str
+    role: Optional[str] = None
+    github_handle: Optional[str] = None
+    linkedin_summary: Optional[str] = None
+
+class OfferArbitrageRequest(BaseModel):
+    offers: List[CompensationOffer]
+
+class CounterScriptRequest(BaseModel):
+    target_company: str
+    competing_company: Optional[str] = None
+    current_base: float = 40.0
+    target_base: float = 46.0
+    currency: str = "LPA (INR)"
+    contact_role: str = "Recruiter"
+
+class DefuseDeadlineRequest(BaseModel):
+    company_name: str
+    current_deadline: str
+    extension_days: int = 5
+
+@app.post("/api/interviewer/profile", tags=["intelligence"])
+def profile_interviewer_endpoint(req: InterviewerProfileRequest) -> Dict[str, Any]:
+    """Generates an exhaustive psychological and architectural dossier for an interviewer."""
+    service = InterviewerProfilerService()
+    return service.profile_interviewer(
+        name=req.name,
+        company=req.company,
+        role=req.role,
+        github_handle=req.github_handle,
+        linkedin_summary=req.linkedin_summary,
+    )
+
+@app.post("/api/negotiation/arbitrage", tags=["negotiation"])
+def simulate_offer_arbitrage(req: OfferArbitrageRequest) -> Dict[str, Any]:
+    """Calculates Risk-Adjusted Net Present Value (NPV) and game-theoretic leverage."""
+    service = OfferArbitrageService()
+    return service.simulate_arbitrage(req.offers)
+
+@app.post("/api/negotiation/counter-script", tags=["negotiation"])
+def generate_counter_offer_script(req: CounterScriptRequest) -> Dict[str, Any]:
+    """Generates calibrated, safe counter-offer email and verbal phone scripts."""
+    service = OfferArbitrageService()
+    return service.generate_counter_script(
+        target_company=req.target_company,
+        competing_company=req.competing_company,
+        current_base=req.current_base,
+        target_base=req.target_base,
+        currency=req.currency,
+        contact_role=req.contact_role,
+    )
+
+@app.post("/api/negotiation/defuse-deadline", tags=["negotiation"])
+def defuse_exploding_deadline(req: DefuseDeadlineRequest) -> Dict[str, Any]:
+    """Provides high-status, diplomatic email script to extend exploding offer deadlines."""
+    service = OfferArbitrageService()
+    return service.generate_deadline_defuser(
+        company_name=req.company_name,
+        current_deadline=req.current_deadline,
+        extension_days=req.extension_days,
+    )
+
+
+
 # =============================================================================
 # Dev entry point
 # =============================================================================

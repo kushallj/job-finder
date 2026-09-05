@@ -11,6 +11,8 @@ import {
   TextField,
   Paper,
   CircularProgress,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Psychology as BrainIcon,
@@ -18,15 +20,22 @@ import {
   Shield as ShieldIcon,
   Add as AddIcon,
   Check as CheckIcon,
+  PersonSearch as ProfilerIcon,
+  AccountBalance as NegotiationIcon,
+  LiveTv as HUDIcon,
 } from '@mui/icons-material';
 
 import { sidekickApi, type KnowledgeDocument, type SidekickStatus } from '../api/endpoints/sidekick';
 import { InterviewSidekickHUD } from '../components/sidekick/InterviewSidekickHUD';
+import { InterviewerProfilerCard } from '../components/profiler/InterviewerProfilerCard';
+import { OfferArbitrageWarRoom } from '../components/negotiation/OfferArbitrageWarRoom';
 
 export const InterviewCopilotPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState(0);
   const [status, setStatus] = useState<SidekickStatus | null>(null);
   const [bankDocs, setBankDocs] = useState<KnowledgeDocument[]>([]);
   const [loading, setLoading] = useState(true);
+
 
   // New question form state
   const [newTitle, setNewTitle] = useState('');
@@ -120,26 +129,53 @@ export const InterviewCopilotPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Live Floating HUD Simulator */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h6" sx={{ fontWeight: 900, color: '#F8FAFC', mb: 2 }}>
-          ⚡ Live Floating Teleprompter HUD (Preview & Test)
-        </Typography>
-        <InterviewSidekickHUD />
+      {/* 3 Strategic Feature Tabs */}
+      <Box sx={{ mb: 3, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, val) => setActiveTab(val)}
+          textColor="inherit"
+          sx={{
+            '& .MuiTabs-indicator': { bgcolor: '#00FFA3', height: 3 },
+            '& .MuiTab-root': {
+              color: '#94A3B8',
+              fontWeight: 800,
+              textTransform: 'none',
+              fontSize: '0.9rem',
+              '&.Mui-selected': { color: '#00FFA3' },
+            },
+          }}
+        >
+          <Tab icon={<HUDIcon />} iconPosition="start" label="⚡ Live HUD & Knowledge Bank" />
+          <Tab icon={<ProfilerIcon />} iconPosition="start" label="🧠 Interviewer Cognitive Profiler" />
+          <Tab icon={<NegotiationIcon />} iconPosition="start" label="⚖️ Offer Arbitrage War-Room" />
+        </Tabs>
       </Box>
 
-      {/* Two Column Layout: Knowledge Bank & Custom Question Ingestion */}
-      <Grid container spacing={3}>
-        {/* Left: Indexed Knowledge Bank */}
-        <Grid size={{ xs: 12, md: 7 }}>
-          <Card sx={{ height: '100%', bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.2)', borderRadius: '16px' }}>
-            <CardContent sx={{ p: 3 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#F8FAFC' }}>
-                  📚 Pre-Compiled Knowledge Bank ({bankDocs.length} Concepts Indexed)
-                </Typography>
-                <Chip label="In-Memory Radix" size="small" sx={{ bgcolor: 'rgba(0, 255, 163, 0.15)', color: '#00FFA3', fontWeight: 800 }} />
-              </Stack>
+      {/* Tab 0: Live Teleprompter HUD & Knowledge Bank */}
+      {activeTab === 0 && (
+        <>
+          {/* Live Floating HUD Simulator */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" sx={{ fontWeight: 900, color: '#F8FAFC', mb: 2 }}>
+              ⚡ Live Floating Teleprompter HUD (Preview & Test)
+            </Typography>
+            <InterviewSidekickHUD />
+          </Box>
+
+          {/* Two Column Layout: Knowledge Bank & Custom Question Ingestion */}
+          <Grid container spacing={3}>
+            {/* Left: Indexed Knowledge Bank */}
+            <Grid size={{ xs: 12, md: 7 }}>
+              <Card sx={{ height: '100%', bgcolor: '#0D131F', border: '1.5px solid rgba(0, 240, 255, 0.2)', borderRadius: '16px' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#F8FAFC' }}>
+                      📚 Pre-Compiled Knowledge Bank ({bankDocs.length} Concepts Indexed)
+                    </Typography>
+                    <Chip label="In-Memory Radix" size="small" sx={{ bgcolor: 'rgba(0, 255, 163, 0.15)', color: '#00FFA3', fontWeight: 800 }} />
+                  </Stack>
+
 
               {loading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -254,6 +290,15 @@ export const InterviewCopilotPage: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+        </>
+      )}
+
+      {/* Tab 1: Interviewer Cognitive Profiler */}
+      {activeTab === 1 && <InterviewerProfilerCard />}
+
+      {/* Tab 2: Multi-Offer Arbitrage & Negotiation War-Room */}
+      {activeTab === 2 && <OfferArbitrageWarRoom />}
     </Box>
   );
 };
+
