@@ -72,6 +72,7 @@ const questionTitle = document.getElementById('questionTitle');
 const latencyBadge = document.getElementById('latencyBadge');
 const bulletsContainer = document.getElementById('bulletsContainer');
 const panicBtn = document.getElementById('panicBtn');
+const minimizeBtn = document.getElementById('minimizeBtn');
 const micBtn = document.getElementById('micBtn');
 const clickThroughBadge = document.getElementById('clickThroughBadge');
 const invisibilityBadge = document.getElementById('invisibilityBadge');
@@ -162,6 +163,13 @@ document.querySelectorAll('.preset-chip').forEach((btn) => {
 panicBtn.addEventListener('click', () => {
   if (window.ghostCopilot) window.ghostCopilot.togglePanic();
 });
+
+// Minimize Button
+if (minimizeBtn) {
+  minimizeBtn.addEventListener('click', () => {
+    if (window.ghostCopilot) window.ghostCopilot.minimizeApp();
+  });
+}
 
 // Click-Through Toggle
 clickThroughBadge.addEventListener('click', () => {

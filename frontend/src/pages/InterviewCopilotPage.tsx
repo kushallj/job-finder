@@ -26,6 +26,8 @@ import {
   GraphicEq as MicWaveIcon,
   Build as BuildIcon,
   Sensors as RadarIcon,
+  MonetizationOn as FrontierIcon,
+  Description as MemoIcon,
 } from '@mui/icons-material';
 
 import { sidekickApi, type KnowledgeDocument, type SidekickStatus } from '../api/endpoints/sidekick';
@@ -35,6 +37,8 @@ import { OfferArbitrageWarRoom } from '../components/negotiation/OfferArbitrageW
 import { VoiceCadenceCoachWidget } from '../components/cadence/VoiceCadenceCoachWidget';
 import { ProofOfWorkFabricatorCard } from '../components/pow/ProofOfWorkFabricatorCard';
 import { AntiGhostingSlaCard } from '../components/antighosting/AntiGhostingSlaCard';
+import { FrontierAiRadarCard } from '../components/frontier/FrontierAiRadarCard';
+import { ExecutiveDecisionMemoCard } from '../components/memo/ExecutiveDecisionMemoCard';
 
 export const InterviewCopilotPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -160,6 +164,8 @@ export const InterviewCopilotPage: React.FC = () => {
           <Tab icon={<MicWaveIcon />} iconPosition="start" label="🎙️ Voice Cadence HUD" />
           <Tab icon={<BuildIcon />} iconPosition="start" label="🛠️ Proof-of-Work Fabricator" />
           <Tab icon={<RadarIcon />} iconPosition="start" label="📡 Anti-Ghosting SLA Radar" />
+          <Tab icon={<FrontierIcon />} iconPosition="start" label="🌐 Frontier AI Radar" />
+          <Tab icon={<MemoIcon />} iconPosition="start" label="📑 Executive Decision Memo" />
         </Tabs>
       </Box>
 
@@ -318,6 +324,12 @@ export const InterviewCopilotPage: React.FC = () => {
 
       {/* Tab 5: Anti-Ghosting SLA & Recruiter Escalation Radar */}
       {activeTab === 5 && <AntiGhostingSlaCard />}
+
+      {/* Tab 6: Frontier AI & RLHF Arbitrage Radar */}
+      {activeTab === 6 && <FrontierAiRadarCard />}
+
+      {/* Tab 7: Executive Decision Memo Closer */}
+      {activeTab === 7 && <ExecutiveDecisionMemoCard />}
     </Box>
   );
 };

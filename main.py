@@ -6011,6 +6011,56 @@ def synthesize_anti_ghosting_escalation(req: EscalationRequest) -> Dict[str, Any
     )
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Sprint 4: Frontier AI Arbitrage Radar & Executive Decision Memo Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+from src.services.frontier_ai_radar import (
+    FrontierAiRadarService,
+    BenchmarkRequest,
+)
+from src.services.executive_decision_memo import (
+    ExecutiveDecisionMemoService,
+    SynthesizeMemoRequest,
+)
+
+@app.get("/api/frontier-ai/platforms", tags=["frontier-ai"])
+def get_frontier_ai_platforms() -> Dict[str, Any]:
+    """Returns directory of top frontier AI post-training and code evaluation platforms ($40-$120/hr USD)."""
+    service = FrontierAiRadarService()
+    return {"status": "success", "platforms": service.get_platforms()}
+
+@app.get("/api/frontier-ai/challenge", tags=["frontier-ai"])
+def get_frontier_ai_sample_challenge() -> Dict[str, Any]:
+    """Returns a sample code-eval challenge to test RLHF rubric reasoning."""
+    service = FrontierAiRadarService()
+    return {"status": "success", "challenge": service.get_sample_challenge()}
+
+@app.post("/api/frontier-ai/benchmark", tags=["frontier-ai"])
+def evaluate_frontier_ai_benchmark(req: BenchmarkRequest) -> Dict[str, Any]:
+    """Evaluates candidate critique on RLHF rubric and projects monthly/annual USD/INR side income."""
+    service = FrontierAiRadarService()
+    return service.evaluate_benchmark(
+        critique_text=req.critique_text,
+        weekly_hours=req.weekly_hours_available,
+        usd_inr_rate=req.usd_to_inr_rate,
+    )
+
+@app.post("/api/executive-memo/synthesize", tags=["executive-memo"])
+def synthesize_executive_decision_memo(req: SynthesizeMemoRequest) -> Dict[str, Any]:
+    """Synthesizes the Hiring Manager's 1-page internal decision memo to justify a top-of-band offer."""
+    service = ExecutiveDecisionMemoService()
+    return service.synthesize_memo(
+        candidate_name=req.candidate_name,
+        company_name=req.company_name,
+        role_title=req.role_title,
+        interview_stage=req.interview_stage,
+        key_technical_topics=req.key_technical_topics,
+        p99_impact_metric=req.p99_impact_metric,
+        competing_offer_anchor=req.competing_offer_anchor,
+        target_compensation_lpa=req.target_compensation_lpa,
+    )
+
 
 # Dev entry point
 # =============================================================================
