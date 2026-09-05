@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ghost Interview Copilot</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="hud-container">
+    <!-- Top Draggable Bar -->
+    <div class="hud-header">
+      <div class="header-left">
+        <span class="live-dot pulse"></span>
+        <span class="title">GHOST COPILOT</span>
+        <span class="badge badge-stealth" id="invisibilityBadge">🛡️ SHARING: NONE</span>
+        <span class="badge badge-click" id="clickThroughBadge">🖱️ CLICK: NORMAL</span>
+      </div>
+      <div class="header-right">
+        <span class="hotkey-tip">[Cmd+Shift+X] Panic</span>
+        <button class="btn-icon" id="panicBtn" title="Emergency Hide">✕</button>
+      </div>
+    </div>
+
+    <!-- Live Audio / Search Bar -->
+    <div class="search-section">
+      <div class="input-wrapper">
+        <input
+          type="text"
+          id="queryInput"
+          placeholder="Listening / Type algorithm (e.g. 'LRU Cache', 'Rate Limiter')..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button class="mic-btn" id="micBtn" title="Toggle Voice Listener">🎙️</button>
+      </div>
+    </div>
+
+    <!-- Active Question & Latency Strip -->
+    <div class="question-strip">
+      <span class="question-title" id="questionTitle">🎯 Distributed Rate Limiter</span>
+      <span class="latency-badge" id="latencyBadge">⚡ 1.45 µs (Trie)</span>
+    </div>
+
+    <!-- 3-Bullet Teleprompter Display -->
+    <div class="bullets-container" id="bulletsContainer">
+      <div class="bullet-item">
+        <span class="bullet-arrow">▶</span>
+        <span class="bullet-text">Architecture: API Gateway -> Redis Cluster with Lua scripts running Token Bucket for atomic checks.</span>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-arrow">▶</span>
+        <span class="bullet-text">Complexity: O(1) time per request | Space: O(U) active user count in Redis memory.</span>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-arrow">▶</span>
+        <span class="bullet-text">Scale & Failure: Local in-memory fallback cache if Redis degrades | Return HTTP 429 with Retry-After header.</span>
+      </div>
+    </div>
+
+    <!-- Quick Presets -->
+    <div class="presets-row">
+      <button class="preset-btn" data-query="LRU Cache">LRU Cache</button>
+      <button class="preset-btn" data-query="Distributed Rate Limiter">Rate Limiter</button>
+      <button class="preset-btn" data-query="Consistent Hashing">Consistent Hashing</button>
+      <button class="preset-btn" data-query="Top K Frequent">Top K</button>
+      <button class="preset-btn" data-query="Course Schedule">Topo Sort</button>
+      <button class="preset-btn" data-query="Kafka Stream Processing">Kafka</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

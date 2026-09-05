@@ -1,5 +1,14 @@
 {
+  "name": "job-finder-monorepo",
+  "version": "2.1.0",
+  "scripts": {
+    "sidekick": "cd sidekick-desktop && npm start",
+    "sidekick:install": "cd sidekick-desktop && npm install",
+    "sidekick:build": "cd sidekick-desktop && npm run build",
+    "sidekick:dist": "cd sidekick-desktop && npm run dist"
+  },
   "devDependencies": {
     "@playwright/test": "^1.57.0"
   }
 }
+

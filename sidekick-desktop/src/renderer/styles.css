@@ -1,0 +1,241 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body {
+  background: transparent;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Mono", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #F8FAFC;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 10px;
+}
+
+.hud-container {
+  width: 100%;
+  max-width: 660px;
+  background: rgba(6, 9, 14, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1.5px solid rgba(0, 255, 163, 0.45);
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: 0 0 35px rgba(0, 255, 163, 0.18), 0 20px 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hud-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+
+.header-left, .header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00FFA3;
+  box-shadow: 0 0 8px #00FFA3;
+}
+
+.pulse {
+  animation: pulse-glow 2s infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.title {
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #00FFA3;
+}
+
+.badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.badge-stealth {
+  background: rgba(0, 240, 255, 0.15);
+  color: #00F0FF;
+  border: 1px solid rgba(0, 240, 255, 0.3);
+}
+
+.badge-click {
+  background: rgba(255, 230, 0, 0.15);
+  color: #FFE600;
+  border: 1px solid rgba(255, 230, 0, 0.3);
+  cursor: pointer;
+}
+
+.hotkey-tip {
+  font-size: 0.65rem;
+  color: #64748B;
+  font-family: monospace;
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: #94A3B8;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.btn-icon:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #FF0055;
+}
+
+.search-section {
+  -webkit-app-region: no-drag;
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: 10px;
+  padding: 4px 8px;
+  transition: border-color 0.2s;
+}
+
+.input-wrapper:focus-within {
+  border-color: #00FFA3;
+  box-shadow: 0 0 10px rgba(0, 255, 163, 0.2);
+}
+
+#queryInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #F8FAFC;
+  font-family: monospace;
+  font-size: 0.82rem;
+  padding: 4px;
+}
+
+.mic-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: #00FFA3;
+}
+
+.mic-btn.active {
+  animation: pulse-glow 1s infinite;
+  background: rgba(0, 255, 163, 0.2);
+}
+
+.question-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.question-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #00F0FF;
+}
+
+.latency-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #FFE600;
+  background: rgba(255, 230, 0, 0.12);
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 230, 0, 0.25);
+}
+
+.bullets-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  -webkit-app-region: no-drag;
+}
+
+.bullet-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #0D131F;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.bullet-arrow {
+  color: #FFE600;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.bullet-text {
+  font-size: 0.78rem;
+  color: #E2E8F0;
+  line-height: 1.45;
+}
+
+.presets-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  -webkit-app-region: no-drag;
+}
+
+.preset-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94A3B8;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.preset-btn:hover {
+  background: rgba(0, 255, 163, 0.15);
+  color: #00FFA3;
+  border-color: #00FFA3;
+}
