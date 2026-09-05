@@ -9,7 +9,7 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
@@ -150,8 +150,8 @@ class ProfileService:
             github_url=gh,
             target_roles=json.dumps(["Senior Backend Engineer", "Full Stack Engineer"]),
             target_locations=json.dumps(["Remote", "India", "United States"]),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         self.db.add(new_profile)
         self.db.commit()
@@ -167,7 +167,7 @@ class ProfileService:
                     setattr(profile, key, json.dumps(val))
                 else:
                     setattr(profile, key, val)
-        profile.updated_at = datetime.utcnow()
+        profile.updated_at = datetime.now(timezone.utc)
         self.db.commit()
         self.db.refresh(profile)
         return profile
@@ -200,7 +200,7 @@ class ProfileService:
                             signal_score=float(comp.get("signal_score", 85.0)),
                             signal_notes=comp.get("notes", "High hiring velocity"),
                             is_active=True,
-                            created_at=datetime.utcnow(),
+                            created_at=datetime.now(timezone.utc),
                         )
                         self.db.add(rec)
                     self.db.commit()
@@ -225,7 +225,7 @@ class ProfileService:
             signal_score=float(company_data.get("signal_score", 85.0)),
             signal_notes=company_data.get("signal_notes", "Targeted account"),
             is_active=True,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
         self.db.add(rec)
         self.db.commit()
@@ -255,7 +255,7 @@ class ProfileService:
             channel=channel,
             match_score=match_score,
             notes=notes,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
         self.db.add(evt)
         self.db.commit()

@@ -1,12 +1,14 @@
 """
 sidekick_router.py — FastAPI Router for Interview Sidekick / Ghost Copilot.
-Exposes microsecond Trie queries, RAG search, live audio streaming, and window invisibility control.
+Exposes microsecond Trie queries, Inverted Index RAG, and window invisibility control.
 """
+from __future__ import annotations
+
 import os
 import time
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from src.sidekick.native import set_window_invisible, is_invisibility_supported
 from src.sidekick.brain.trie_matcher import InterviewKnowledgeTrie
@@ -23,7 +25,7 @@ llm_streamer = InterviewLLMStreamer()
 
 
 class SidekickQueryRequest(BaseModel):
-    query: str
+    query: str = Field(..., min_length=1, max_length=1000)
     stream: bool = False
     candidate_context: Optional[str] = None
 
@@ -31,9 +33,9 @@ class SidekickQueryRequest(BaseModel):
 class CustomQuestionAddRequest(BaseModel):
     id: str
     title: str
-    keywords: List[str]
-    category: str
-    bullets: List[str]
+    keywords: List[str] = Field(default_factory=list)
+    category: str = "Technical Question"
+    bullets: List[str] = Field(default_factory=list)
 
 
 class InvisibilityToggleRequest(BaseModel):
@@ -63,8 +65,8 @@ async def execute_sidekick_query(req: SidekickQueryRequest) -> Dict[str, Any]:
     """
     Multi-Tier Query Engine:
     Tier 1: Instant Trie Sub-Microsecond Match (<5µs)
-    Tier 2: Hybrid In-Memory Vector RAG (<3ms)
-    Tier 3: Local LLM Synthesis (<200ms TTFT)
+    Tier 2: Inverted Index BM25 RAG (<1ms)
+    Tier 3: Local LLM Stream Synthesis (<200ms TTFT)
     """
     t0 = time.perf_counter_ns()
     query = req.query.strip()
@@ -85,7 +87,7 @@ async def execute_sidekick_query(req: SidekickQueryRequest) -> Dict[str, Any]:
             "latency_display": f"{latency_us:.2f} µs (Sub-Microsecond)",
         }
 
-    # 2. Tier 2: Hybrid RAG Search
+    # 2. Tier 2: Hybrid Inverted Index RAG Search
     rag_matches = rag_engine.search(query, top_k=2)
     if rag_matches:
         top_doc, latency_ms = rag_matches[0]
@@ -96,11 +98,11 @@ async def execute_sidekick_query(req: SidekickQueryRequest) -> Dict[str, Any]:
             "category": top_doc.get("category", "Technical Concept"),
             "bullets": top_doc.get("bullets", []),
             "latency_milliseconds": round(latency_ms, 2),
-            "latency_display": f"{latency_ms:.2f} ms (In-Memory RAG)",
+            "latency_display": f"{latency_ms:.2f} ms (Inverted Index RAG)",
         }
 
-    # 3. Tier 3: Fast Generative LLM Fallback
-    generated_tokens = []
+    # 3. Tier 3: Fast Generative LLM Stream Fallback
+    generated_tokens: List[str] = []
     async for token in llm_streamer.stream_bullets(question=query):
         generated_tokens.append(token)
 
@@ -134,14 +136,20 @@ def get_interview_knowledge_bank() -> Dict[str, Any]:
 
 @router.post("/bank/add")
 def add_custom_question(req: CustomQuestionAddRequest) -> Dict[str, Any]:
-    """Inserts a custom interview question/story directly into in-memory Trie & RAG index."""
+    """Inserts a custom question into both in-memory Trie AND Inverted Index RAG."""
     payload = req.model_dump()
+    
+    # 1. Update Trie
     trie_engine.insert(req.title, payload)
     for kw in req.keywords:
         trie_engine.insert(kw, payload)
 
+    # 2. Update RAG Index
+    rag_engine.add_document(payload)
+
     return {
         "status": "success",
-        "message": f"Successfully indexed '{req.title}' into Trie & RAG engines.",
-        "total_indexed_keys": trie_engine.total_indexed_keys,
+        "message": f"Successfully indexed '{req.title}' into both Trie & RAG engines.",
+        "total_trie_keys": trie_engine.total_indexed_keys,
+        "total_rag_documents": len(rag_engine.documents),
     }

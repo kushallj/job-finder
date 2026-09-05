@@ -2,7 +2,7 @@
 invisibility_windows.py — Native Windows DWM Invisibility Bridge.
 
 Uses Win32 API via ctypes to invoke `SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)` (0x00000011).
-Completely excludes target windows from DirectX Desktop Duplication, BitBlt, Zoom, and Teams screen capture.
+Fixed for 64-bit pointer safety using GetWindowLongPtrW / SetWindowLongPtrW.
 """
 import ctypes
 import logging
@@ -45,15 +45,25 @@ def make_windows_window_invisible(hwnd_or_title: str = None) -> bool:
             logger.warning("Could not locate target HWND for Windows invisibility.")
             return False
 
-        # Set Display Affinity to EXCLUDE FROM CAPTURE
+        # Set Display Affinity to EXCLUDE FROM CAPTURE (0x11)
+        user32.SetWindowDisplayAffinity.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+        user32.SetWindowDisplayAffinity.restype = ctypes.c_int
         result = user32.SetWindowDisplayAffinity(target_hwnd, WDA_EXCLUDEFROMCAPTURE)
         if not result:
-            # Fallback for older Windows 10 versions
             result = user32.SetWindowDisplayAffinity(target_hwnd, WDA_MONITOR)
 
-        # Apply Layered & TopMost Styles
-        current_style = user32.GetWindowLongW(target_hwnd, GWL_EXSTYLE)
-        user32.SetWindowLongW(target_hwnd, GWL_EXSTYLE, current_style | WS_EX_LAYERED | WS_EX_TOPMOST)
+        # 64-bit safe Get/SetWindowLongPtr
+        if hasattr(user32, "GetWindowLongPtrW"):
+            user32.GetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            user32.GetWindowLongPtrW.restype = ctypes.c_longlong
+            user32.SetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_longlong]
+            user32.SetWindowLongPtrW.restype = ctypes.c_longlong
+
+            current_style = user32.GetWindowLongPtrW(target_hwnd, GWL_EXSTYLE)
+            user32.SetWindowLongPtrW(target_hwnd, GWL_EXSTYLE, current_style | WS_EX_LAYERED | WS_EX_TOPMOST)
+        else:
+            current_style = user32.GetWindowLongW(target_hwnd, GWL_EXSTYLE)
+            user32.SetWindowLongW(target_hwnd, GWL_EXSTYLE, current_style | WS_EX_LAYERED | WS_EX_TOPMOST)
 
         logger.info(f"✅ Successfully set WDA_EXCLUDEFROMCAPTURE on HWND {target_hwnd} (Result: {result}).")
         return bool(result)

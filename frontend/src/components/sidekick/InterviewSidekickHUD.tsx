@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+
 import {
   Box,
   Typography,
@@ -48,18 +49,26 @@ export const InterviewSidekickHUD: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const querySeqRef = useRef(0);
+
   const handleExecuteQuery = async (q: string) => {
     if (!q.trim()) return;
+    const currentSeq = ++querySeqRef.current;
     setLoading(true);
     try {
       const res = await sidekickApi.query(q);
-      setActiveResponse(res);
+      if (currentSeq === querySeqRef.current) {
+        setActiveResponse(res);
+      }
     } catch (err) {
       console.error('Query failed:', err);
     } finally {
-      setLoading(false);
+      if (currentSeq === querySeqRef.current) {
+        setLoading(false);
+      }
     }
   };
+
 
   const handleToggleInvisibility = async () => {
     try {
