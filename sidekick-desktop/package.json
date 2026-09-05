@@ -39,6 +39,9 @@
       ],
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
+      "extendInfo": {
+        "LSUIElement": 1
+      },
       "entitlements": "entitlements.mac.plist",
       "entitlementsInherit": "entitlements.mac.plist"
     },

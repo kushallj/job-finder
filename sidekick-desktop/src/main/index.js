@@ -141,11 +141,18 @@ function setupIPC() {
   });
 
   ipcMain.handle('sidekick:minimize', () => {
-    if (mainWindow) mainWindow.minimize();
+    if (!mainWindow) return;
+    isPanicHidden = true;
+    mainWindow.hide();
   });
 }
 
 app.whenReady().then(() => {
+  // 3. STEALTH DOCK HIDING: Never show an icon or dot in macOS Dock
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.hide();
+  }
+
   createGhostWindow();
   registerGlobalShortcuts();
   setupIPC();
