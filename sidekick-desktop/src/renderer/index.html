@@ -7,78 +7,118 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="hud-container">
-    <!-- Top Draggable Bar -->
-    <div class="hud-header">
+  <div class="hud-container" id="hudContainer">
+    <!-- Top Draggable Bar / Island Header -->
+    <div class="hud-header" id="dragHeader">
       <div class="header-left">
-        <span class="live-dot pulse"></span>
-        <span class="title">GHOST COPILOT</span>
-        <span class="badge badge-stealth" id="invisibilityBadge">🛡️ SHARING: NONE</span>
-        <span class="badge badge-click" id="clickThroughBadge">🖱️ CLICK: NORMAL</span>
+        <span class="live-status-dot"></span>
+        <span class="app-brand">GHOST COPILOT</span>
+        <span class="pill-badge pill-stealth" id="invisibilityBadge" title="Excluded from Screen Shares & Recordings">
+          🛡️ INVISIBLE
+        </span>
+        <span class="pill-badge pill-action" id="clickThroughBadge" title="Toggle Click-Through Mode [Cmd+Shift+C]">
+          🖱️ CLICK: NORMAL
+        </span>
+        <span class="pill-badge pill-action" id="compactModeBadge" title="Toggle Compact Pill View [Cmd+Shift+M]">
+          📐 FULL VIEW
+        </span>
       </div>
+
       <div class="header-right">
-        <span class="hotkey-tip">[Cmd+Shift+X] Panic</span>
-        <button class="btn-icon" id="panicBtn" title="Emergency Hide">✕</button>
+        <span class="hotkey-hint">[⌘⇧X] Panic</span>
+        <button class="icon-btn" id="panicBtn" title="Emergency Hide [Cmd+Shift+X]">✕</button>
       </div>
     </div>
 
-    <!-- Live Audio / Search Bar -->
-    <div class="search-section">
-      <div class="input-wrapper">
+    <!-- Search Section -->
+    <div class="search-box">
+      <div class="search-inner">
+        <span class="search-icon">⚡</span>
         <input
           type="text"
           id="queryInput"
-          placeholder="Listening / Type algorithm (e.g. 'LRU Cache', 'Rate Limiter')..."
+          placeholder="Listening / Type topic (e.g. 'LRU Cache', 'Rate Limiter', 'Kafka')..."
           autocomplete="off"
           spellcheck="false"
         />
-        <button class="mic-btn" id="micBtn" title="Toggle Voice Listener">🎙️</button>
+        <button class="mic-toggle-btn" id="micBtn" title="Toggle Audio Listener">
+          <span class="mic-icon">🎙️</span>
+          <span class="mic-label">LISTEN</span>
+        </button>
       </div>
     </div>
 
-    <!-- Cadence & Voice Biomarker Strip (Sprint 2) -->
-    <div class="cadence-strip">
-      <div class="cadence-item" id="wpmBadge">⚡ <span id="wpmValue">132</span> WPM (Golden)</div>
-      <div class="cadence-item" id="timerBadge">⏱️ <span id="timerValue">24s</span> / 75s</div>
-      <div class="cadence-item" id="clarityBadge">✨ <span id="clarityValue">100%</span> Clarity</div>
-    </div>
-
-    <!-- Ramble Warning Banner -->
-    <div class="ramble-banner" id="rambleBanner" style="display: none;">
-      ⚠️ 75s Monologue: Wrap up point & check in with interviewer!
-    </div>
-
-    <!-- Active Question & Latency Strip -->
-    <div class="question-strip">
-      <span class="question-title" id="questionTitle">🎯 Distributed Rate Limiter</span>
-      <span class="latency-badge" id="latencyBadge">⚡ 1.45 µs (Trie)</span>
-    </div>
-
-
-    <!-- 3-Bullet Teleprompter Display -->
-    <div class="bullets-container" id="bulletsContainer">
-      <div class="bullet-item">
-        <span class="bullet-arrow">▶</span>
-        <span class="bullet-text">Architecture: API Gateway -> Redis Cluster with Lua scripts running Token Bucket for atomic checks.</span>
+    <!-- Collapsible Body (Hidden in Compact Mode) -->
+    <div class="collapsible-body" id="collapsibleBody">
+      <!-- Cadence Telemetry Bar -->
+      <div class="telemetry-bar">
+        <div class="telemetry-pill" id="wpmBadge">
+          <span class="telemetry-label">CADENCE</span>
+          <span class="telemetry-val" id="wpmValue">132</span>
+          <span class="telemetry-unit">WPM</span>
+        </div>
+        <div class="telemetry-pill" id="timerBadge">
+          <span class="telemetry-label">MONOLOGUE</span>
+          <span class="telemetry-val" id="timerValue">0s</span>
+          <span class="telemetry-unit">/ 75s</span>
+        </div>
+        <div class="telemetry-pill" id="clarityBadge">
+          <span class="telemetry-label">CLARITY</span>
+          <span class="telemetry-val" id="clarityValue">100%</span>
+          <span class="telemetry-unit">STAR</span>
+        </div>
       </div>
-      <div class="bullet-item">
-        <span class="bullet-arrow">▶</span>
-        <span class="bullet-text">Complexity: O(1) time per request | Space: O(U) active user count in Redis memory.</span>
-      </div>
-      <div class="bullet-item">
-        <span class="bullet-arrow">▶</span>
-        <span class="bullet-text">Scale & Failure: Local in-memory fallback cache if Redis degrades | Return HTTP 429 with Retry-After header.</span>
-      </div>
-    </div>
 
-    <!-- Quick Presets -->
-    <div class="presets-row">
-      <button class="preset-btn" data-query="LRU Cache">LRU Cache</button>
-      <button class="preset-btn" data-query="Distributed Rate Limiter">Rate Limiter</button>
-      <button class="preset-btn" data-query="Consistent Hashing">Consistent Hashing</button>
-      <button class="preset-btn" data-query="Top K Frequent">Top K</button>
-      <button class="preset-btn" data-query="Course Schedule">Topo Sort</button>
-      <button class="preset-btn" data-query="Kafka Stream Processing">Kafka</button>
+      <!-- Ramble Alert Banner -->
+      <div class="ramble-alert" id="rambleBanner" style="display: none;">
+        <span class="alert-icon">⚠️</span>
+        <span class="alert-text">75s Monologue: Wrap up point & pass conversational baton to interviewer!</span>
+      </div>
+
+      <!-- Active Topic Header Strip -->
+      <div class="topic-strip">
+        <div class="topic-left">
+          <span class="topic-target-icon">🎯</span>
+          <span class="topic-name" id="questionTitle">Distributed Rate Limiter</span>
+        </div>
+        <span class="latency-pill" id="latencyBadge">⚡ 1.25 µs (Radix Trie)</span>
+      </div>
+
+      <!-- 3-Bullet Teleprompter Response Cards -->
+      <div class="bullets-wrapper" id="bulletsContainer">
+        <div class="bullet-card">
+          <div class="bullet-num">1</div>
+          <div class="bullet-content">
+            <strong class="bullet-highlight">Architecture:</strong> API Gateway ➔ Redis Cluster with Lua scripts executing Token Bucket for atomic synchronization.
+          </div>
+        </div>
+        <div class="bullet-card">
+          <div class="bullet-num">2</div>
+          <div class="bullet-content">
+            <strong class="bullet-highlight">Complexity:</strong> Time: O(1) per check | Space: O(U) active user counter hashes in memory.
+          </div>
+        </div>
+        <div class="bullet-card">
+          <div class="bullet-num">3</div>
+          <div class="bullet-content">
+            <strong class="bullet-highlight">Failure & Scale:</strong> Local in-memory LRU fallback cache if Redis degrades | Return HTTP 429 with Retry-After header.
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Concept Presets -->
+      <div class="presets-container">
+        <span class="presets-label">QUICK:</span>
+        <div class="presets-scroll">
+          <button class="preset-chip" data-query="LRU Cache">LRU Cache</button>
+          <button class="preset-chip" data-query="Distributed Rate Limiter">Rate Limiter</button>
+          <button class="preset-chip" data-query="Consistent Hashing">Consistent Hashing</button>
+          <button class="preset-chip" data-query="Top K Frequent">Top K</button>
+          <button class="preset-chip" data-query="Course Schedule">Topo Sort</button>
+          <button class="preset-chip" data-query="Kafka Stream Processing">Kafka</button>
+          <button class="preset-chip" data-query="Distributed Lock">Redis Lock</button>
+        </div>
+      </div>
     </div>
   </div>
 

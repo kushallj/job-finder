@@ -5,20 +5,22 @@ let mainWindow = null;
 let isPanicHidden = false;
 let isClickThrough = false;
 let isInvisible = true;
-let tray = null;
+let isCompact = false;
 
 function createGhostWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-  const windowWidth = 680;
-  const windowHeight = 420;
+  const windowWidth = 660;
+  const windowHeight = 460;
   const x = Math.round((screenWidth - windowWidth) / 2);
-  const y = 30; // Direct eye-line beneath webcam
+  const y = 32; // Directly beneath the webcam for natural eye contact
 
   mainWindow = new BrowserWindow({
     width: windowWidth,
     height: windowHeight,
+    minWidth: 520,
+    minHeight: 140,
     x: x,
     y: y,
     frame: false,
@@ -28,6 +30,7 @@ function createGhostWindow() {
     hasShadow: false,
     resizable: true,
     focusable: true,
+    backgroundColor: '#00000000',
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       nodeIntegration: false,
@@ -36,11 +39,12 @@ function createGhostWindow() {
     },
   });
 
-  // 1. CORE INVISIBILITY: Exclude from Screen Capture (Zoom, Meet, Teams, WebRTC)
-  // macOS: NSWindowSharingNone (0) | Windows: WDA_EXCLUDEFROMCAPTURE (0x11)
+  // 1. CORE OS-LEVEL INVISIBILITY: Exclude from Zoom, Google Meet, Teams, QuickTime, OBS
+  // macOS: [NSWindow setSharingType:NSWindowSharingNone] (0)
+  // Windows: SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) (0x11)
   mainWindow.setContentProtection(true);
 
-  // 2. Multi-space / Full-screen pinning
+  // 2. Pin across all virtual desktops / spaces
   if (process.platform === 'darwin') {
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
@@ -76,6 +80,18 @@ function registerGlobalShortcuts() {
     mainWindow.webContents.send('status:click-through-changed', isClickThrough);
   });
 
+  // Compact Mode Toggle: Cmd/Ctrl + Shift + M
+  globalShortcut.register('CommandOrControl+Shift+M', () => {
+    if (!mainWindow) return;
+    isCompact = !isCompact;
+    if (isCompact) {
+      mainWindow.setSize(660, 160, true);
+    } else {
+      mainWindow.setSize(660, 460, true);
+    }
+    mainWindow.webContents.send('status:compact-changed', isCompact);
+  });
+
   // Invisibility Protection Toggle: Cmd/Ctrl + Shift + L
   globalShortcut.register('CommandOrControl+Shift+L', () => {
     if (!mainWindow) return;
@@ -99,6 +115,17 @@ function setupIPC() {
     isClickThrough = enabled;
     mainWindow.setIgnoreMouseEvents(enabled, { forward: true });
     return isClickThrough;
+  });
+
+  ipcMain.handle('sidekick:set-compact-mode', (_, compact) => {
+    if (!mainWindow) return false;
+    isCompact = compact;
+    if (isCompact) {
+      mainWindow.setSize(660, 160, true);
+    } else {
+      mainWindow.setSize(660, 460, true);
+    }
+    return isCompact;
   });
 
   ipcMain.handle('sidekick:toggle-invisibility', () => {
