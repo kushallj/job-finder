@@ -31,6 +31,9 @@ import {
   Handshake as HandshakeIcon,
   Public as WorldIcon,
   CurrencyBitcoin as Web3Icon,
+  Architecture as WhiteboardIcon,
+  Business as ExecIcon,
+  Science as LabIcon,
 } from '@mui/icons-material';
 
 import { sidekickApi, type KnowledgeDocument, type SidekickStatus } from '../api/endpoints/sidekick';
@@ -45,6 +48,9 @@ import { ExecutiveDecisionMemoCard } from '../components/memo/ExecutiveDecisionM
 import { ReverseHeadhunterCard } from '../components/headhunter/ReverseHeadhunterCard';
 import { GeoArbitrageCard } from '../components/geo/GeoArbitrageCard';
 import { Web3BountyCard } from '../components/web3/Web3BountyCard';
+import { SystemDesignWhiteboardCard } from '../components/whiteboard/SystemDesignWhiteboardCard';
+import { ExecutiveOutreachCard } from '../components/outreach/ExecutiveOutreachCard';
+import { LiveSandboxSimulatorCard } from '../components/sandbox/LiveSandboxSimulatorCard';
 
 export const InterviewCopilotPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -175,6 +181,9 @@ export const InterviewCopilotPage: React.FC = () => {
           <Tab icon={<HandshakeIcon />} iconPosition="start" label="🤝 Reverse Headhunter" />
           <Tab icon={<WorldIcon />} iconPosition="start" label="🌍 Global Geo-Arbitrage" />
           <Tab icon={<Web3Icon />} iconPosition="start" label="⚡ Web3 & OSS Bounties" />
+          <Tab icon={<WhiteboardIcon />} iconPosition="start" label="📐 System Design Whiteboard" />
+          <Tab icon={<ExecIcon />} iconPosition="start" label="🎯 Executive Outreach" />
+          <Tab icon={<LabIcon />} iconPosition="start" label="🧪 Live Architecture Sandbox" />
         </Tabs>
       </Box>
 
@@ -348,6 +357,15 @@ export const InterviewCopilotPage: React.FC = () => {
 
       {/* Tab 10: Web3 & Open-Source Bounty Harvester */}
       {activeTab === 10 && <Web3BountyCard />}
+
+      {/* Tab 11: System Design Whiteboard Co-Pilot */}
+      {activeTab === 11 && <SystemDesignWhiteboardCard />}
+
+      {/* Tab 12: Autonomous Executive Outbound Engine */}
+      {activeTab === 12 && <ExecutiveOutreachCard />}
+
+      {/* Tab 13: Live Architecture Interactive Sandbox */}
+      {activeTab === 13 && <LiveSandboxSimulatorCard />}
     </Box>
   );
 };

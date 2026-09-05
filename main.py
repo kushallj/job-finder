@@ -6130,6 +6130,73 @@ def synthesize_web3_bounty_proposal(req: BountyProposalRequest) -> Dict[str, Any
         github_profile=req.github_profile,
     )
 
+# ── Sprint 6 Endpoints: System Design Whiteboard, Executive Outreach & Sandbox ─
+
+from src.services.system_design_whiteboard import (
+    SystemDesignWhiteboardService,
+    WhiteboardRequest,
+)
+from src.services.executive_outreach_service import (
+    ExecutiveOutreachService,
+    ExecutiveCampaignRequest,
+)
+from src.services.sandbox_simulation_service import (
+    SandboxSimulationService,
+    SimulationRequest,
+)
+
+@app.get("/api/system-design/archetypes", tags=["system-design"])
+def get_system_design_archetypes() -> Dict[str, Any]:
+    """Returns curated system design archetypes (Trading Engine, Ride-Hailing, Video Streaming, Rate Limiter)."""
+    service = SystemDesignWhiteboardService()
+    return {"status": "success", "archetypes": service.get_archetypes()}
+
+@app.post("/api/system-design/estimate-and-diagram", tags=["system-design"])
+def estimate_and_diagram_system_design(req: WhiteboardRequest) -> Dict[str, Any]:
+    """Calculates back-of-the-envelope capacity numbers, synthesizes Mermaid diagram, and failure mitigation matrix."""
+    service = SystemDesignWhiteboardService()
+    return service.estimate_and_diagram(
+        archetype_id=req.archetype_id,
+        dau=req.daily_active_users or 10000000,
+        actions_per_day=req.avg_actions_per_user_day or 20,
+        payload_bytes=req.payload_size_bytes or 1024,
+    )
+
+@app.get("/api/executive-outreach/pain-points", tags=["executive-outreach"])
+def get_executive_outreach_pain_points() -> Dict[str, Any]:
+    """Returns high-conviction executive pain point triggers (P99 latency, Cloud cost, Kafka lag)."""
+    service = ExecutiveOutreachService()
+    return {"status": "success", "pain_points": service.get_pain_points()}
+
+@app.post("/api/executive-outreach/campaign", tags=["executive-outreach"])
+def generate_executive_outreach_campaign(req: ExecutiveCampaignRequest) -> Dict[str, Any]:
+    """Synthesizes a 3-stage Trojan Horse executive drip campaign for VPs of Engineering and CTOs."""
+    service = ExecutiveOutreachService()
+    return service.generate_campaign(
+        candidate_name=req.candidate_name,
+        target_company=req.target_company,
+        executive_name=req.executive_name,
+        executive_title=req.executive_title,
+        pain_point_id=req.pain_point_id,
+        custom_proof_of_work_url=req.custom_proof_of_work_url,
+    )
+
+@app.get("/api/sandbox/models", tags=["sandbox-simulation"])
+def get_sandbox_models() -> Dict[str, Any]:
+    """Returns live distributed systems simulation models (Cache eviction, Raft consensus, Rate limiter)."""
+    service = SandboxSimulationService()
+    return {"status": "success", "models": service.get_models()}
+
+@app.post("/api/sandbox/simulate", tags=["sandbox-simulation"])
+def run_sandbox_simulation(req: SimulationRequest) -> Dict[str, Any]:
+    """Executes a real-time distributed system simulation under concurrency and failure injection."""
+    service = SandboxSimulationService()
+    return service.run_simulation(
+        model_id=req.model_id,
+        concurrency_rps=req.concurrency_rps or 25000,
+        failure_injection=req.failure_injection_enabled if req.failure_injection_enabled is not None else True,
+    )
+
 
 
 # Dev entry point
