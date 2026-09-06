@@ -34,6 +34,7 @@ import {
   Architecture as WhiteboardIcon,
   Business as ExecIcon,
   Science as LabIcon,
+  SmartToy as GodfatherIcon,
 } from '@mui/icons-material';
 
 import { sidekickApi, type KnowledgeDocument, type SidekickStatus } from '../api/endpoints/sidekick';
@@ -51,6 +52,7 @@ import { Web3BountyCard } from '../components/web3/Web3BountyCard';
 import { SystemDesignWhiteboardCard } from '../components/whiteboard/SystemDesignWhiteboardCard';
 import { ExecutiveOutreachCard } from '../components/outreach/ExecutiveOutreachCard';
 import { LiveSandboxSimulatorCard } from '../components/sandbox/LiveSandboxSimulatorCard';
+import { GodfatherBotCard } from '../components/telegram/GodfatherBotCard';
 
 export const InterviewCopilotPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -184,6 +186,7 @@ export const InterviewCopilotPage: React.FC = () => {
           <Tab icon={<WhiteboardIcon />} iconPosition="start" label="📐 System Design Whiteboard" />
           <Tab icon={<ExecIcon />} iconPosition="start" label="🎯 Executive Outreach" />
           <Tab icon={<LabIcon />} iconPosition="start" label="🧪 Live Architecture Sandbox" />
+          <Tab icon={<GodfatherIcon />} iconPosition="start" label="👑 The Godfather Bot" />
         </Tabs>
       </Box>
 
@@ -366,6 +369,9 @@ export const InterviewCopilotPage: React.FC = () => {
 
       {/* Tab 13: Live Architecture Interactive Sandbox */}
       {activeTab === 13 && <LiveSandboxSimulatorCard />}
+
+      {/* Tab 14: The Godfather Telegram Bot & 24x7 Sovereign Autonomous Engine */}
+      {activeTab === 14 && <GodfatherBotCard />}
     </Box>
   );
 };

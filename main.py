@@ -433,6 +433,8 @@ class AppState:
     email_outreach: Optional[Any]           = None
     async_pipeline: Optional[Any]           = None
     outreach_orchestrator: Optional[Any]    = None
+    godfather_bot:  Optional[Any]           = None
+    godfather_daemon: Optional[Any]         = None
     resume_router:  ResumeTrie              = field(default_factory=ResumeTrie)
     _cb_path:       Path = field(default_factory=lambda: Path("logs/sh_callbacks.json"))
     _callbacks:     Dict[str, Any] = field(default_factory=dict)
@@ -624,6 +626,17 @@ async def lifespan(app: FastAPI):
             log.warning("⚠️  AsyncJobPipeline unavailable: %s", exc)
             state.async_pipeline = None
 
+    # Godfather Telegram Bot & 24x7 Autonomous Engine
+    try:
+        from src.telegram_bot.godfather_bot import GodfatherBot
+        from src.telegram_bot.godfather_daemon import GodfatherDaemon
+        state.godfather_bot = GodfatherBot()
+        state.godfather_daemon = GodfatherDaemon(bot=state.godfather_bot)
+        await state.godfather_daemon.start()
+        log.info("👑 Godfather 24x7 Sovereign Autonomous Engine & Bot initialized")
+    except Exception as exc:
+        log.warning("⚠️  Godfather Daemon failed to boot: %s", exc)
+
     _state = state
     log.info("🟢 Server ready")
 
@@ -642,6 +655,16 @@ async def lifespan(app: FastAPI):
     # Step 2: Wait for in-flight jobs to complete (handled by AsyncJobPipeline.close())
     # Step 3: Close all resources in reverse order of initialization
     
+    # ── Stop Godfather Daemon ──────────────────────────────────────────────
+    if state.godfather_daemon:
+        try:
+            log.info("👑 Stopping Godfather Daemon…")
+            await state.godfather_daemon.stop()
+            log.info("✅ Godfather Daemon stopped")
+        except Exception as exc:
+            shutdown_errors.append(f"godfather_daemon: {exc}")
+            log.error("⚠️  Error stopping godfather_daemon: %s", exc)
+
     # ── Close AsyncJobPipeline first (has worker pool with in-flight jobs) ────
     # This implements Requirements 24.1, 24.2, 24.3, 24.4:
     # - Stops accepting new jobs on SIGTERM/SIGINT
@@ -6196,6 +6219,106 @@ def run_sandbox_simulation(req: SimulationRequest) -> Dict[str, Any]:
         concurrency_rps=req.concurrency_rps or 25000,
         failure_injection=req.failure_injection_enabled if req.failure_injection_enabled is not None else True,
     )
+
+
+# =============================================================================
+# Tab 14: The Godfather Telegram Bot & 24x7 Sovereign Autonomous Engine
+# =============================================================================
+
+class AutopilotToggleRequest(BaseModel):
+    enabled: bool
+
+class BroadcastAlertRequest(BaseModel):
+    message: str
+    chat_ids: Optional[List[str]] = None
+
+class GodfatherInteractRequest(BaseModel):
+    message: str
+    user_id: Optional[str] = "web_user"
+    chat_id: Optional[str] = "web_chat"
+    user_name: Optional[str] = "Sovereign Engineer"
+
+
+@app.get("/api/godfather/status", tags=["godfather-bot"])
+def get_godfather_bot_status() -> Dict[str, Any]:
+    """Returns the live status, 24x7 uptime, and recent radar findings of the Godfather Telegram Bot."""
+    state = get_state()
+    if state.godfather_daemon:
+        return state.godfather_daemon.get_status()
+    elif state.godfather_bot:
+        return state.godfather_bot.get_status().model_dump()
+    
+    from src.telegram_bot.godfather_bot import GodfatherBot
+    temp_bot = GodfatherBot()
+    return temp_bot.get_status().model_dump()
+
+
+@app.post("/api/godfather/interact", tags=["godfather-bot"])
+def interact_with_godfather_bot(req: GodfatherInteractRequest) -> Dict[str, Any]:
+    """Dispatches a user message or slash command to The Godfather Consigliere and returns response."""
+    state = get_state()
+    bot = state.godfather_bot
+    if not bot:
+        from src.telegram_bot.godfather_bot import GodfatherBot
+        bot = GodfatherBot()
+        state.godfather_bot = bot
+
+    response = bot.process_user_message(
+        message=req.message,
+        user_id=req.user_id or "web_user",
+        user_name=req.user_name or "Sovereign Engineer",
+    )
+    return response.model_dump()
+
+
+@app.post("/api/godfather/broadcast", tags=["godfather-bot"])
+async def broadcast_godfather_alert(req: BroadcastAlertRequest) -> Dict[str, Any]:
+    """Pushes a sovereign intelligence broadcast to all connected Telegram subscribers."""
+    state = get_state()
+    daemon = state.godfather_daemon
+    if not daemon:
+        from src.telegram_bot.godfather_daemon import GodfatherDaemon
+        daemon = GodfatherDaemon()
+        state.godfather_daemon = daemon
+
+    dispatched = await daemon.broadcast(req.message, chat_ids=req.chat_ids)
+    return {
+        "status": "success",
+        "dispatched_count": dispatched,
+        "message_preview": req.message[:100],
+    }
+
+
+@app.post("/api/godfather/radar/scan", tags=["godfather-bot"])
+async def trigger_godfather_radar_scan() -> Dict[str, Any]:
+    """Triggers an on-demand 24x7 autonomous scan across Frontier AI, Web3 Bounties, and Recruiter SLAs."""
+    state = get_state()
+    daemon = state.godfather_daemon
+    if not daemon:
+        from src.telegram_bot.godfather_daemon import GodfatherDaemon
+        daemon = GodfatherDaemon()
+        state.godfather_daemon = daemon
+
+    scan_result = await daemon.execute_radar_scan()
+    return scan_result
+
+
+@app.post("/api/godfather/autopilot/toggle", tags=["godfather-bot"])
+def toggle_godfather_autopilot(req: AutopilotToggleRequest) -> Dict[str, Any]:
+    """Enables or disables 24x7 continuous background radar monitoring."""
+    state = get_state()
+    bot = state.godfather_bot
+    if not bot:
+        from src.telegram_bot.godfather_bot import GodfatherBot
+        bot = GodfatherBot()
+        state.godfather_bot = bot
+
+    bot.autopilot_enabled = req.enabled
+    return {
+        "status": "success",
+        "autopilot_enabled": bot.autopilot_enabled,
+        "message": f"Godfather 24x7 Autopilot {'activated' if req.enabled else 'paused'}.",
+    }
 
 
 
