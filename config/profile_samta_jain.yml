@@ -1,8 +1,11 @@
-# NEXUS Candidate Profile — Samta Jain (Accounting, Tally Prime, Busy, Khatabook, Advanced Excel Specialist)
-# Specific Target Region: Delhi / New Delhi / Delhi NCR
+# NEXUS Candidate Profile — Samta Jain
+# Age: 54 Years | Background: Homemaker entering the workforce | First-Time Job Seeker
+# Location: Delhi, India (Delhi NCR)
 
 candidate:
   full_name: "Samta Jain"
+  age: 54
+  background: "Homemaker transitioning into professional accounting"
   email: "samta.jain.accounts@gmail.com"
   phone: "+91-9811234567"
   location: "Delhi, India"
@@ -12,89 +15,83 @@ candidate:
 
 target_roles:
   primary:
-    - "Senior Accountant"
-    - "Accounts Executive"
-    - "Finance Executive"
-    - "Tally Prime & Busy Specialist"
-    - "MIS Executive"
+    - "Accounts Assistant"
+    - "Junior Bookkeeper"
+    - "Tally Prime Data Entry Operator"
+    - "Khatabook & Digital Ledger Executive"
+    - "Billing & Invoicing Clerk"
+    - "Office Assistant (Accounts & Admin)"
   secondary:
-    - "Accounts Manager"
-    - "Taxation & GST Executive"
-    - "Bank Reconciliation & Audit Associate"
-    - "Billing & Inventory Controller"
+    - "Part-Time Bookkeeper for CA Firms / Small Businesses"
+    - "School / NGO / Clinic Accounts Clerk"
+    - "Retail Store Cashier & Ledger Operator"
   not_interested:
-    - "Telecaller"
-    - "Sales Executive"
-    - "Intern"
+    - "Field Sales"
+    - "Cold Calling / Telemarketing"
+    - "Heavy Night Shifts"
 
 archetypes:
-  - name: "Core Accounting & Bookkeeping"
-    keywords: ["Tally Prime", "Busy", "Khatabook", "Ledger Scrutiny", "Journal Entries", "Trial Balance", "P&L", "Balance Sheet"]
+  - name: "Entry-Level Bookkeeping & Voucher Entry"
+    keywords: ["Tally Prime", "Busy", "Voucher Entry", "Cash Book", "Purchase Register", "Sales Register", "Receipts"]
     fit: primary
-  - name: "Statutory Compliance & GST/TDS"
-    keywords: ["GST", "GSTR-1", "GSTR-3B", "GSTR-9", "TDS Returns", "e-Way Bill", "e-Invoicing", "Taxation"]
+  - name: "Digital Ledger & Khatabook Management"
+    keywords: ["Khatabook", "Customer Credit", "Debit Tracking", "Payment Reminders", "Daily Cash Balancing"]
     fit: primary
-  - name: "Advanced Excel & MIS Reporting"
-    keywords: ["Advanced Excel", "VLOOKUP", "XLOOKUP", "Pivot Tables", "MIS Reports", "Bank Reconciliation", "BRS", "Formulas", "Financial Modeling"]
+  - name: "Basic Excel Data Entry & MIS"
+    keywords: ["MS Excel", "Data Entry", "Formulas", "Sum", "VLOOKUP", "Billing Spreadsheets", "Expense Tracking"]
     fit: primary
-  - name: "Accounts Payable & Receivable (AP/AR)"
-    keywords: ["AP", "AR", "Vendor Payments", "Aging Analysis", "Cashflow", "Invoicing", "Payment Follow-up"]
-    fit: secondary
+  - name: "Retail & Local Clinic / School Billing"
+    keywords: ["Invoicing", "Bill Generation", "Fee Collection", "Patient Billing", "Petty Cash"]
+    fit: primary
 
 narrative:
-  headline: "Senior Accounts Executive — Tally Prime, Busy, Khatabook, Advanced Excel & GST · 5+ years (Delhi NCR)"
+  headline: "Aspiring Accounts Assistant & Bookkeeper — Certified in Tally Prime, Busy, Khatabook & MS Excel · Delhi"
   summary: >
-    Experienced Accounting and Financial Operations Specialist with 5+ years handling end-to-end bookkeeping,
-    statutory compliance, GST filing, TDS deductions, and high-volume bank reconciliations across Delhi NCR.
-    Expert in Tally Prime, Busy Accounting Software, Khatabook ledger digitisation, and Advanced Excel MIS dashboards.
+    Disciplined, meticulous, and trustworthy 54-year-old professional stepping into the accounting workforce
+    after decades of successful household financial budgeting and family administration.
+    Proficient in practical voucher entry in Tally Prime and Busy Software, digital credit/debit management
+    via Khatabook, and structured Excel expense logging. Seeking entry-level or part-time/full-time accounting
+    roles in Delhi where honesty, reliability, and precision are valued.
 
   superpowers:
-    - "Tally Prime & Busy Accounting: Complete voucher entry, ledger scrutiny, finalization of accounts"
-    - "Khatabook: Digital credit/debit tracking, automated payment reminders, and SME cashflow reconciliation"
-    - "Advanced Excel: Complex MIS reporting, XLOOKUP/VLOOKUP, Pivot Tables, dynamic dashboards"
-    - "Statutory Compliance: GSTR-1, GSTR-3B, e-Way bills, e-Invoicing, and TDS calculation"
-    - "Bank Reconciliation Statement (BRS): Multi-bank zero-variance daily/monthly reconciliation"
+    - "Absolute Integrity & Trustworthiness: Uncompromising honesty in cash handling and ledger records"
+    - "Tally Prime & Busy Software: Accurate voucher entry (Payment, Receipt, Journal, Sales, Purchase)"
+    - "Khatabook Digital Ledger: Daily transaction logging, customer credit tracking, automated WhatsApp reminders"
+    - "MS Excel: Clean data entry, expense sheets, basic formulas, and monthly household/shop budgets"
+    - "Dedication & Stability: Seeking a long-term, stable local role with high punctuality and patience"
 
   proof_points:
-    - name: "Multi-Entity Accounts Finalization"
-      metric: "Managed ₹40+ Cr annual turnover accounting across 3 business entities with zero statutory audit observations"
-    - name: "GST & Tax Reconciliation"
-      metric: "Reconciled GSTR-2B vs Books with 100% Input Tax Credit (ITC) claim accuracy, recovering ₹18L+ unclaimed ITC"
-    - name: "Bank & Vendor Reconciliation"
-      metric: "Reduced BRS turnaround from 7 days to same-day automated Excel matching across 12 bank accounts"
-    - name: "Digital Bookkeeping Migration"
-      metric: "Digitized 1,500+ SME counter-party credit ledgers into Khatabook & Busy, reducing outstanding payment cycle by 28%"
+    - name: "Practical Software Certification"
+      metric: "Completed hands-on practical training in Tally Prime, Busy Accounting Software, and MS Excel"
+    - name: "Digital Bookkeeping Fluency"
+      metric: "Managed Khatabook digital ledger for local family trading network with 100% reconciliation accuracy"
+    - name: "Cash & Expense Discipline"
+      metric: "30+ years of flawless personal, family, and event budget management with zero variance"
 
 experience:
-  years_total: 5
-  current_role: "Senior Accounts & MIS Executive"
-  current_company: "Delhi Commercial Enterprises / FinTech Associates"
-  current_since: "2021-06"
+  years_total: 0
+  current_role: "Aspiring Accounts Assistant / First-Time Job Seeker"
+  current_company: "Self-Employed / Homemaker Transitioning to Accounting"
+  current_since: "2024-01"
 
 compensation:
-  target_inr_lpa: 7.5       # target LPA for Delhi NCR
-  minimum_inr_lpa: 5.5       # walk-away threshold
-  notes: "Targeting high-growth Delhi NCR firms, startups, and established enterprises"
+  target_inr_lpa: 2.4        # ₹20,000 / month (Realistic & Achievable)
+  minimum_inr_lpa: 1.8       # ₹15,000 / month (Walk-away entry threshold)
+  target_monthly_inr: 20000
+  notes: "Open to full-time, part-time, morning/afternoon shifts, or flexible hours near home in Delhi"
 
 location_preferences:
   remote: false
   hybrid_ok: true
   relocation: false
-  on_site_cities: ["Delhi", "New Delhi", "Noida", "Gurgaon", "Delhi NCR"]
+  preferred_work_type: "On-site / Local Delhi NCR / Flexible Part-Time or Full-Time"
+  on_site_cities: ["Delhi", "New Delhi", "Noida", "Rohini", "Pitampura", "Karol Bagh", "Laxmi Nagar", "South Delhi"]
 
-accounting_stack:
+software_skills:
   strong:
-    - "Tally Prime / Tally.ERP 9"
-    - "Busy Accounting Software (Standard & Enterprise)"
-    - "Khatabook Digital Ledger"
-    - "Advanced MS Excel (VLOOKUP, XLOOKUP, INDEX-MATCH, Pivot Tables, Conditional Formatting)"
-    - "GST Portal (GSTR-1, GSTR-3B, GSTR-9, ITC-04, e-Way Bill, e-Invoicing)"
-    - "TDS / TCS Compliance & Traces Portal"
-    - "Bank Reconciliation (BRS)"
-    - "Accounts Payable (AP) & Accounts Receivable (AR)"
-    - "Inventory Valuation & Stock Journal"
-  familiar:
-    - "Zoho Books"
-    - "QuickBooks"
-    - "Google Sheets Automation"
-    - "Payroll & EPF / ESIC Portal"
+    - "Tally Prime / Tally.ERP 9 (Basic & Intermediate Voucher Entry)"
+    - "Busy Accounting Software (Standard Entry & Invoicing)"
+    - "Khatabook Mobile & Desktop App (Khata Entry, Customer Ledgers, Payment Links)"
+    - "MS Excel (Data Entry, Basic Tables, SUM, AVERAGE, VLOOKUP, Expense Log)"
+    - "GST Invoicing Basics & E-Way Bill generation assistance"
+    - "Bank Deposit Slips, Cheque Writing, Petty Cash Management"
