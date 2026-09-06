@@ -1,0 +1,100 @@
+# NEXUS Candidate Profile — Samta Jain (Accounting, Tally Prime, Busy, Khatabook, Advanced Excel Specialist)
+# Specific Target Region: Delhi / New Delhi / Delhi NCR
+
+candidate:
+  full_name: "Samta Jain"
+  email: "samta.jain.accounts@gmail.com"
+  phone: "+91-9811234567"
+  location: "Delhi, India"
+  timezone: "Asia/Kolkata"
+  linkedin: "https://linkedin.com/in/samta-jain-accounting"
+  visa_status: "Indian citizen — based in Delhi NCR"
+
+target_roles:
+  primary:
+    - "Senior Accountant"
+    - "Accounts Executive"
+    - "Finance Executive"
+    - "Tally Prime & Busy Specialist"
+    - "MIS Executive"
+  secondary:
+    - "Accounts Manager"
+    - "Taxation & GST Executive"
+    - "Bank Reconciliation & Audit Associate"
+    - "Billing & Inventory Controller"
+  not_interested:
+    - "Telecaller"
+    - "Sales Executive"
+    - "Intern"
+
+archetypes:
+  - name: "Core Accounting & Bookkeeping"
+    keywords: ["Tally Prime", "Busy", "Khatabook", "Ledger Scrutiny", "Journal Entries", "Trial Balance", "P&L", "Balance Sheet"]
+    fit: primary
+  - name: "Statutory Compliance & GST/TDS"
+    keywords: ["GST", "GSTR-1", "GSTR-3B", "GSTR-9", "TDS Returns", "e-Way Bill", "e-Invoicing", "Taxation"]
+    fit: primary
+  - name: "Advanced Excel & MIS Reporting"
+    keywords: ["Advanced Excel", "VLOOKUP", "XLOOKUP", "Pivot Tables", "MIS Reports", "Bank Reconciliation", "BRS", "Formulas", "Financial Modeling"]
+    fit: primary
+  - name: "Accounts Payable & Receivable (AP/AR)"
+    keywords: ["AP", "AR", "Vendor Payments", "Aging Analysis", "Cashflow", "Invoicing", "Payment Follow-up"]
+    fit: secondary
+
+narrative:
+  headline: "Senior Accounts Executive — Tally Prime, Busy, Khatabook, Advanced Excel & GST · 5+ years (Delhi NCR)"
+  summary: >
+    Experienced Accounting and Financial Operations Specialist with 5+ years handling end-to-end bookkeeping,
+    statutory compliance, GST filing, TDS deductions, and high-volume bank reconciliations across Delhi NCR.
+    Expert in Tally Prime, Busy Accounting Software, Khatabook ledger digitisation, and Advanced Excel MIS dashboards.
+
+  superpowers:
+    - "Tally Prime & Busy Accounting: Complete voucher entry, ledger scrutiny, finalization of accounts"
+    - "Khatabook: Digital credit/debit tracking, automated payment reminders, and SME cashflow reconciliation"
+    - "Advanced Excel: Complex MIS reporting, XLOOKUP/VLOOKUP, Pivot Tables, dynamic dashboards"
+    - "Statutory Compliance: GSTR-1, GSTR-3B, e-Way bills, e-Invoicing, and TDS calculation"
+    - "Bank Reconciliation Statement (BRS): Multi-bank zero-variance daily/monthly reconciliation"
+
+  proof_points:
+    - name: "Multi-Entity Accounts Finalization"
+      metric: "Managed ₹40+ Cr annual turnover accounting across 3 business entities with zero statutory audit observations"
+    - name: "GST & Tax Reconciliation"
+      metric: "Reconciled GSTR-2B vs Books with 100% Input Tax Credit (ITC) claim accuracy, recovering ₹18L+ unclaimed ITC"
+    - name: "Bank & Vendor Reconciliation"
+      metric: "Reduced BRS turnaround from 7 days to same-day automated Excel matching across 12 bank accounts"
+    - name: "Digital Bookkeeping Migration"
+      metric: "Digitized 1,500+ SME counter-party credit ledgers into Khatabook & Busy, reducing outstanding payment cycle by 28%"
+
+experience:
+  years_total: 5
+  current_role: "Senior Accounts & MIS Executive"
+  current_company: "Delhi Commercial Enterprises / FinTech Associates"
+  current_since: "2021-06"
+
+compensation:
+  target_inr_lpa: 7.5       # target LPA for Delhi NCR
+  minimum_inr_lpa: 5.5       # walk-away threshold
+  notes: "Targeting high-growth Delhi NCR firms, startups, and established enterprises"
+
+location_preferences:
+  remote: false
+  hybrid_ok: true
+  relocation: false
+  on_site_cities: ["Delhi", "New Delhi", "Noida", "Gurgaon", "Delhi NCR"]
+
+accounting_stack:
+  strong:
+    - "Tally Prime / Tally.ERP 9"
+    - "Busy Accounting Software (Standard & Enterprise)"
+    - "Khatabook Digital Ledger"
+    - "Advanced MS Excel (VLOOKUP, XLOOKUP, INDEX-MATCH, Pivot Tables, Conditional Formatting)"
+    - "GST Portal (GSTR-1, GSTR-3B, GSTR-9, ITC-04, e-Way Bill, e-Invoicing)"
+    - "TDS / TCS Compliance & Traces Portal"
+    - "Bank Reconciliation (BRS)"
+    - "Accounts Payable (AP) & Accounts Receivable (AR)"
+    - "Inventory Valuation & Stock Journal"
+  familiar:
+    - "Zoho Books"
+    - "QuickBooks"
+    - "Google Sheets Automation"
+    - "Payroll & EPF / ESIC Portal"
