@@ -313,6 +313,35 @@ class AutonomousJobCrawler:
                 elif upd:
                     stats["total_updated"] += 1
 
+            # ── 5. Common Crawl S3 Stealth Job Harvester ──────────────────────
+            self.current_source = "Common Crawl S3 Stealth Harvester"
+            self.log_event("INFO", "Executing Common Crawl S3 byte-range stealth sweep...")
+            from src.email_engine.common_crawl_miner import common_crawl_miner
+            cc_target_domains = ["datadoghq.com", "stripe.com", "hashicorp.com", "nubank.com.br", "razorpay.com"]
+            cc_jobs: List[Dict[str, Any]] = []
+            for d in cc_target_domains[:2]:
+                try:
+                    intel = await common_crawl_miner.mine_stealth_intel(domain=d)
+                    for j in intel.get("jobs_discovered", []):
+                        cc_jobs.append({
+                            "title": j.get("title"),
+                            "company": d.split(".")[0].capitalize(),
+                            "url": j.get("url"),
+                            "description": j.get("description"),
+                            "source": "common_crawl_stealth",
+                            "tags": j.get("tech_stack", []),
+                        })
+                except Exception as exc:
+                    logger.debug("Common Crawl sweep error for %s: %s", d, exc)
+
+            stats["common_crawl_jobs"] = len(cc_jobs)
+            for j in cc_jobs:
+                ins, upd = self.upsert_job_record(db, j)
+                if ins:
+                    stats["total_inserted"] += 1
+                elif upd:
+                    stats["total_updated"] += 1
+
             self.total_scans_performed += 1
             self.total_jobs_ingested += stats["total_inserted"]
             self.total_jobs_updated += stats["total_updated"]

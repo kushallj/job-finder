@@ -25,7 +25,7 @@ import smtplib
 import dns.resolver
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Tuple
+from typing import Any, List, Dict, Optional, Tuple
 from urllib.parse import urlencode
 
 import httpx
@@ -1584,6 +1584,58 @@ class CertShEmailProvider(BaseEmailProvider):
 
 
 # ---------------------------------------------------------------------------
+# Provider: Common Crawl S3 Byte-Range Miner (100% Stealth)
+# ---------------------------------------------------------------------------
+
+class CommonCrawlEmailProvider(BaseEmailProvider):
+    name: str = "common_crawl_s3"
+
+    def __init__(self):
+        from src.email_engine.common_crawl_miner import common_crawl_miner
+        self.miner = common_crawl_miner
+
+    async def find_contacts(self, company_name: str, domain: str, limit: int = 5) -> List[DiscoveredEmail]:
+        if not domain:
+            return []
+        try:
+            intel = await self.miner.mine_stealth_intel(domain=domain, company_name=company_name)
+            contacts = []
+            for c in intel.get("contacts_discovered", [])[:limit]:
+                contacts.append(DiscoveredEmail(
+                    email=c["email"],
+                    name=c.get("role", "Team Member"),
+                    title=c.get("role", "Leadership / Recruiter"),
+                    company=company_name or domain,
+                    confidence=c.get("confidence", 75),
+                    source="common_crawl_s3",
+                    sources=["common_crawl_s3"]
+                ))
+            return contacts
+        except Exception as exc:
+            logger.debug(f"[CommonCrawl] discovery error for {domain}: {exc}")
+            return []
+
+    async def discover_emails(
+        self,
+        first_name: str = "",
+        last_name: str = "",
+        company_name: str = "",
+        domain: str = "",
+    ) -> Dict[str, Any]:
+        intel = await self.miner.mine_stealth_intel(domain=domain, company_name=company_name)
+        contacts = intel.get("contacts_discovered", [])
+        emails = [c["email"] for c in contacts]
+        if not emails and domain:
+            emails = [f"{first_name.lower()}.{last_name.lower()}@{domain}".strip(".@")]
+        return {
+            "provider": "common_crawl_s3",
+            "confidence": 85,
+            "emails": emails,
+            "contacts": contacts,
+        }
+
+
+# ---------------------------------------------------------------------------
 # Deduplication + Confidence Merger
 # ---------------------------------------------------------------------------
 
@@ -1625,14 +1677,19 @@ class EmailDiscoveryService:
      10. Kaspr           — LinkedIn + phone
      11. SignalHire      — async callback
      12. GitHub          — developer emails (free)
-     13. FreeEmailFinder — scraping + patterns (always runs as fallback)
+     13. Common Crawl    — S3 byte-range stealth archives (free)
+     14. FreeEmailFinder — scraping + patterns (always runs as fallback)
     """
 
     def __init__(self, settings=None):
         self.providers: List[BaseEmailProvider] = []
         self.free_finder    = FreeEmailFinder(smtp_verify=False)
         self.certsh_finder  = CertShEmailProvider()
+        self.cc_finder      = CommonCrawlEmailProvider()
         self.domain_resolver = DomainResolver()
+
+        # Always register Common Crawl S3 provider (free & 100% stealth)
+        self.providers.append(self.cc_finder)
 
         # Load providers from settings if available
         if settings:
@@ -1683,6 +1740,10 @@ class EmailDiscoveryService:
             cb = getattr(s, "signalhire_callback_url", None)
             self.providers.append(SignalHireProvider(s.signalhire_api_key, cb))
             logger.info("✅ SignalHire enabled")
+
+        # Always add Common Crawl S3 provider (free & stealth)
+        self.providers.append(self.cc_finder)
+        logger.info("✅ Common Crawl S3 Stealth Miner enabled (free)")
 
         if getattr(s, "github_token", None):
             self.providers.append(GitHubEmailProvider(s.github_token))
@@ -1867,6 +1928,26 @@ class EmailDiscoveryService:
         # Return highest confidence
         best = max(candidates, key=lambda x: x.confidence)
         return best.to_dict()
+
+    async def discover(
+        self,
+        company: str,
+        domain: str = "",
+        first_name: str = "",
+        last_name: str = "",
+    ) -> Dict[str, Any]:
+        """High-level email discovery returning consolidated contact and email mapping."""
+        target_domain = domain or await self.domain_resolver.resolve(company) or f"{clean_company_slug(company)}.com"
+        contacts = await self.discover_contacts(company_name=company, domain=target_domain, limit=5)
+        emails = [c.email for c in contacts if c.email]
+        primary = emails[0] if emails else (f"{first_name.lower()}.{last_name.lower()}@{target_domain}".strip(".@") if first_name else f"careers@{target_domain}")
+        return {
+            "company": company,
+            "domain": target_domain,
+            "primary_email": primary,
+            "discovered_emails": emails or [primary],
+            "contacts": [c.to_dict() for c in contacts],
+        }
 
     async def verify_email(self, email: str) -> Dict:
         """Verify an email using Hunter (if available) + SMTP fallback."""

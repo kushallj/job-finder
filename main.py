@@ -6331,6 +6331,61 @@ def toggle_godfather_autopilot(req: AutopilotToggleRequest) -> Dict[str, Any]:
     }
 
 
+# =============================================================================
+# Common Crawl S3 Byte-Range Miner Endpoints
+# =============================================================================
+
+class CommonCrawlSearchRequest(BaseModel):
+    domain: str
+    index_id: Optional[str] = None
+    path_pattern: str = "*careers*"
+    limit: int = 25
+
+
+class CommonCrawlMineRequest(BaseModel):
+    domain: str
+    company_name: Optional[str] = None
+    index_id: Optional[str] = None
+
+
+@app.get("/api/common-crawl/indices", tags=["common-crawl"])
+async def get_common_crawl_indices() -> Dict[str, Any]:
+    """Lists available Common Crawl monthly crawl collections."""
+    from src.email_engine.common_crawl_miner import common_crawl_miner
+    indices = await common_crawl_miner.get_available_indices()
+    return {"status": "success", "count": len(indices), "indices": indices}
+
+
+@app.post("/api/common-crawl/search", tags=["common-crawl"])
+async def search_common_crawl_domain(req: CommonCrawlSearchRequest) -> Dict[str, Any]:
+    """Queries Common Crawl CDX index for matching domain pages with S3 byte offsets."""
+    from src.email_engine.common_crawl_miner import common_crawl_miner
+    records = await common_crawl_miner.search_domain_cdx(
+        domain=req.domain,
+        index_id=req.index_id,
+        path_pattern=req.path_pattern,
+        limit=req.limit,
+    )
+    return {
+        "status": "success",
+        "domain": req.domain,
+        "count": len(records),
+        "records": records,
+    }
+
+
+@app.post("/api/common-crawl/mine", tags=["common-crawl"])
+async def mine_common_crawl_domain(req: CommonCrawlMineRequest) -> Dict[str, Any]:
+    """Stealth-mines jobs, executive/recruiter contacts, and tech stacks via S3 byte-range fetches."""
+    from src.email_engine.common_crawl_miner import common_crawl_miner
+    intel = await common_crawl_miner.mine_stealth_intel(
+        domain=req.domain,
+        company_name=req.company_name or "",
+        index_id=req.index_id,
+    )
+    return intel
+
+
 
 # Dev entry point
 # =============================================================================

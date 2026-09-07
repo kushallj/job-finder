@@ -96,6 +96,11 @@ def test_intent_analyzer_natural_language():
     assert cmd == "/autopilot"
     assert args == ["on"]
 
+    # 11. Common Crawl S3 Stealth Mining intent
+    cmd, args = analyzer.parse_intent("Perform a stealth scrape and common crawl on stripe.com")
+    assert cmd == "/crawl"
+    assert "stripe.com" in args
+
 
 def test_command_router_all_thirteen_features():
     router = GodfatherCommandRouter()
@@ -173,6 +178,12 @@ def test_command_router_all_thirteen_features():
     res = router.handle_command("/autopilot", ["on"])
     assert "Autopilot" in res.text
     assert res.agent_invoked == "autopilot_control"
+
+    # 14. Common Crawl S3 Stealth Miner
+    res = router.handle_command("/crawl", ["stripe.com"])
+    assert "COMMON CRAWL S3" in res.text
+    assert "stripe.com" in res.text
+    assert res.agent_invoked == "common_crawl_miner"
 
 
 @pytest.mark.asyncio

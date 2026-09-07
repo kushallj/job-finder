@@ -125,5 +125,12 @@ class GodfatherIntentAnalyzer:
             company = self._extract_company(text_clean, default="Google")
             return ("/profile", [company, "Staff Engineering Lead"])
 
+        # 13. Common Crawl S3 Stealth Harvester
+        if any(k in lower for k in ["crawl", "common crawl", "s3 archive", "mine domain", "stealth mine", "stealth scrape"]):
+            company = self._extract_company(text_clean, default="stripe.com")
+            if "." not in company:
+                company = f"{company.lower()}.com"
+            return ("/crawl", [company])
+
         # Default: Show Godfather Menu
         return ("/menu", [])
