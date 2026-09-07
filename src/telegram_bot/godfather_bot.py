@@ -22,6 +22,12 @@ class GodfatherBot:
     """Async Telegram Bot client and executor for all sovereign engineering capabilities."""
 
     def __init__(self, token: Optional[str] = None):
+        if not os.environ.get("TELEGRAM_BOT_TOKEN"):
+            try:
+                from dotenv import load_dotenv
+                load_dotenv()
+            except Exception:
+                pass
         self.token = token or os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
         self.base_url = f"https://api.telegram.org/bot{self.token}" if self.token else None
         self.router = GodfatherCommandRouter()
