@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .base import AgentContext, AgentResult, BaseAgent
 from .agent_08_interview_prepper import _FOCUS_HEURISTICS
@@ -107,7 +107,20 @@ class InterviewerAgent(BaseAgent):
         if challenge_q:
             questions.append({"id": "q0", "text": challenge_q, "type": "company_specific", "focus_area": industry})
 
+        # Inject real technical questions from Google Sheet question bank
+        sheet_qs = self._load_sheet_questions(f"{role_title} {job_description} {industry}", limit=3)
+        for i, sq in enumerate(sheet_qs):
+            questions.append({
+                "id": f"sheet_q_{i}",
+                "text": sq["title"],
+                "type": "technical_sheet",
+                "focus_area": sq.get("technology") or sq.get("category", "Core Technical"),
+                "bullets": sq.get("bullets", []),
+            })
+
         for i, focus in enumerate(focus_areas):
+            if len(questions) >= num_questions:
+                break
             tq = _TECHNICAL_BANK_BY_FOCUS.get(focus)
             if tq:
                 questions.append({"id": f"tech{i}", "text": tq, "type": "technical", "focus_area": focus})
@@ -121,9 +134,51 @@ class InterviewerAgent(BaseAgent):
         return AgentResult(
             agent=self.name, ok=True,
             summary=f"Generated {len(questions)} questions for {company} "
-                    f"({'company-specific' if challenge_q else 'industry-generic'} + behavioral).",
+                    f"({'company-specific' if challenge_q else 'sheet-indexed'} + behavioral).",
             data={"questions": questions},
         )
+
+    @staticmethod
+    def _load_sheet_questions(context_text: str, limit: int = 3) -> List[Dict[str, Any]]:
+        """Extracts top matching real interview questions from the synchronized Google Sheet bank."""
+        import os, json
+        bank_path = os.path.join(os.path.dirname(__file__), "..", "sidekick", "knowledge", "interview_bank.json")
+        if not os.path.exists(bank_path):
+            return []
+
+        try:
+            with open(bank_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            sheet_bank = data.get("sheet_question_bank", [])
+            if not sheet_bank:
+                return []
+
+            ctx_lower = context_text.lower()
+            scored: List[Tuple[int, Dict[str, Any]]] = []
+            
+            for item in sheet_bank:
+                score = 0
+                tech = item.get("technology", "").lower()
+                cat = item.get("category", "").lower()
+                
+                if tech and tech in ctx_lower:
+                    score += 5
+                if cat and cat in ctx_lower:
+                    score += 3
+                for kw in item.get("keywords", []):
+                    if kw in ctx_lower:
+                        score += 2
+                        
+                if score > 0:
+                    scored.append((score, item))
+
+            scored.sort(key=lambda x: x[0], reverse=True)
+            if scored:
+                return [x[1] for x in scored[:limit]]
+            # Fallback to high value general items
+            return sheet_bank[:limit]
+        except Exception:
+            return []
 
     # -- STAR scoring ---------------------------------------------------------
 

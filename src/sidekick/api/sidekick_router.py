@@ -125,6 +125,10 @@ async def execute_sidekick_query(req: SidekickQueryRequest) -> Dict[str, Any]:
     }
 
 
+class SyncSheetRequest(BaseModel):
+    sheet_url: Optional[str] = None
+
+
 @router.get("/bank")
 def get_interview_knowledge_bank() -> Dict[str, Any]:
     """Returns all pre-compiled DSA patterns, System Design archetypes, and STAR stories."""
@@ -132,6 +136,15 @@ def get_interview_knowledge_bank() -> Dict[str, Any]:
         "total_documents": len(rag_engine.documents),
         "documents": rag_engine.documents,
     }
+
+
+@router.post("/sync-sheet")
+async def sync_google_sheet_question_bank(req: Optional[SyncSheetRequest] = None) -> Dict[str, Any]:
+    """Syncs real-world interview question bank directly from Google Sheets."""
+    from src.services.question_bank_syncer import question_bank_syncer, DEFAULT_GOOGLE_SHEET_URL
+    url = req.sheet_url if (req and req.sheet_url) else DEFAULT_GOOGLE_SHEET_URL
+    res = await question_bank_syncer.run_sync_pipeline(url)
+    return res
 
 
 @router.post("/bank/add")

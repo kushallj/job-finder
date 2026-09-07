@@ -62,4 +62,15 @@ export const sidekickApi = {
     const res = await api.post('/api/sidekick/bank/add', payload);
     return res.data;
   },
+
+  syncSheet: async (sheetUrl?: string): Promise<{
+    status: string;
+    ingested_from_sheet: number;
+    total_questions: number;
+    trie_keys_indexed: number;
+    rag_documents_indexed: number;
+  }> => {
+    const res = await api.post('/api/sidekick/sync-sheet', { sheet_url: sheetUrl });
+    return res.data;
+  },
 };
