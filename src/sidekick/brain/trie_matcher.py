@@ -132,11 +132,12 @@ class InterviewKnowledgeTrie:
             data = json.load(f)
 
         with self._lock:
-            for category in ["dsa_patterns", "system_design_archetypes", "behavioral_star_matrix"]:
-                items = data.get(category, [])
-                for item in items:
-                    self.insert(item["title"], item)
-                    for kw in item.get("keywords", []):
-                        self.insert(kw, item)
+            for key, val in data.items():
+                if isinstance(val, list):
+                    for item in val:
+                        if isinstance(item, dict) and "title" in item:
+                            self.insert(item["title"], item)
+                            for kw in item.get("keywords", []):
+                                self.insert(kw, item)
 
         logger.info(f"⚡ In-Memory Interview Trie ready with {self.total_indexed_keys} indexed lookup paths.")

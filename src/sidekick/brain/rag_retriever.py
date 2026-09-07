@@ -74,9 +74,11 @@ class HybridRAGRetriever:
             data = json.load(f)
 
         with self._lock:
-            for category in ["dsa_patterns", "system_design_archetypes", "behavioral_star_matrix"]:
-                for item in data.get(category, []):
-                    self.add_document(item)
+            for key, val in data.items():
+                if isinstance(val, list):
+                    for item in val:
+                        if isinstance(item, dict) and "title" in item:
+                            self.add_document(item)
 
         logger.info(f"📚 Inverted Index BM25 RAG ready with {len(self.documents)} documents & {len(self.inverted_index)} distinct terms.")
 

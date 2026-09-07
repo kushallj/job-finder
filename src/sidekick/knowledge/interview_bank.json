@@ -1,9 +1,9 @@
 {
-  "version": "2.0.0",
+  "version": "2.1.0",
   "dsa_patterns": [
     {
       "id": "lru_cache",
-      "keywords": ["lru cache", "least recently used", "cache eviction", "lru", "design lru"],
+      "keywords": ["lru cache", "least recently used", "cache eviction", "lru", "design lru", "cache memory"],
       "title": "LRU Cache (Least Recently Used)",
       "category": "Data Structures & Design",
       "bullets": [
@@ -14,18 +14,18 @@
     },
     {
       "id": "two_sum",
-      "keywords": ["two sum", "pair with target sum", "find two numbers that add up to"],
-      "title": "Two Sum / Hash Map Lookup",
+      "keywords": ["two sum", "pair with target sum", "find two numbers that add up to", "three sum", "3sum", "two pointer"],
+      "title": "Two Sum & Three Sum (Hash Map / Two Pointers)",
       "category": "Arrays & Hashing",
       "bullets": [
-        "Core Pattern: Single-pass Hash Map storing complement (target - current_val -> index).",
-        "Complexity: Time: O(N) linear pass | Space: O(N) for dictionary.",
-        "Edge Cases: Exactly one solution guaranteed vs multiple pairs | Negative numbers and zero handling."
+        "Core Pattern: Single-pass Hash Map storing complement (target - current_val -> index). For 3Sum: Sort array, fix first element, use Two Pointers for remainder.",
+        "Complexity: Two Sum: O(N) time & O(N) space | 3Sum: O(N^2) time & O(1) space.",
+        "Edge Cases: Duplicate triplet avoidance (skip adjacent equal values) | Negative numbers and zero handling."
       ]
     },
     {
       "id": "sliding_window_max",
-      "keywords": ["sliding window maximum", "sliding window", "maximum in sliding window", "monotonic queue"],
+      "keywords": ["sliding window maximum", "sliding window", "maximum in sliding window", "monotonic queue", "monotonic deque"],
       "title": "Sliding Window Maximum (Monotonic Deque)",
       "category": "Queues & Monotonic Deque",
       "bullets": [
@@ -36,8 +36,8 @@
     },
     {
       "id": "top_k_frequent",
-      "keywords": ["top k frequent", "k most frequent elements", "bucket sort frequency"],
-      "title": "Top K Frequent Elements",
+      "keywords": ["top k frequent", "k most frequent elements", "bucket sort frequency", "quickselect", "k largest elements"],
+      "title": "Top K Frequent Elements (Bucket Sort / Min-Heap)",
       "category": "Heaps & Bucket Sort",
       "bullets": [
         "Core Pattern: Count frequencies in Map, then use Bucket Sort array where index = frequency (or Min-Heap of size K).",
@@ -47,8 +47,8 @@
     },
     {
       "id": "merge_intervals",
-      "keywords": ["merge intervals", "overlapping intervals", "interval scheduling", "insert interval"],
-      "title": "Merge Overlapping Intervals",
+      "keywords": ["merge intervals", "overlapping intervals", "interval scheduling", "insert interval", "meeting rooms"],
+      "title": "Merge Overlapping Intervals (Interval Scheduling)",
       "category": "Intervals & Sorting",
       "bullets": [
         "Core Pattern: Sort intervals by start time; iterate and merge if current.start <= previous.end by taking max(previous.end, current.end).",
@@ -58,8 +58,8 @@
     },
     {
       "id": "course_schedule_topo",
-      "keywords": ["course schedule", "topological sort", "cycle detection in directed graph", "kahns algorithm"],
-      "title": "Course Schedule (Topological Sort / Kahn's)",
+      "keywords": ["course schedule", "topological sort", "cycle detection in directed graph", "kahns algorithm", "dependency resolution"],
+      "title": "Course Schedule (Topological Sort / Kahn's Algorithm)",
       "category": "Graphs & Topological Sort",
       "bullets": [
         "Core Pattern: Directed Graph in-degree array + Queue (Kahn's BFS) or 3-color DFS (White/Gray/Black) cycle detection.",
@@ -69,7 +69,7 @@
     },
     {
       "id": "coin_change_dp",
-      "keywords": ["coin change", "fewest coins", "minimum coins to make amount", "unbounded knapsack"],
+      "keywords": ["coin change", "fewest coins", "minimum coins to make amount", "unbounded knapsack", "knapsack dp"],
       "title": "Coin Change (Bottom-Up Dynamic Programming)",
       "category": "Dynamic Programming",
       "bullets": [
@@ -77,23 +77,56 @@
         "Complexity: Time: O(Amount * Coins.length) | Space: O(Amount) array.",
         "Edge Cases: Amount = 0 returns 0 | Unreachable amount returns -1 (initialized to infinity)."
       ]
+    },
+    {
+      "id": "trapping_rain_water",
+      "keywords": ["trapping rain water", "rain water", "elevation map", "two pointers water"],
+      "title": "Trapping Rain Water (Two Pointers / Monotonic Stack)",
+      "category": "Two Pointers & Arrays",
+      "bullets": [
+        "Core Pattern: Two Pointers (left, right) with left_max and right_max trackers. If left_max < right_max, water trapped at left is left_max - height[left], move left inward.",
+        "Complexity: Time: O(N) single pass | Space: O(1) constant auxiliary memory.",
+        "Edge Cases: Strictly increasing/decreasing terrain traps 0 water | Less than 3 elevations."
+      ]
+    },
+    {
+      "id": "trie_prefix_tree",
+      "keywords": ["trie", "prefix tree", "autocomplete", "word search", "implement trie"],
+      "title": "Trie (Prefix Tree & Typeahead Search)",
+      "category": "Trees & Strings",
+      "bullets": [
+        "Core Pattern: Tree node with 26-child array / hash map + is_end boolean flag. Search/Insert iterates char by char.",
+        "Complexity: Insert: O(L) length of word | Search: O(L) | Prefix startsWith: O(L) | Space: O(Alphabet * N * L).",
+        "Edge Cases: Empty string search | Overlapping prefixes (app vs apple) | Unicode or special character sanitization."
+      ]
+    },
+    {
+      "id": "binary_search_rotated",
+      "keywords": ["search in rotated sorted array", "rotated array", "find minimum in rotated", "binary search rotated"],
+      "title": "Search in Rotated Sorted Array (Modified Binary Search)",
+      "category": "Binary Search",
+      "bullets": [
+        "Core Pattern: Standard mid calculation. At least one half [low..mid] or [mid..high] is always strictly sorted. Check if target lies within sorted half to discard the other half.",
+        "Complexity: Time: O(log N) logarithmic steps | Space: O(1) iterative space.",
+        "Edge Cases: Target at exact pivot index | Array not rotated (fully sorted) | Array of length 1 or 2."
+      ]
     }
   ],
   "system_design_archetypes": [
     {
       "id": "distributed_rate_limiter",
-      "keywords": ["rate limiter", "distributed rate limiting", "token bucket", "leaky bucket", "sliding window rate limit"],
-      "title": "Distributed Rate Limiter",
+      "keywords": ["rate limiter", "distributed rate limiting", "token bucket", "leaky bucket", "sliding window rate limit", "throttle api"],
+      "title": "Distributed Rate Limiter (Token Bucket / Redis Sliding Window)",
       "category": "High-Throughput Infra",
       "bullets": [
-        "Architecture: API Gateway -> Redis Cluster with Lua scripts running Token Bucket or Sliding Window Log for atomic checks.",
+        "Architecture: API Gateway -> Redis Cluster running atomic Lua scripts with Sliding Window Counter or Token Bucket.",
         "Trade-offs: Token Bucket allows bursts with low memory; Sliding Window Counter gives smooth rate at cost of slight approximation.",
         "Scale & Failure: Local in-memory fallback cache if Redis cluster degrades | Return HTTP 429 with 'Retry-After' header."
       ]
     },
     {
       "id": "url_shortener",
-      "keywords": ["url shortener", "design tinyurl", "bitly", "short link generator"],
+      "keywords": ["url shortener", "design tinyurl", "bitly", "short link generator", "base62"],
       "title": "URL Shortener (TinyURL / Bitly)",
       "category": "Scalable Web Services",
       "bullets": [
@@ -104,13 +137,68 @@
     },
     {
       "id": "consistent_hashing",
-      "keywords": ["consistent hashing", "virtual nodes", "distributed cache sharding", "ring hashing"],
+      "keywords": ["consistent hashing", "virtual nodes", "distributed cache sharding", "ring hashing", "dynamo hash ring"],
       "title": "Consistent Hashing & Virtual Nodes",
       "category": "Distributed Systems Core",
       "bullets": [
         "Architecture: Hash ring [0, 2^32 - 1]. Both server nodes and keys are hashed onto the ring; key assigned to first node clockwise.",
         "Virtual Nodes: Assign 100-250 virtual tokens per physical node to prevent hotspot skew and ensure uniform distribution.",
         "Rebalancing: When node N joins or leaves, only K/N keys are migrated rather than entire database."
+      ]
+    },
+    {
+      "id": "distributed_cache_invalidation",
+      "keywords": ["cache invalidation", "cache stampede", "thundering herd", "cache aside", "write through", "redis caching"],
+      "title": "Cache Invalidation, Stampede Protection & Patterns",
+      "category": "Caching & Performance",
+      "bullets": [
+        "Patterns: Cache-Aside (Lazy loading, app handles read/write) vs Write-Through (App writes to cache, cache writes to DB) vs Write-Behind.",
+        "Stampede / Thundering Herd: Protect hot key expiry via Mutex Lock (Singleflight coalescing) or Early Probabilistic Expiration (XFetch algorithm).",
+        "Penetration & Breakdown: Bloom Filter to reject non-existent IDs; Cache null values with short TTL for missing keys."
+      ]
+    },
+    {
+      "id": "distributed_locking",
+      "keywords": ["distributed lock", "distributed locking", "redlock", "redis lock", "zookeeper lock", "pessimistic lock"],
+      "title": "Distributed Locks (Redis Redlock / ZooKeeper)",
+      "category": "Distributed Concurrency",
+      "bullets": [
+        "Redis Mechanism: `SET resource_name my_random_token NX PX 30000` (Atomic set if not exists with TTL) + Lua script to release only if token matches.",
+        "Redlock Multi-Node: Acquire lock on majority (N/2 + 1) independent Redis masters within timeout window to survive master node crashes.",
+        "Fencing Tokens: Monotonically increasing counter passed with every write to prevent split-brain zombies from overwriting newer transactions."
+      ]
+    },
+    {
+      "id": "database_sharding",
+      "keywords": ["database sharding", "horizontal partitioning", "sharding key", "consistent sharding", "cross shard join"],
+      "title": "Database Sharding & Horizontal Partitioning",
+      "category": "Database Architecture",
+      "bullets": [
+        "Strategies: Hash-based sharding (uniform distribution, hard to range query) vs Range-based (great for timestamps, risk of hotspots) vs Directory-based.",
+        "Routing Tier: Stateless Shard Proxy (Vitess, Citus, or custom middleware) routing queries via Shard Key index map.",
+        "Pain Points & Mitigations: Avoid cross-shard joins by de-normalizing or co-locating related entity shards (e.g. users and user_orders on same shard)."
+      ]
+    },
+    {
+      "id": "cap_pacelc_theorem",
+      "keywords": ["cap theorem", "pacelc", "acid vs base", "eventual consistency", "strong consistency"],
+      "title": "CAP Theorem & PACELC Trade-offs",
+      "category": "Distributed Systems Theory",
+      "bullets": [
+        "CAP Core: Under Network Partition (P), you must choose either Consistency (C - reject stale writes) or Availability (A - serve stale data).",
+        "PACELC Extension: If Partition (P) -> choose Availability (A) or Consistency (C); Else (E) -> choose Latency (L) or Consistency (C).",
+        "Real-World Systems: Spanner/CockroachDB = CP; Cassandra/DynamoDB = AP (Tunable Quorum R + W > N for strong consistency)."
+      ]
+    },
+    {
+      "id": "distributed_transactions_saga",
+      "keywords": ["saga pattern", "two phase commit", "2pc", "distributed transaction", "compensation transaction"],
+      "title": "Distributed Transactions: 2PC vs Saga Pattern",
+      "category": "Transactional Microservices",
+      "bullets": [
+        "Two-Phase Commit (2PC): Prepare phase (vote) -> Commit phase. Blocking protocol, vulnerable to coordinator failure and poor latency.",
+        "Saga Pattern: Sequence of local transactions coordinated via Events (Choreography) or Central Orchestrator. Each step has a compensating rollback action.",
+        "Idempotency Requirement: Every service endpoint must accept idempotency keys with unique UUIDs to safely retry without duplicate side effects."
       ]
     },
     {
@@ -126,7 +214,7 @@
     },
     {
       "id": "kafka_stream_processing",
-      "keywords": ["kafka", "event streaming", "message broker", "at least once", "exactly once", "kafka partition"],
+      "keywords": ["kafka", "event streaming", "message broker", "at least once", "exactly once", "kafka partition", "rabbitmq vs kafka"],
       "title": "Kafka High-Throughput Event Streaming",
       "category": "Data Engineering & Messaging",
       "bullets": [
@@ -134,13 +222,70 @@
         "Zero-Copy Disk I/O: Sequential write to OS PageCache + `sendfile()` syscall bypasses user space directly to network socket.",
         "Consumer Groups: Scaled horizontally up to partition count. Offset commits enable At-Least-Once or Exactly-Once via 2PC transactional producer."
       ]
+    },
+    {
+      "id": "db_indexes_btree_lsm",
+      "keywords": ["database index", "btree vs lsm", "b tree", "lsm tree", "sstable", "wal", "postgres index"],
+      "title": "Database Storage Engines: B-Tree vs LSM Tree",
+      "category": "Database Internals",
+      "bullets": [
+        "B-Tree (PostgreSQL/MySQL): In-place balanced tree on disk. Fast O(log N) point lookups and range scans. Higher write amplification.",
+        "LSM-Tree (Cassandra/RocksDB): In-memory MemTable + Write-Ahead Log (WAL) flushed to immutable SSTables. Blazing write throughput; compaction merges SSTables.",
+        "Bloom Filters: Attached to each SSTable in LSM tree to immediately skip tables that do not contain the target key."
+      ]
+    }
+  ],
+  "concurrency_os_networking": [
+    {
+      "id": "deadlock_prevention",
+      "keywords": ["deadlock", "prevent deadlock", "coffman conditions", "dining philosophers", "race condition"],
+      "title": "Deadlock Detection & Prevention (4 Coffman Conditions)",
+      "category": "OS & Concurrency",
+      "bullets": [
+        "4 Necessary Conditions: Mutual Exclusion, Hold and Wait, No Preemption, and Circular Wait.",
+        "Prevention Strategies: Enforce global lock ordering (eliminates Circular Wait); use `tryLock()` with timeouts (eliminates No Preemption).",
+        "Detection & Recovery: Resource Allocation Graph with cycle detection -> Kill transaction with lowest rollback cost."
+      ]
+    },
+    {
+      "id": "tcp_vs_udp_handshake",
+      "keywords": ["tcp vs udp", "tcp handshake", "3 way handshake", "syn ack", "quic", "http3"],
+      "title": "TCP vs UDP & Connection Lifecycle",
+      "category": "Networking Protocols",
+      "bullets": [
+        "TCP 3-Way Handshake: SYN -> SYN-ACK -> ACK. Provides reliable byte stream, flow control (sliding window), and congestion control (slow start).",
+        "UDP: Connectionless, zero handshake latency, no retransmissions. Ideal for real-time gaming, VoIP, DNS, and HTTP/3 (QUIC over UDP).",
+        "Termination: 4-way FIN/ACK handshake with TIME_WAIT state (2 * MSL) to ensure final ACK was received and drain duplicate packets."
+      ]
+    },
+    {
+      "id": "sql_vs_nosql_selection",
+      "keywords": ["sql vs nosql", "relational vs non relational", "when to use postgres", "when to use mongodb"],
+      "title": "SQL vs NoSQL Architectural Selection Matrix",
+      "category": "Database Strategy",
+      "bullets": [
+        "Relational (PostgreSQL/MySQL): Strict ACID, complex relational joins, financial ledgers, transactional consistency, normalized schemas.",
+        "NoSQL (Mongo/Dynamo/Cassandra): High write volume, horizontal auto-sharding, unstructured/polymorphic payloads, high partition tolerance (BASE).",
+        "Polyglot Persistence: Combine PostgreSQL for core user/billing entities + Redis for ephemeral sessions + Cassandra for analytics logs."
+      ]
+    },
+    {
+      "id": "process_vs_thread_gil",
+      "keywords": ["process vs thread", "gil", "python gil", "multiprocessing vs multithreading", "context switch"],
+      "title": "Process vs Thread & Global Interpreter Lock (GIL)",
+      "category": "OS & Runtime Architecture",
+      "bullets": [
+        "Process vs Thread: Processes have isolated memory spaces; threads share heap/address space within the same process (fast context switch, race risk).",
+        "Python GIL: Mutex preventing multiple native threads from executing Python bytecodes simultaneously. Solves reference counting GC concurrency.",
+        "Bypassing GIL: Use `multiprocessing` for CPU-bound tasks (separate memory per core) or `asyncio` / thread pools for I/O-bound network calls."
+      ]
     }
   ],
   "behavioral_star_matrix": [
     {
       "id": "production_outage_conflict",
-      "keywords": ["tell me about a time you resolved a production issue", "major outage", "production incident", "system failure"],
-      "title": "Major Production Outage & Root-Cause Resolution",
+      "keywords": ["tell me about a time you resolved a production issue", "major outage", "production incident", "system failure", "sev 1", "site down"],
+      "title": "Major Production Outage & Root-Cause Resolution (STAR)",
       "category": "Leadership & Crisis Management",
       "bullets": [
         "Situation & Task: Payment webhook processing latency spiked to 45s during peak flash sale, causing cascading timeout failures.",
@@ -150,13 +295,24 @@
     },
     {
       "id": "technical_disagreement",
-      "keywords": ["disagreement with tech lead", "technical disagreement", "conflict with engineer", "convinced your team"],
-      "title": "Technical Architecture Disagreement & Consensus",
+      "keywords": ["disagreement with tech lead", "technical disagreement", "conflict with engineer", "convinced your team", "disagree and commit"],
+      "title": "Technical Architecture Disagreement & Consensus (STAR)",
       "category": "Collaboration & Technical Integrity",
       "bullets": [
         "Situation & Task: Team was debating migrating monolithic auth service to gRPC microservices vs optimizing existing connection pooling.",
         "Action: Built a benchmark spike proving 90% of latency was DB connection starvation, not HTTP/JSON overhead.",
         "Result: Saved 3 months of refactor engineering time; deployed connection pool fix that reduced p99 latency by 68%."
+      ]
+    },
+    {
+      "id": "tight_deadline_tradeoff",
+      "keywords": ["tight deadline", "unrealistic deadline", "delivered on time", "fast paced project"],
+      "title": "Tight Deadline & MVP Scope Negotiation (STAR)",
+      "category": "Execution & Delivery",
+      "bullets": [
+        "Situation & Task: 4-week deadline for enterprise SSO integration with Fortune 500 client before quarter end.",
+        "Action: Decoupled custom directory sync into Phase 2; implemented standard SAML 2.0 / OIDC flow first with extensive automated smoke tests.",
+        "Result: Delivered 3 days ahead of schedule, secured $420k enterprise contract, and completed Phase 2 without technical debt."
       ]
     }
   ]
