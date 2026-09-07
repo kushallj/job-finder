@@ -39,16 +39,16 @@ class Settings(BaseSettings):
 
     
     # Database
-    database_url: str
+    database_url: str = "sqlite:///./jobs.db"
     supabase_url: Optional[str] = None
     supabase_key: Optional[str] = None
     
     # Redis
-    redis_url: str
+    redis_url: str = "redis://localhost:6379/0"
     
     # Google
-    google_credentials_path: str
-    gmail_address: str
+    google_credentials_path: str = "config/google-service-account.json"
+    gmail_address: str = "kushall.jain07@gmail.com"
     gmail_password: Optional[str] = None
     
     # Email Discovery APIs
