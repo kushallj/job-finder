@@ -87,8 +87,52 @@ let recognition = null;
 let isClickThrough = false;
 let isCompact = false;
 
-// Sub-microsecond Trie / In-Memory Search
-function searchBank(query) {
+// Conversational filler cleaner
+const CONV_PREFIXES = [
+  /^(can you|could you|would you|please)?\s*(walk me through|tell me about|explain|describe|what is|how does|how do you|how would you)\s+/i,
+  /^(so|well|okay|now|next|also|tell me|give me|can you share)\s+/i,
+];
+
+function cleanQuestion(raw) {
+  let cleaned = raw.trim();
+  for (const rx of CONV_PREFIXES) {
+    cleaned = cleaned.replace(rx, '');
+  }
+  return cleaned.trim() || raw.trim();
+}
+
+// Multi-Tier Search: Backend Trie/RAG API (<100µs) with Local In-Memory Fallback
+async function executeQuery(query) {
+  const t0 = performance.now();
+  const cleaned = cleanQuestion(query);
+  if (!cleaned) return;
+
+  try {
+    const res = await fetch('http://127.0.0.1:8000/api/sidekick/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: cleaned })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const t1 = performance.now();
+      const latencyUs = data.latency_microseconds || (t1 - t0) * 1000;
+      renderResult(data, latencyUs);
+      return;
+    }
+  } catch (_) {
+    // Local offline fallback
+  }
+
+  // Local Trie Search
+  const match = searchLocalBank(cleaned);
+  if (match) {
+    renderResult(match.item, match.latency);
+  }
+}
+
+// Sub-microsecond Local In-Memory Fallback
+function searchLocalBank(query) {
   const t0 = performance.now();
   const q = query.toLowerCase().trim();
   if (!q) return null;
@@ -145,8 +189,7 @@ function renderResult(item, latencyUs) {
 queryInput.addEventListener('input', (e) => {
   const val = e.target.value;
   if (!val.trim()) return;
-  const match = searchBank(val);
-  if (match) renderResult(match.item, match.latency);
+  executeQuery(val);
 });
 
 // Preset Button Clicks
@@ -154,8 +197,7 @@ document.querySelectorAll('.preset-chip').forEach((btn) => {
   btn.addEventListener('click', () => {
     const q = btn.getAttribute('data-query');
     queryInput.value = q;
-    const match = searchBank(q);
-    if (match) renderResult(match.item, match.latency);
+    executeQuery(q);
   });
 });
 
@@ -257,7 +299,7 @@ function updateCadenceMetrics(transcript) {
   if (clarityValue) clarityValue.textContent = `${clarity}%`;
 }
 
-// Speech Recognition (Web Speech API)
+// Speech Recognition (Web Speech API) with Continuous Auto-Reconnect
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SpeechRec();
@@ -265,17 +307,39 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   recognition.interimResults = true;
   recognition.lang = 'en-US';
 
+  let debounceSpeech = null;
+
   recognition.onresult = (event) => {
     const transcript = Array.from(event.results)
       .map((r) => r[0].transcript)
-      .join(' ');
+      .join(' ')
+      .trim();
+    if (!transcript) return;
     queryInput.value = transcript;
     updateCadenceMetrics(transcript);
-    const match = searchBank(transcript);
-    if (match) renderResult(match.item, match.latency);
+
+    if (debounceSpeech) clearTimeout(debounceSpeech);
+    debounceSpeech = setTimeout(() => {
+      executeQuery(transcript);
+    }, 200);
   };
 
-  recognition.onerror = (e) => console.log('Speech error:', e);
+  recognition.onerror = (e) => {
+    if (e.error !== 'no-speech') {
+      console.log('Speech error:', e);
+    }
+  };
+
+  recognition.onend = () => {
+    // Keep listening active continuously
+    if (isMicListening) {
+      setTimeout(() => {
+        if (isMicListening) {
+          try { recognition.start(); } catch (_) {}
+        }
+      }, 200);
+    }
+  };
 }
 
 micBtn.addEventListener('click', () => {
