@@ -136,41 +136,76 @@ export const InterviewSidekickHUD: React.FC = () => {
     }
   };
 
-  // Start Real-Time Audio Level VU Meter
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  // Start Real-Time Audio Level VU Meter & Continuous Backend Chunk Transcriber
   const startAudioMeter = async (stream: MediaStream) => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
+      if (AudioCtx) {
+        const audioCtx = new AudioCtx();
+        audioContextRef.current = audioCtx;
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        source.connect(analyser);
 
-      const audioCtx = new AudioCtx();
-      audioContextRef.current = audioCtx;
-      const source = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 64;
-      source.connect(analyser);
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
 
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
+        const updateMeter = () => {
+          if (!isListeningRef.current) {
+            setAudioLevel(0);
+            return;
+          }
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            sum += dataArray[i];
+          }
+          const avg = sum / bufferLength;
+          const normalized = Math.min(100, Math.round((avg / 128) * 100));
+          setAudioLevel(normalized);
+          animationFrameRef.current = requestAnimationFrame(updateMeter);
+        };
 
-      const updateMeter = () => {
-        if (!isListeningRef.current) {
-          setAudioLevel(0);
-          return;
+        updateMeter();
+      }
+
+      // Continuous MediaRecorder Streamer (Backend AI Transcriber Backup)
+      if (typeof MediaRecorder !== 'undefined') {
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : MediaRecorder.isTypeSupported('audio/mp4')
+          ? 'audio/mp4'
+          : '';
+
+        if (mimeType) {
+          const recorder = new MediaRecorder(stream, { mimeType });
+          mediaRecorderRef.current = recorder;
+          recorder.ondataavailable = async (e) => {
+            if (e.data && e.data.size > 2000 && isListeningRef.current) {
+              try {
+                const res = await sidekickApi.transcribeAudio(e.data);
+                if (res.transcript && res.transcript.trim()) {
+                  const text = res.transcript.trim();
+                  setHeardSpeech(text);
+                  setQueryInput(text);
+                  setLiveTranscriptLog((prev) => [text, ...prev.slice(0, 4)]);
+                  if (res.query_response) {
+                    setActiveResponse(res.query_response);
+                  }
+                }
+              } catch (_) {}
+            }
+          };
+          recorder.start(2500); // 2.5s slices
         }
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < bufferLength; i++) {
-          sum += dataArray[i];
-        }
-        const avg = sum / bufferLength;
-        const normalized = Math.min(100, Math.round((avg / 128) * 100));
-        setAudioLevel(normalized);
-        animationFrameRef.current = requestAnimationFrame(updateMeter);
-      };
-
-      updateMeter();
+      }
     } catch (err) {
-      console.warn('Audio meter setup warning:', err);
+      console.warn('Audio meter / streaming setup warning:', err);
     }
   };
 
@@ -183,6 +218,12 @@ export const InterviewSidekickHUD: React.FC = () => {
     if (audioContextRef.current) {
       audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (_) {}
+      mediaRecorderRef.current = null;
     }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());

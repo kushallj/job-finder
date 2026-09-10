@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 import time
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 
 from src.sidekick.native import set_window_invisible, is_invisibility_supported
@@ -147,6 +147,75 @@ async def sync_google_sheet_question_bank(req: Optional[SyncSheetRequest] = None
     return res
 
 
+@router.post("/audio/transcribe")
+async def transcribe_audio_chunk(file: UploadFile = File(...)) -> Dict[str, Any]:
+    """
+    Transcribes an incoming audio chunk (WebM, WAV, OGG, MP4) via high-accuracy SpeechRecognition
+    and automatically executes sub-microsecond Trie/RAG matching for instant live suggestions.
+    """
+    import subprocess
+    import tempfile
+    import speech_recognition as sr
+
+    try:
+        audio_bytes = await file.read()
+        if not audio_bytes or len(audio_bytes) < 100:
+            return {"status": "empty", "transcript": "", "query_response": None}
+
+        # Save to temporary input file
+        with tempfile.NamedTemporaryFile(suffix=".raw_audio", delete=False) as in_f:
+            in_f.write(audio_bytes)
+            in_f_path = in_f.name
+
+        out_wav_path = in_f_path + ".wav"
+
+        # Convert to 16kHz Mono WAV using ffmpeg if available
+        ffmpeg_bin = "/opt/homebrew/bin/ffmpeg" if os.path.exists("/opt/homebrew/bin/ffmpeg") else "ffmpeg"
+        try:
+            cmd = [
+                ffmpeg_bin, "-y", "-i", in_f_path,
+                "-ar", "16000", "-ac", "1", "-f", "wav", out_wav_path
+            ]
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            wav_file_to_read = out_wav_path
+        except Exception:
+            wav_file_to_read = in_f_path
+
+        r = sr.Recognizer()
+        transcript = ""
+        try:
+            with sr.AudioFile(wav_file_to_read) as source:
+                audio_data = r.record(source)
+                transcript = r.recognize_google(audio_data)
+        except sr.UnknownValueError:
+            # Silence or unintelligible speech in this small chunk
+            return {"status": "no_speech", "transcript": "", "query_response": None}
+        except Exception as e:
+            return {"status": "transcribe_error", "message": str(e), "transcript": "", "query_response": None}
+        finally:
+            # Cleanup temp files
+            for p in [in_f_path, out_wav_path]:
+                if os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except Exception:
+                        pass
+
+        if not transcript or len(transcript.strip()) < 2:
+            return {"status": "empty", "transcript": "", "query_response": None}
+
+        # Automatically execute query against Trie & RAG knowledge bank
+        query_res = await execute_sidekick_query(SidekickQueryRequest(query=transcript.strip()))
+
+        return {
+            "status": "success",
+            "transcript": transcript.strip(),
+            "query_response": query_res,
+        }
+    except Exception as exc:
+        return {"status": "error", "message": str(exc), "transcript": "", "query_response": None}
+
+
 @router.post("/bank/add")
 def add_custom_question(req: CustomQuestionAddRequest) -> Dict[str, Any]:
     """Inserts a custom question into both in-memory Trie AND Inverted Index RAG."""
@@ -166,3 +235,4 @@ def add_custom_question(req: CustomQuestionAddRequest) -> Dict[str, Any]:
         "total_trie_keys": trie_engine.total_indexed_keys,
         "total_rag_documents": len(rag_engine.documents),
     }
+

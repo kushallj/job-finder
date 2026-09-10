@@ -342,18 +342,81 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   };
 }
 
+let mediaStream = null;
+let mediaRecorder = null;
+
+async function startMediaRecorderStream() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaStream = stream;
+
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/webm')
+      ? 'audio/webm'
+      : '';
+
+    if (mimeType) {
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorder = recorder;
+      recorder.ondataavailable = async (e) => {
+        if (e.data && e.data.size > 2000 && isMicListening) {
+          try {
+            const formData = new FormData();
+            formData.append('file', e.data, 'chunk.webm');
+            const res = await fetch('http://127.0.0.1:8000/api/sidekick/audio/transcribe', {
+              method: 'POST',
+              body: formData,
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.transcript && data.transcript.trim()) {
+                const text = data.transcript.trim();
+                queryInput.value = text;
+                updateCadenceMetrics(text);
+                if (data.query_response) {
+                  renderResult(data.query_response, data.query_response.latency_microseconds || 50);
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      };
+      recorder.start(2500); // 2.5s slices
+    }
+  } catch (err) {
+    console.warn('Microphone MediaRecorder error:', err);
+  }
+}
+
+function stopMediaRecorderStream() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    try { mediaRecorder.stop(); } catch (_) {}
+    mediaRecorder = null;
+  }
+  if (mediaStream) {
+    mediaStream.getTracks().forEach((t) => t.stop());
+    mediaStream = null;
+  }
+}
+
 micBtn.addEventListener('click', () => {
-  if (!recognition) return;
   isMicListening = !isMicListening;
   if (isMicListening) {
     micBtn.classList.add('active');
     speechStartTime = Date.now();
-    try { recognition.start(); } catch (_) {}
+    startMediaRecorderStream();
+    if (recognition) {
+      try { recognition.start(); } catch (_) {}
+    }
   } else {
     micBtn.classList.remove('active');
     if (monologueInterval) clearInterval(monologueInterval);
     speechStartTime = null;
     if (rambleBanner) rambleBanner.style.display = 'none';
-    try { recognition.stop(); } catch (_) {}
+    stopMediaRecorderStream();
+    if (recognition) {
+      try { recognition.stop(); } catch (_) {}
+    }
   }
 });

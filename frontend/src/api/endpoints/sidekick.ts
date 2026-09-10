@@ -73,4 +73,17 @@ export const sidekickApi = {
     const res = await api.post('/api/sidekick/sync-sheet', { sheet_url: sheetUrl });
     return res.data;
   },
+
+  transcribeAudio: async (audioBlob: Blob): Promise<{
+    status: string;
+    transcript: string;
+    query_response: SidekickQueryResponse | null;
+  }> => {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'chunk.webm');
+    const res = await api.post('/api/sidekick/audio/transcribe', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
 };

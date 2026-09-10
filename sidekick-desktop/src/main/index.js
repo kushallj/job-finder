@@ -153,6 +153,20 @@ app.whenReady().then(() => {
     app.dock.hide();
   }
 
+  // Handle media & microphone permissions in Electron
+  const { session, systemPreferences } = require('electron');
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (permission === 'media' || permission === 'microphone' || permission === 'audio-capture') {
+      callback(true);
+    } else {
+      callback(true);
+    }
+  });
+
+  if (process.platform === 'darwin' && systemPreferences.askForMediaAccess) {
+    systemPreferences.askForMediaAccess('microphone').catch(() => {});
+  }
+
   createGhostWindow();
   registerGlobalShortcuts();
   setupIPC();
