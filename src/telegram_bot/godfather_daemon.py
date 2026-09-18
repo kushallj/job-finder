@@ -161,3 +161,40 @@ class GodfatherDaemon:
             "latest_findings": self.latest_radar_findings,
         })
         return bot_status
+
+
+if __name__ == "__main__":
+    import asyncio
+    import signal
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+
+    daemon = GodfatherDaemon()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    async def _main() -> None:
+        await daemon.start()
+        logger.info("👑 Godfather Daemon running. Press Ctrl+C to stop.")
+        # Keep the event loop alive indefinitely
+        stop_event = asyncio.Event()
+
+        def _shutdown(sig: int, _frame: object) -> None:
+            logger.info(f"Received signal {sig}. Initiating graceful shutdown…")
+            loop.call_soon_threadsafe(stop_event.set)
+
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            signal.signal(sig, _shutdown)
+
+        await stop_event.wait()
+        await daemon.stop()
+        logger.info("👑 Godfather Daemon stopped cleanly.")
+
+    try:
+        loop.run_until_complete(_main())
+    finally:
+        loop.close()

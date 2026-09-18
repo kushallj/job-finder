@@ -163,6 +163,7 @@ config/*
 .blackboxcli/
 .env
 .env
+dsm_deploy/docker_images
 
 # Node
 node_modules/

@@ -1,0 +1,36 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Git & IDE
+.git
+.gitignore
+.idea
+.vscode
+.DS_Store
+
+# Test & coverage
+.pytest_cache
+.coverage
+htmlcov/
+.hypothesis/
+
+# Node & Frontend / Electron local builds
+node_modules/
+frontend/node_modules/
+frontend/dist/
+sidekick-desktop/node_modules/
+sidekick-desktop/dist/
+
+# Local databases & logs
+*.log
+celerybeat-schedule*
+*.sqlite3
+dsm_deploy/docker_images/

@@ -23,6 +23,7 @@ camoufox==0.4.3
 googlesearch-python==1.2.3
 
 # PDF Processing
+pypdf>=3.17.0
 PyPDF2==3.0.1
 pdfplumber==0.10.3
 reportlab==4.0.7

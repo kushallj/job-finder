@@ -2,6 +2,11 @@
   "name": "job-finder-monorepo",
   "version": "2.1.0",
   "scripts": {
+    "docker:build": "docker compose build",
+    "docker:save-tar": "bash dsm_deploy/export_docker_images.sh",
+    "docker:build-and-save": "npm run docker:build && npm run docker:save-tar",
+    "dsm:upload": "node dsm_deploy/jf_dsm_upload_service/client-deploy.mjs --subfolder=kj_job_finder/x_deployment",
+    "dsm:deploy": "npm run docker:build-and-save && npm run dsm:upload",
     "sidekick": "cd sidekick-desktop && npm start",
     "sidekick:install": "cd sidekick-desktop && npm install",
     "sidekick:build": "cd sidekick-desktop && npm run build",

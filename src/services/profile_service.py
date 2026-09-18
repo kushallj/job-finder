@@ -12,9 +12,15 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-import yaml
-from sqlalchemy.orm import Session
-from pypdf import PdfReader
+import yaml  # type: ignore # pyrefly: ignore [missing-import]
+from sqlalchemy.orm import Session  # type: ignore # pyrefly: ignore [missing-import]
+try:
+    from pypdf import PdfReader  # type: ignore
+except ImportError:
+    try:
+        from PyPDF2 import PdfReader  # type: ignore
+    except ImportError:
+        PdfReader = None  # type: ignore
 
 from src.models import CandidateProfile, TargetCompanyRecord, OutreachFunnelEvent
 from src.ai.unified_ai_service import UnifiedAIService
@@ -40,6 +46,8 @@ class ProfileService:
 
     def parse_resume_pdf(self, pdf_bytes: bytes) -> str:
         """Extract text from uploaded PDF bytes."""
+        if PdfReader is None:
+            raise ValueError("PDF parsing library (pypdf/PyPDF2) is not installed.")
         try:
             reader = PdfReader(io.BytesIO(pdf_bytes))
             text_chunks = []

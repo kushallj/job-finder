@@ -2,6 +2,8 @@ import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 export const STORAGE_KEY_API_URL = 'job_finder_api_url';
 
+const DEFAULT_API_BASE_URL = 'http://localhost:8000';
+
 export const getActiveApiBaseUrl = (): string => {
 
   if (typeof window !== 'undefined') {
@@ -14,7 +16,7 @@ export const getActiveApiBaseUrl = (): string => {
   if (envUrl && envUrl.trim()) {
     return envUrl.trim().replace(/\/+$/, '');
   }
-  return '';
+  return DEFAULT_API_BASE_URL;
 };
 
 export const setActiveApiBaseUrl = (url: string): void => {

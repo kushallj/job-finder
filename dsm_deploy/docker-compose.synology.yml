@@ -1,0 +1,220 @@
+# ==============================================================================
+# kj_job_finder — Docker Compose Stack
+# ==============================================================================
+# Service Name & Image Tag Reference (used by dsm_file_receiver.mjs)
+#
+# Each tar uploaded as jf_<service_key>.tar triggers a full redeploy sequence:
+#   docker compose stop <SERVICE_NAME>
+#   docker compose rm -f <SERVICE_NAME>
+#   docker rmi -f <IMAGE_TAG>
+#   docker load -i x_deployment/jf_<service_key>.tar
+#   docker compose up -d <SERVICE_NAME>
+#
+# Overridable via environment variables in dsm_upload_service .env:
+#   DOCKER_KJ_JOB_FINDER_SERVICE_<KEY>  →  compose service name
+#   DOCKER_KJ_JOB_FINDER_IMAGE_<KEY>    →  Docker image tag
+#
+# | Env key suffix    | Service name    | Image tag                  | Upload tar filename       |
+# |-------------------|-----------------|----------------------------|---------------------------|
+# | POSTGRES          | postgres        | jf_postgres:latest         | jf_postgres.tar           |
+# | REDIS             | redis           | jf_redis:latest            | jf_redis.tar              |
+# | API               | api             | jf_api:latest              | jf_api.tar                |
+# | CELERY_WORKER     | celery_worker   | jf_celery_worker:latest    | jf_celery_worker.tar      |
+# | CELERY_BEAT       | celery_beat     | jf_celery_beat:latest      | jf_celery_beat.tar        |
+# | CELERY_FLOWER     | celery_flower   | jf_celery_flower:latest    | jf_celery_flower.tar      |
+# | TELEGRAM_DAEMON   | telegram_daemon | jf_telegram_daemon:latest  | jf_telegram_daemon.tar    |
+# | FRONTEND          | frontend        | jf_frontend:latest         | jf_frontend.tar           |
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # 1. Database: PostgreSQL
+  # ============================================================================
+  postgres:
+    image: jf_postgres:latest
+    container_name: jf_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-job_finder_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - '5434:5432'
+    volumes:
+      - /volume1/docker/kj_job_finder/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-job_finder_db}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # 2. In-Memory Broker & Cache: Redis
+  # ============================================================================
+  redis:
+    image: jf_redis:latest
+    container_name: jf_redis
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - /volume1/docker/kj_job_finder/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ============================================================================
+  # 3. Core Backend API: FastAPI
+  # ============================================================================
+  api:
+    image: jf_api:latest
+    container_name: jf_api
+    restart: always
+    command:
+      [
+        "sh",
+        "-c",
+        "python -c 'from src.database import init_db; init_db()' && uvicorn main:app --host 0.0.0.0 --port 8000",
+      ]
+    environment:
+      - ENV=${ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-job_finder_db}
+      - REDIS_URL=redis://redis:6379/0
+      - PORT=8000
+    env_file:
+      - /volume1/docker/kj_job_finder/x_deployment/.env
+    ports:
+      - '8001:8000'
+    volumes:
+      - /volume1/docker/kj_job_finder/data:/app/data
+      - /volume1/docker/kj_job_finder/config:/app/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+
+  # ============================================================================
+  # 4. Background Task Queue: Celery Worker
+  # ============================================================================
+  celery_worker:
+    image: jf_celery_worker:latest
+    container_name: jf_celery_worker
+    restart: always
+    command:
+      [
+        "celery",
+        "-A",
+        "src.tasks",
+        "worker",
+        "--loglevel=info",
+        "--concurrency=4",
+        "--queues=celery",
+      ]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-job_finder_db}
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - /volume1/docker/kj_job_finder/x_deployment/.env
+    volumes:
+      - /volume1/docker/kj_job_finder/data:/app/data
+      - /volume1/docker/kj_job_finder/config:/app/config
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  # ============================================================================
+  # 5. Periodic Task Scheduler: Celery Beat
+  # ============================================================================
+  celery_beat:
+    image: jf_celery_beat:latest
+    container_name: jf_celery_beat
+    restart: always
+    command:
+      [
+        "celery",
+        "-A",
+        "src.tasks",
+        "beat",
+        "--loglevel=info",
+        "--scheduler",
+        "celery.beat.PersistentScheduler",
+      ]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-job_finder_db}
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - /volume1/docker/kj_job_finder/x_deployment/.env
+    volumes:
+      - /volume1/docker/kj_job_finder/data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # 6. Celery Monitoring Dashboard: Flower
+  # ============================================================================
+  celery_flower:
+    image: jf_celery_flower:latest
+    container_name: jf_celery_flower
+    restart: always
+    command: ["celery", "-A", "src.tasks", "flower", "--port=5555"]
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - '5555:5555'
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # 7. 24x7 Telegram Radar Bot Daemon
+  # ============================================================================
+  telegram_daemon:
+    image: jf_telegram_daemon:latest
+    container_name: jf_telegram_daemon
+    restart: always
+    command: ["python", "-m", "src.telegram_bot.godfather_daemon"]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-job_finder_db}
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - /volume1/docker/kj_job_finder/x_deployment/.env
+    volumes:
+      - /volume1/docker/kj_job_finder/data:/app/data
+      - /volume1/docker/kj_job_finder/config:/app/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # 8. Frontend Web Dashboard (Vite + React + Nginx Reverse Proxy)
+  # ============================================================================
+  frontend:
+    image: jf_frontend:latest
+    container_name: jf_frontend
+    restart: always
+    ports:
+      - '3001:3001'
+    depends_on:
+      api:
+        condition: service_healthy

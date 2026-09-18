@@ -1,0 +1,244 @@
+services:
+  # ============================================================================
+  # 1. Database: PostgreSQL
+  # ============================================================================
+  postgres:
+    image: jf_postgres:latest
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM postgres:16-alpine
+    container_name: jf_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-job_finder_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-job_finder_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # 2. In-Memory Broker & Cache: Redis
+  # ============================================================================
+  redis:
+    image: jf_redis:latest
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM redis:7-alpine
+    container_name: jf_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ============================================================================
+  # 3. Core Backend API: FastAPI
+  # ============================================================================
+  api:
+    image: jf_api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jf_api
+    restart: unless-stopped
+    command: ["sh", "-c", "python migrate_database.py || true && uvicorn main:app --host 0.0.0.0 --port 8000"]
+    environment:
+      - ENV=${ENV:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-job_finder_db}
+      - REDIS_URL=redis://redis:6379/0
+      - PORT=8000
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ============================================================================
+  # 4. Background Task Queue: Celery Worker
+  # ============================================================================
+  celery_worker:
+    image: jf_celery_worker:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jf_celery_worker
+    restart: unless-stopped
+    command: ["celery", "-A", "src.tasks", "worker", "--loglevel=info", "--concurrency=4", "--queues=celery"]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-job_finder_db}
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  # ============================================================================
+  # 5. Periodic Task Scheduler: Celery Beat
+  # ============================================================================
+  celery_beat:
+    image: jf_celery_beat:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jf_celery_beat
+    restart: unless-stopped
+    command: ["celery", "-A", "src.tasks", "beat", "--loglevel=info", "--scheduler", "celery.beat.PersistentScheduler"]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-job_finder_db}
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # 6. Celery Monitoring Dashboard: Flower
+  # ============================================================================
+  celery_flower:
+    image: jf_celery_flower:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jf_celery_flower
+    restart: unless-stopped
+    command: ["celery", "-A", "src.tasks", "flower", "--port=5555"]
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # 7. 24x7 Telegram Radar Bot Daemon
+  # ============================================================================
+  telegram_daemon:
+    image: jf_telegram_daemon:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jf_telegram_daemon
+    restart: unless-stopped
+    command: ["python", "-m", "src.telegram_bot.godfather_daemon"]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-job_finder_db}
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # 8. Frontend Web Dashboard (Vite + React + Nginx Reverse Proxy)
+  # ============================================================================
+  frontend:
+    image: jf_frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: jf_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ============================================================================
+  # 9. Optional Workflow Automation: n8n
+  # ============================================================================
+  n8n:
+    image: jf_n8n:latest
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM docker.n8n.io/n8nio/n8n:latest
+    container_name: jf_n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=UTC
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n_workflows:/data/workflows
+    profiles:
+      - optional
+
+  # ============================================================================
+  # 10. Optional Local AI LLM Engine: Ollama
+  # ============================================================================
+  ollama:
+    image: jf_ollama:latest
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM ollama/ollama:latest
+    container_name: jf_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    profiles:
+      - optional
+
+volumes:
+  postgres_data:
+  redis_data:
+  n8n_data:
+  ollama_data:

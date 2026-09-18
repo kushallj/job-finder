@@ -26,9 +26,10 @@ import {
 import { xReferralsApi } from '../api/endpoints/x_referrals';
 import { notificationsApi } from '../api/endpoints/notifications';
 import type { NotificationConfig } from '../api/endpoints/notifications';
+import { getActiveApiBaseUrl } from '../api/axios';
 
 export const Settings: React.FC = () => {
-  const [apiUrl] = useState('http://localhost:8000');
+  const [apiUrl] = useState(getActiveApiBaseUrl());
   const [notifConfig, setNotifConfig] = useState<NotificationConfig>({
     telegram_bot_token: '',
     telegram_chat_id: '',

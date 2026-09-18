@@ -1,21 +1,26 @@
 from contextlib import contextmanager
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy import create_engine, event, inspect, text as _text  # type: ignore # pyrefly: ignore [missing-import]
+from sqlalchemy.orm import sessionmaker, Session  # type: ignore # pyrefly: ignore [missing-import]
 from src.config import settings
 from src.models import Base
 from src.answer_bank import models as _answer_bank_models  # noqa: F401  (registers AnsweredQuestion on Base.metadata)
 
+connect_args = {}
+if settings.database_url.startswith("sqlite"):
+    connect_args["check_same_thread"] = False
+
 engine = create_engine(
     settings.database_url,
-    connect_args={"check_same_thread": False},
+    connect_args=connect_args,
     pool_pre_ping=True,
 )
 
-@event.listens_for(engine, "connect")
-def set_sqlite_pragma(dbapi_connection, connection_record):
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.close()
+if settings.database_url.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -33,7 +38,6 @@ def init_db():
     """Initialize database tables and add nullable columns to existing SQLite DBs."""
     Base.metadata.create_all(bind=engine)
     if engine.url.get_backend_name() == "sqlite":
-        from sqlalchemy import inspect, text as _text
         inspector = inspect(engine)
         tables = set(inspector.get_table_names())
         if "jobs" in tables:
