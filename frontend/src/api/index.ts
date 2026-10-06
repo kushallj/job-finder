@@ -27,6 +27,7 @@ export { tsentaApi } from './endpoints/tsenta';
 export { configApi } from './endpoints/config';
 export { profileApi } from './endpoints/profile';
 export { sidekickApi } from './endpoints/sidekick';
+export { nextraiseApi } from './endpoints/nextraise';
 
 
 

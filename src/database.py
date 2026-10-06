@@ -4,6 +4,7 @@ from sqlalchemy.orm import sessionmaker, Session  # type: ignore # pyrefly: igno
 from src.config import settings
 from src.models import Base
 from src.answer_bank import models as _answer_bank_models  # noqa: F401  (registers AnsweredQuestion on Base.metadata)
+from src.nextraise import models as _nextraise_models      # noqa: F401  (registers NextRaise on Base.metadata)
 
 connect_args = {}
 if settings.database_url.startswith("sqlite"):

@@ -172,7 +172,7 @@ export const InterviewSidekickHUD: React.FC = () => {
         updateMeter();
       }
 
-      // Continuous MediaRecorder Streamer (Backend AI Transcriber Backup)
+      // Continuous MediaRecorder Streamer (Backend AI Transcriber Backup with Standalone Cycles)
       if (typeof MediaRecorder !== 'undefined') {
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
           ? 'audio/webm;codecs=opus'
@@ -182,27 +182,54 @@ export const InterviewSidekickHUD: React.FC = () => {
           ? 'audio/mp4'
           : '';
 
-        if (mimeType) {
-          const recorder = new MediaRecorder(stream, { mimeType });
+        const runStandaloneChunkCycle = () => {
+          if (!isListeningRef.current || !stream.active) return;
+
+          const chunks: Blob[] = [];
+          let recorder: MediaRecorder;
+          try {
+            recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+          } catch (_) {
+            recorder = new MediaRecorder(stream);
+          }
           mediaRecorderRef.current = recorder;
-          recorder.ondataavailable = async (e) => {
-            if (e.data && e.data.size > 2000 && isListeningRef.current) {
-              try {
-                const res = await sidekickApi.transcribeAudio(e.data);
-                if (res.transcript && res.transcript.trim()) {
-                  const text = res.transcript.trim();
-                  setHeardSpeech(text);
-                  setQueryInput(text);
-                  setLiveTranscriptLog((prev) => [text, ...prev.slice(0, 4)]);
-                  if (res.query_response) {
-                    setActiveResponse(res.query_response);
+
+          recorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) chunks.push(e.data);
+          };
+
+          recorder.onstop = async () => {
+            if (chunks.length > 0 && isListeningRef.current) {
+              const fullBlob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+              if (fullBlob.size > 600) {
+                try {
+                  const res = await sidekickApi.transcribeAudio(fullBlob);
+                  if (res.transcript && res.transcript.trim()) {
+                    const text = res.transcript.trim();
+                    setHeardSpeech(text);
+                    setQueryInput(text);
+                    setLiveTranscriptLog((prev) => [text, ...prev.slice(0, 4)]);
+                    if (res.query_response) {
+                      setActiveResponse(res.query_response);
+                    }
                   }
-                }
-              } catch (_) {}
+                } catch (_) {}
+              }
+            }
+            if (isListeningRef.current) {
+              runStandaloneChunkCycle();
             }
           };
-          recorder.start(2500); // 2.5s slices
-        }
+
+          recorder.start();
+          setTimeout(() => {
+            if (recorder.state === 'recording') {
+              try { recorder.stop(); } catch (_) {}
+            }
+          }, 2500);
+        };
+
+        runStandaloneChunkCycle();
       }
     } catch (err) {
       console.warn('Audio meter / streaming setup warning:', err);

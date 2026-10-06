@@ -61,6 +61,131 @@ async function handleMessage(message, sender) {
         timeoutMs: 60000,
       });
 
+    case "NEXTRAISE_GET_STATUS":
+      return apiFetch("/api/nextraise/status");
+
+    case "NEXTRAISE_BATCH_APPLY":
+      return apiFetch("/api/nextraise/batch-apply", {
+        method: "POST",
+        body: {
+          target_count: message.targetCount ?? 250,
+          min_fit_score: message.minFitScore ?? 50,
+        },
+        timeoutMs: 180000,
+      });
+
+    case "NEXTRAISE_APPLY_JOB":
+      return apiFetch(`/api/nextraise/apply/${message.jobId}`, {
+        method: "POST",
+        timeoutMs: 60000,
+      });
+
+    case "WORKDAY_GET_STATUS":
+      return apiFetch("/api/workday/status");
+
+    case "WORKDAY_BATCH_APPLY":
+      return apiFetch("/api/workday/batch-apply", {
+        method: "POST",
+        body: {
+          target_count: message.targetCount ?? 25,
+          min_fit_score: message.minFitScore ?? 60,
+        },
+        timeoutMs: 180000,
+      });
+
+    case "WORKDAY_APPLY_JOB":
+      return apiFetch(`/api/workday/apply/${message.jobId}`, {
+        method: "POST",
+        timeoutMs: 60000,
+      });
+
+    case "WORKDAY_GET_PROFILE":
+      return apiFetch("/api/workday/profile");
+
+    case "RESOLVE_QUESTION":
+      return apiFetch("/api/workday/resolve-question", {
+        method: "POST",
+        body: {
+          question: message.question,
+          job_title: message.job_title || "Software Engineer",
+          company: message.company || "Company",
+          job_description: message.job_description || "",
+          category: message.category,
+        },
+        timeoutMs: 60000,
+      });
+
+    case "SAVE_ANSWER":
+      return apiFetch("/api/workday/save-answer", {
+        method: "POST",
+        body: {
+          question: message.question,
+          answer: message.answer,
+          category: message.category,
+          source: message.source || "user_edited",
+          approved: message.approved !== undefined ? message.approved : true,
+        },
+        timeoutMs: 30000,
+      });
+
+    case "SAVE_ANSWERS_BATCH":
+      return apiFetch("/api/workday/save-answers-batch", {
+        method: "POST",
+        body: {
+          answers: message.answers || [],
+        },
+        timeoutMs: 30000,
+      });
+
+    case "GET_ANSWERS":
+      return apiFetch(`/api/workday/answers?limit=${message.limit || 50}`);
+
+
+    case "AUTOFILL_ACTIVE_TAB": {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!activeTab || !activeTab.id) {
+        return { ok: false, error: "No active browser tab detected." };
+      }
+      const profileRes = await apiFetch("/api/workday/profile");
+      const profile = profileRes.ok ? profileRes.data : {};
+      
+      try {
+        const [result] = await chrome.scripting.executeScript({
+          target: { tabId: activeTab.id },
+          func: async (candidateData) => {
+            if (window.FormEngine && typeof window.FormEngine.autofillForm === "function") {
+              const resolver = async (questionText, category) => {
+                return new Promise((resolve) => {
+                  chrome.runtime.sendMessage(
+                    {
+                      type: "RESOLVE_QUESTION",
+                      question: questionText,
+                      job_title: document.title || "Software Engineer",
+                      company: location.hostname,
+                      category: category,
+                    },
+                    (res) => {
+                      if (res && res.ok && res.data) {
+                        resolve(res.data.answer);
+                      } else {
+                        resolve(null);
+                      }
+                    }
+                  );
+                });
+              };
+              return await window.FormEngine.autofillForm(document, candidateData, resolver);
+            }
+            return { error: "FormEngine not loaded on this tab yet." };
+          },
+          args: [profile],
+        });
+        return { ok: true, data: result.result };
+      } catch (err) {
+        return { ok: false, error: `Script execution error: ${err.message}` };
+      }
+    }
+
     case "GET_API_BASE_URL":
       return { ok: true, data: { apiBaseUrl: await getApiBaseUrl() } };
 

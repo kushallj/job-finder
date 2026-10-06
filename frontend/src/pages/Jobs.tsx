@@ -46,6 +46,8 @@ import { formatSource, formatRelativeTime } from '../utils/formatters';
 import { GhostBadge } from '../components/ghost_hunter/GhostBadge';
 import { TsentaAutoApplyButton } from '../components/tsenta/TsentaAutoApplyButton';
 import { TsentaReviewGateModal } from '../components/tsenta/TsentaReviewGateModal';
+import { NextRaiseApplyButton } from '../components/nextraise/NextRaiseApplyButton';
+import { WorkdayApplyButton } from '../components/workday/WorkdayApplyButton';
 import type { TsentaSubmissionData } from '../api/endpoints/tsenta';
 import type { Job, JobsResponse, JobQueryParams } from '../api/types';
 
@@ -583,7 +585,16 @@ export const Jobs: React.FC = () => {
                     <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600 }}>
                       {formatRelativeTime(job.posted_date || job.fetched_at)}
                     </Typography>
-                    <Stack direction="row" spacing={1} alignItems="center">
+                    <Stack direction="row" spacing={0.8} alignItems="center">
+                      <WorkdayApplyButton
+                        jobId={job.id}
+                        initialApplied={job.application_status === 'applied'}
+                      />
+                      <NextRaiseApplyButton
+                        jobId={job.id}
+                        company={job.company || undefined}
+                        applicationStatus={job.application_status}
+                      />
                       <TsentaAutoApplyButton
                         jobId={job.id}
                         company={job.company || undefined}
@@ -652,7 +663,16 @@ export const Jobs: React.FC = () => {
                     </Typography>
                   </TableCell>
                   <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                    <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
+                    <Stack direction="row" spacing={0.8} justifyContent="flex-end" alignItems="center">
+                      <WorkdayApplyButton
+                        jobId={job.id}
+                        initialApplied={job.application_status === 'applied'}
+                      />
+                      <NextRaiseApplyButton
+                        jobId={job.id}
+                        company={job.company || undefined}
+                        applicationStatus={job.application_status}
+                      />
                       <TsentaAutoApplyButton
                         jobId={job.id}
                         company={job.company || undefined}

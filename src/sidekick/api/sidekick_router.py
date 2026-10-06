@@ -5,6 +5,7 @@ Exposes microsecond Trie queries, Inverted Index RAG, and window invisibility co
 from __future__ import annotations
 
 import os
+import re
 import time
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File
@@ -23,11 +24,18 @@ trie_engine = InterviewKnowledgeTrie(BANK_PATH)
 rag_engine = HybridRAGRetriever(BANK_PATH)
 llm_streamer = InterviewLLMStreamer()
 
+LATEST_LIVE_HINT: Dict[str, Any] = {
+    "timestamp": time.time(),
+    "transcript": "",
+    "hint": None
+}
+
 
 class SidekickQueryRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=1000)
     stream: bool = False
     candidate_context: Optional[str] = None
+    force_llm: bool = False
 
 
 class CustomQuestionAddRequest(BaseModel):
@@ -51,57 +59,53 @@ def get_sidekick_status() -> Dict[str, Any]:
         "total_trie_indexed_keys": trie_engine.total_indexed_keys,
         "rag_indexed_documents": len(rag_engine.documents),
         "local_llm_configured": True,
+        "ollama_model": "qwen2.5:3b",
     }
 
 
-@router.post("/window/set-invisible")
-def toggle_window_invisibility(req: InvisibilityToggleRequest) -> Dict[str, Any]:
-    """Applies OS-level screen share invisibility (NSWindowSharingNone / WDA_EXCLUDEFROMCAPTURE)."""
-    return set_window_invisible(req.window_title)
+@router.get("/live-hint")
+def get_latest_live_hint() -> Dict[str, Any]:
+    """Returns the latest hint transcribed by either native mic or desktop client."""
+    return LATEST_LIVE_HINT
 
 
-@router.post("/query")
-async def execute_sidekick_query(req: SidekickQueryRequest) -> Dict[str, Any]:
-    """
-    Multi-Tier Query Engine:
-    Tier 1: Instant Trie Sub-Microsecond Match (<5µs)
-    Tier 2: Inverted Index BM25 RAG (<1ms)
-    Tier 3: Local LLM Stream Synthesis (<200ms TTFT)
-    """
+class FeedSpeechRequest(BaseModel):
+    transcript: str = Field(..., min_length=1)
+    accumulated_context: Optional[str] = None
+
+
+@router.post("/feed-speech")
+async def feed_speech_from_native_listener(req: FeedSpeechRequest) -> Dict[str, Any]:
+    """Receives transcribed speech with rolling accumulated context and resolves best question card."""
+    global LATEST_LIVE_HINT
+    query_to_try = req.transcript
+    accumulated = (req.accumulated_context or "").strip()
+
+    # 1. Try resolving against the latest phrase
+    res = await execute_sidekick_query(SidekickQueryRequest(query=query_to_try))
+
+    # 2. If single phrase produced generic fallback and accumulated context exists, try full accumulated context
+    if (res.get("tier", 3) >= 3) and accumulated and len(accumulated) > len(query_to_try):
+        context_res = await execute_sidekick_query(SidekickQueryRequest(query=accumulated))
+        if context_res.get("tier", 3) < 3:
+            res = context_res
+            query_to_try = accumulated
+
+    display_transcript = accumulated if (accumulated and len(accumulated) > len(req.transcript)) else req.transcript
+
+    LATEST_LIVE_HINT = {
+        "timestamp": time.time(),
+        "transcript": display_transcript,
+        "hint": res
+    }
+    return {"status": "success", "hint": res}
+
+
+@router.post("/ask-llm")
+async def ask_local_ollama_direct(req: SidekickQueryRequest) -> Dict[str, Any]:
+    """Forces direct inference on local Ollama (qwen2.5:3b) for complex/custom questions."""
     t0 = time.perf_counter_ns()
     query = req.query.strip()
-    if not query:
-        raise HTTPException(status_code=400, detail="Query cannot be empty")
-
-    # 1. Tier 1: Trie search
-    trie_match = trie_engine.search_best_substring(query)
-    if trie_match:
-        payload, latency_us = trie_match
-        return {
-            "source": "trie_exact_match",
-            "tier": 1,
-            "title": payload.get("title", query),
-            "category": payload.get("category", "General"),
-            "bullets": payload.get("bullets", []),
-            "latency_microseconds": round(latency_us, 2),
-            "latency_display": f"{latency_us:.2f} µs (Sub-Microsecond)",
-        }
-
-    # 2. Tier 2: Hybrid Inverted Index RAG Search
-    rag_matches = rag_engine.search(query, top_k=2)
-    if rag_matches:
-        top_doc, latency_ms = rag_matches[0]
-        return {
-            "source": "hybrid_rag_retrieval",
-            "tier": 2,
-            "title": top_doc.get("title", query),
-            "category": top_doc.get("category", "Technical Concept"),
-            "bullets": top_doc.get("bullets", []),
-            "latency_milliseconds": round(latency_ms, 2),
-            "latency_display": f"{latency_ms:.2f} ms (Inverted Index RAG)",
-        }
-
-    # 3. Tier 3: Fast Generative LLM Stream Fallback
     generated_tokens: List[str] = []
     async for token in llm_streamer.stream_bullets(question=query):
         generated_tokens.append(token)
@@ -114,15 +118,118 @@ async def execute_sidekick_query(req: SidekickQueryRequest) -> Dict[str, Any]:
     t1 = time.perf_counter_ns()
     total_ms = (t1 - t0) / 1_000_000.0
 
-    return {
-        "source": "generative_llm_stream",
+    res = {
+        "source": "local_ollama_qwen2.5",
         "tier": 3,
         "title": query,
-        "category": "Custom Question",
+        "category": "Ollama Local LLM",
+        "bullets": bullets,
+        "latency_milliseconds": round(total_ms, 2),
+        "latency_display": f"{total_ms:.1f} ms (Ollama Qwen2.5:3b)",
+    }
+    global LATEST_LIVE_HINT
+    LATEST_LIVE_HINT = {
+        "timestamp": time.time(),
+        "transcript": query,
+        "hint": res
+    }
+    return res
+
+
+@router.post("/window/set-invisible")
+def toggle_window_invisibility(req: InvisibilityToggleRequest) -> Dict[str, Any]:
+    """Applies OS-level screen share invisibility (NSWindowSharingNone / WDA_EXCLUDEFROMCAPTURE)."""
+    return set_window_invisible(req.window_title)
+
+
+CONV_PREFIXES = [
+    re.compile(r"^(can you|could you|would you|please)?\s*(walk me through|tell me about|explain|describe|what is|what are|how does|how do you|how would you|what are the trade-offs of|what is the difference between|compare)\s+", re.IGNORECASE),
+    re.compile(r"^(so|well|okay|now|next|also|tell me|give me|can you share)\s+", re.IGNORECASE),
+]
+
+
+def clean_query_intent(raw: str) -> str:
+    cleaned = raw.strip()
+    for rx in CONV_PREFIXES:
+        cleaned = rx.sub("", cleaned)
+    return cleaned.strip() or raw.strip()
+
+
+@router.post("/query")
+async def execute_sidekick_query(req: SidekickQueryRequest) -> Dict[str, Any]:
+    """
+    Multi-Tier Query Engine:
+    Tier 1: Instant Trie Sub-Microsecond Match (<5µs)
+    Tier 2: Inverted Index BM25 RAG (<1ms)
+    Tier 3: Local LLM Stream Synthesis (<200ms TTFT)
+    """
+    global LATEST_LIVE_HINT
+    t0 = time.perf_counter_ns()
+    raw_query = req.query.strip()
+    if not raw_query:
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+    if req.force_llm:
+        return await ask_local_ollama_direct(req)
+
+    cleaned_query = clean_query_intent(raw_query)
+
+    # 1. Tier 1: Trie search (try cleaned query first, then raw query)
+    trie_match = trie_engine.search_best_substring(cleaned_query) or trie_engine.search_best_substring(raw_query)
+    if trie_match:
+        payload, latency_us = trie_match
+        res = {
+            "source": "trie_exact_match",
+            "tier": 1,
+            "title": payload.get("title", cleaned_query),
+            "category": payload.get("category", "General"),
+            "bullets": payload.get("bullets", []),
+            "latency_microseconds": round(latency_us, 2),
+            "latency_display": f"{latency_us:.2f} µs (Sub-Microsecond)",
+        }
+        LATEST_LIVE_HINT = {"timestamp": time.time(), "transcript": raw_query, "hint": res}
+        return res
+
+    # 2. Tier 2: Hybrid Inverted Index RAG Search
+    rag_matches = rag_engine.search(cleaned_query, top_k=2) or rag_engine.search(raw_query, top_k=2)
+    if rag_matches:
+        top_doc, latency_ms = rag_matches[0]
+        res = {
+            "source": "hybrid_rag_retrieval",
+            "tier": 2,
+            "title": top_doc.get("title", cleaned_query),
+            "category": top_doc.get("category", "Technical Concept"),
+            "bullets": top_doc.get("bullets", []),
+            "latency_milliseconds": round(latency_ms, 2),
+            "latency_display": f"{latency_ms:.2f} ms (Inverted Index RAG)",
+        }
+        LATEST_LIVE_HINT = {"timestamp": time.time(), "transcript": raw_query, "hint": res}
+        return res
+
+    # 3. Tier 3: Fast Generative LLM Stream Fallback (Local Ollama qwen2.5:3b)
+    generated_tokens: List[str] = []
+    async for token in llm_streamer.stream_bullets(question=cleaned_query):
+        generated_tokens.append(token)
+
+    full_text = "".join(generated_tokens)
+    bullets = [b.strip().lstrip("•").strip() for b in full_text.split("\n") if b.strip()]
+    if not bullets:
+        bullets = [full_text]
+
+    t1 = time.perf_counter_ns()
+    total_ms = (t1 - t0) / 1_000_000.0
+
+    res = {
+        "source": "generative_llm_stream",
+        "tier": 3,
+        "title": cleaned_query,
+        "category": "Ollama Local LLM",
         "bullets": bullets,
         "latency_milliseconds": round(total_ms, 2),
         "latency_display": f"{total_ms:.1f} ms (LLM Synthesis)",
     }
+    LATEST_LIVE_HINT = {"timestamp": time.time(), "transcript": raw_query, "hint": res}
+    return res
 
 
 class SyncSheetRequest(BaseModel):
@@ -159,7 +266,7 @@ async def transcribe_audio_chunk(file: UploadFile = File(...)) -> Dict[str, Any]
 
     try:
         audio_bytes = await file.read()
-        if not audio_bytes or len(audio_bytes) < 100:
+        if not audio_bytes or len(audio_bytes) < 300:
             return {"status": "empty", "transcript": "", "query_response": None}
 
         # Save to temporary input file
@@ -169,26 +276,28 @@ async def transcribe_audio_chunk(file: UploadFile = File(...)) -> Dict[str, Any]
 
         out_wav_path = in_f_path + ".wav"
 
-        # Convert to 16kHz Mono WAV using ffmpeg if available
+        # Convert to 16kHz Mono WAV using ffmpeg
         ffmpeg_bin = "/opt/homebrew/bin/ffmpeg" if os.path.exists("/opt/homebrew/bin/ffmpeg") else "ffmpeg"
         try:
             cmd = [
                 ffmpeg_bin, "-y", "-i", in_f_path,
                 "-ar", "16000", "-ac", "1", "-f", "wav", out_wav_path
             ]
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=True)
             wav_file_to_read = out_wav_path
-        except Exception:
+        except Exception as ffmpeg_err:
             wav_file_to_read = in_f_path
 
         r = sr.Recognizer()
+        r.energy_threshold = 300
+        r.dynamic_energy_threshold = True
         transcript = ""
         try:
             with sr.AudioFile(wav_file_to_read) as source:
                 audio_data = r.record(source)
                 transcript = r.recognize_google(audio_data)
         except sr.UnknownValueError:
-            # Silence or unintelligible speech in this small chunk
+            # Silence or ambient noise
             return {"status": "no_speech", "transcript": "", "query_response": None}
         except Exception as e:
             return {"status": "transcribe_error", "message": str(e), "transcript": "", "query_response": None}

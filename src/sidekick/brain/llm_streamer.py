@@ -35,7 +35,7 @@ class InterviewLLMStreamer:
         self.gemini_api_key = gemini_api_key or os.getenv("GEMINI_API_KEY")
         # Persistent HTTP client with connection pooling
         self._http_client = httpx.AsyncClient(
-            timeout=httpx.Timeout(4.0, connect=1.0),
+            timeout=httpx.Timeout(25.0, connect=2.0),
             limits=httpx.Limits(max_keepalive_connections=10, max_connections=20)
         )
 
@@ -53,13 +53,13 @@ class InterviewLLMStreamer:
         """
         prompt = f"{TELEPROMPTER_SYSTEM_PROMPT}\n\nCONTEXT:\n{retrieved_context}\n\nQUESTION: {question}\n\nBULLETS:"
 
-        # 1. Try local Ollama / llama.cpp
+        # 1. Try local Ollama (qwen2.5:3b)
         try:
             payload = {
                 "model": "qwen2.5:3b",
                 "prompt": prompt,
                 "stream": True,
-                "options": {"temperature": 0.2, "num_predict": 150}
+                "options": {"temperature": 0.3, "num_predict": 180}
             }
             async with self._http_client.stream("POST", self.local_endpoint, json=payload) as response:
                 if response.status_code == 200:

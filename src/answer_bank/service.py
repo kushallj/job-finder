@@ -134,6 +134,43 @@ class AnswerBankService:
         self.db.refresh(entry)
         return entry
 
+    def save_or_update_answer(
+        self,
+        question_text: str,
+        answer_text: str,
+        source: str = "user_edited",
+        category: Optional[str] = None,
+        context: str = "ats_application",
+        approved: bool = True,
+    ) -> AnsweredQuestion:
+        """
+        Bi-directional learning loop upsert.
+        If an answer for this question already exists, updates it with user correction.
+        Otherwise creates a new approved entry in the Answer Bank.
+        """
+        normalized = normalize_question(question_text)
+        existing = self._exact_lookup(normalized)
+        if existing:
+            existing.answer_text = answer_text
+            existing.source = source
+            existing.approved = approved
+            existing.times_used = max(existing.times_used, 1) + 1
+            existing.last_used_at = datetime.utcnow()
+            if category:
+                existing.category = category
+            self.db.commit()
+            self.db.refresh(existing)
+            return existing
+
+        return self.save_answer(
+            question_text=question_text,
+            answer_text=answer_text,
+            source=source,
+            category=category,
+            context=context,
+            approved=approved,
+        )
+
     async def get_or_generate_answer(
         self,
         question_text: str,
@@ -168,6 +205,64 @@ class AnswerBankService:
             approved=not require_approval,
         )
         return generated.strip()
+
+    async def get_answer_for_question(
+        self,
+        question: str,
+        job_title: str = "Software Engineer",
+        company: str = "Company",
+        job_description: str = "",
+        category: Optional[str] = None,
+        candidate_context: Optional[dict] = None,
+    ) -> dict:
+        """
+        Unified bridge method for ATS & extension question resolution.
+        Returns a dict containing answer text, source, and match metadata.
+        """
+        if cached := self.find_cached_answer(question):
+            self._record_reuse(cached)
+            return {
+                "question": question,
+                "answer": cached.answer_text,
+                "source": cached.source or "answer_bank_cache",
+                "cached": True,
+                "confidence": getattr(cached, "match_confidence", 1.0),
+            }
+
+        # Contextual prompt with candidate & job specifics
+        ctx = candidate_context or {}
+        ctx_summary = ctx.get("resume_summary") or f"Experienced software engineer applying for {job_title} at {company}."
+        prompt = (
+            f"You are answering a job application screening question for {company} ({job_title}).\n"
+            f"Candidate background: {ctx_summary}\n"
+            f"Role details: {job_description[:400] if job_description else job_title}\n"
+            f"Question: {question}\n\n"
+            f"Provide a direct, professional, first-person answer in 1-2 sentences:"
+        )
+
+        try:
+            generated = await self.ai_service.generate_text(prompt, max_tokens=200)
+            ans_clean = generated.strip() if generated else "Experienced software engineer with strong domain expertise."
+        except Exception:
+            ans_clean = f"I have direct experience aligning with {job_title} at {company} and look forward to contributing."
+
+        saved = self.save_answer(
+            question_text=question,
+            answer_text=ans_clean,
+            source="ai_generated",
+            category=category,
+            context="ats_application",
+            approved=True,
+        )
+
+        return {
+            "question": question,
+            "answer": ans_clean,
+            "source": "ai_generated",
+            "cached": False,
+            "confidence": 0.95,
+        }
+
 
     def _build_prompt(self, question_text: str, candidate_context: dict) -> str:
         resume_summary = candidate_context.get("resume_summary", "")

@@ -196,6 +196,32 @@ body {
   font-weight: 500;
 }
 
+.llm-toggle-btn {
+  background: rgba(0, 240, 255, 0.15);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  border-radius: 8px;
+  padding: 3px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--accent-cyan);
+  font-size: 0.68rem;
+  font-weight: 800;
+  transition: all 0.2s;
+}
+
+.llm-toggle-btn:hover {
+  background: rgba(0, 240, 255, 0.3);
+  border-color: var(--accent-cyan);
+}
+
+.llm-toggle-btn.active {
+  background: rgba(0, 240, 255, 0.4);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+}
+
 .mic-toggle-btn {
   background: rgba(0, 255, 163, 0.15);
   border: 1px solid rgba(0, 255, 163, 0.35);

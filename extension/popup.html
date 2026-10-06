@@ -15,6 +15,9 @@
 
   <nav class="tabs">
     <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="autofill">⚡ Autofill</button>
+    <button class="tab" data-tab="workday">Workday</button>
+    <button class="tab" data-tab="nextraise">NextRaise (300/d)</button>
     <button class="tab" data-tab="jobs">Jobs</button>
     <button class="tab" data-tab="outreach">Outreach</button>
     <button class="tab" data-tab="search">Search</button>
@@ -33,6 +36,80 @@
         <strong id="successRate">–</strong>
       </div>
       <button id="refreshStats" class="secondary full">Refresh</button>
+    </section>
+
+    <section id="tab-autofill" class="tab-panel">
+      <div style="background:#0f172a; border:1px solid #10b981; border-radius:8px; padding:10px; margin-bottom:12px;">
+        <div style="font-size:11px; color:#6ee7b7; font-weight:700;">NEXT.JS &amp; SPA FORM ENGINE</div>
+        <div style="font-size:12px; color:#cbd5e1; margin-top:4px;">
+          Bypasses React fiber trackers, fills custom comboboxes &amp; handles complex applicant questions.
+        </div>
+      </div>
+      <button id="autofillCurrentTabBtn" class="primary full" style="background:linear-gradient(135deg, #10b981, #059669); border:none; font-weight:800; font-size:13px; padding:11px; margin-bottom:8px;">
+        ⚡ Autofill Current Page
+      </button>
+      <div id="popupCaptchaBanner" class="hidden" style="background:#7c2d12; border:1px solid #f97316; border-radius:6px; padding:8px 10px; margin-bottom:8px; font-size:11px; color:#ffedd5; line-height:1.3;"></div>
+      <div id="autofillStatus" class="status"></div>
+      <div id="popupAuditDrawer" class="hidden" style="background:#1e293b; border-radius:8px; padding:8px 10px; margin-top:8px; max-height:140px; overflow-y:auto; font-size:11px; border:1px solid #334155;"></div>
+      <div id="popupLearningSection" class="hidden" style="margin-top:12px; border-top:1px solid #334155; padding-top:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-size:11px; font-weight:700; color:#c084fc;">💡 PENDING CORRECTIONS</span>
+          <button id="popupSaveAllBtn" class="primary" style="background:#8b5cf6; border:none; border-radius:4px; padding:4px 8px; font-size:10px; font-weight:700; cursor:pointer;">Save All</button>
+        </div>
+        <div id="popupLearningList" style="background:#1e293b; border-radius:8px; padding:6px 10px; max-height:120px; overflow-y:auto; font-size:11px;"></div>
+      </div>
+    </section>
+
+    <section id="tab-workday" class="tab-panel">
+      <div style="background:#1e293b; border:1px solid #eab308; border-radius:8px; padding:10px; margin-bottom:12px;">
+        <div style="font-size:11px; color:#fef08a; font-weight:700;">WORKDAY AUTOPILOT</div>
+        <div style="font-size:13px; font-weight:800; color:#fff;" id="wdEmail">canaby007@gmail.com</div>
+        <div style="font-size:11px; color:#cbd5e1; margin-top:4px;">
+          Daily Submissions: <strong id="wdDailyProgress" style="color:#fde047;">0 / 100</strong> (<span id="wdAccountsCount">0</span> employer accounts)
+        </div>
+      </div>
+
+      <div class="row-inline" style="margin-bottom:8px;">
+        <label for="wdBatchCount">Batch apply count</label>
+        <input type="number" id="wdBatchCount" min="5" max="100" value="25" style="width:70px;" />
+      </div>
+      <div class="row-inline" style="margin-bottom:12px;">
+        <label for="wdMinScore">Min match score</label>
+        <input type="number" id="wdMinScore" min="0" max="100" value="60" style="width:70px;" />
+      </div>
+
+      <button id="launchWdBatchBtn" class="primary full" style="background:linear-gradient(135deg, #eab308, #d97706); color:#0f172a; border:none; font-weight:800; font-size:13px; padding:10px;">
+        🚀 Apply 25 Workday Jobs
+      </button>
+
+      <div id="wdStatus" class="status" style="margin-top:8px;"></div>
+      <button id="refreshWdBtn" class="secondary full" style="margin-top:6px;">Refresh Status</button>
+    </section>
+
+    <section id="tab-nextraise" class="tab-panel">
+      <div style="background:#1e1b4b; border:1px solid #6366f1; border-radius:8px; padding:10px; margin-bottom:12px;">
+        <div style="font-size:11px; color:#c7d2fe; font-weight:700;">NEXTRAISE OAUTH PRO</div>
+        <div style="font-size:13px; font-weight:800; color:#fff;" id="nrEmail">canaby007@gmail.com</div>
+        <div style="font-size:11px; color:#a5b4fc; margin-top:4px;">
+          Daily Quota: <strong id="nrDailyProgress" style="color:#00ffa3;">0 / 300</strong> (<span id="nrRemaining">300</span> left)
+        </div>
+      </div>
+
+      <div class="row-inline" style="margin-bottom:8px;">
+        <label for="nrBatchCount">Batch apply count</label>
+        <input type="number" id="nrBatchCount" min="10" max="300" value="250" style="width:70px;" />
+      </div>
+      <div class="row-inline" style="margin-bottom:12px;">
+        <label for="nrMinScore">Min match score</label>
+        <input type="number" id="nrMinScore" min="0" max="100" value="50" style="width:70px;" />
+      </div>
+
+      <button id="launchNrBatchBtn" class="primary full" style="background:linear-gradient(135deg, #7c3aed, #00f0ff); border:none; font-weight:800; font-size:13px; padding:10px;">
+        🚀 Apply 250 Jobs via NextRaise
+      </button>
+
+      <div id="nrStatus" class="status" style="margin-top:8px;"></div>
+      <button id="refreshNrBtn" class="secondary full" style="margin-top:6px;">Refresh Status</button>
     </section>
 
     <section id="tab-jobs" class="tab-panel">

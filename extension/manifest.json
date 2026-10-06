@@ -28,9 +28,13 @@
       "matches": [
         "*://*.linkedin.com/jobs/*",
         "*://*.indeed.com/*",
-        "*://*.indeed.com/viewjob*"
+        "*://*.indeed.com/viewjob*",
+        "*://*.myworkdayjobs.com/*",
+        "*://boards.greenhouse.io/*",
+        "*://jobs.lever.co/*",
+        "*://jobs.ashbyhq.com/*"
       ],
-      "js": ["content.js"],
+      "js": ["form_engine.js", "content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
     }

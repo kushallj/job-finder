@@ -26,9 +26,139 @@ document.querySelectorAll(".tab").forEach((btn) => {
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
     btn.classList.add("active");
     el(`#tab-${btn.dataset.tab}`).classList.add("active");
+    if (btn.dataset.tab === "autofill") checkActiveTabEdits();
+    if (btn.dataset.tab === "workday") loadWorkdayStatus();
+    if (btn.dataset.tab === "nextraise") loadNextRaiseStatus();
     if (btn.dataset.tab === "jobs") loadJobs();
     if (btn.dataset.tab === "outreach") loadPending();
   });
+});
+
+async function checkActiveTabEdits() {
+  const section = el("#popupLearningSection");
+  const listEl = el("#popupLearningList");
+  if (!section || !listEl) return;
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || !tab.id) return;
+
+  try {
+    const [res] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        if (window.FormEngine && typeof window.FormEngine.getEditedFields === "function") {
+          const edits = window.FormEngine.getEditedFields(document);
+          return edits.map(e => ({
+            question: e.question,
+            category: e.category,
+            currentValue: e.currentValue,
+            originalValue: e.originalValue,
+          }));
+        }
+        return [];
+      }
+    });
+
+    const edits = (res && res.result) || [];
+    if (!edits.length) {
+      section.classList.add("hidden");
+      listEl.innerHTML = "";
+      return;
+    }
+
+    section.classList.remove("hidden");
+    listEl.innerHTML = edits.map((item) => `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:3px 0; border-bottom:1px solid #334155;">
+        <span style="color:#94a3b8; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeAttr(item.question || item.category)}">${escapeHtml(item.question || item.category)}</span>
+        <span style="color:#38bdf8; font-weight:700; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(item.currentValue)}</span>
+      </div>
+    `).join("");
+
+    const saveBtn = el("#popupSaveAllBtn");
+    if (saveBtn) {
+      saveBtn.onclick = async () => {
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving…";
+        const saveRes = await send({
+          type: "SAVE_ANSWERS_BATCH",
+          answers: edits.map(e => ({
+            question: e.question,
+            answer: e.currentValue,
+            category: e.category,
+            source: "user_edited"
+          }))
+        });
+        if (saveRes && saveRes.ok) {
+          saveBtn.textContent = "✓ Saved";
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+              const elements = Array.from(document.querySelectorAll('[data-jf-autofilled="true"]'));
+              elements.forEach(el => {
+                el.dataset.jfOriginalValue = el.value || '';
+              });
+            }
+          });
+          setTimeout(checkActiveTabEdits, 1200);
+        } else {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Retry";
+        }
+      };
+    }
+  } catch (_) {}
+}
+
+
+el("#autofillCurrentTabBtn")?.addEventListener("click", async () => {
+  const statusEl = el("#autofillStatus");
+  const captchaEl = el("#popupCaptchaBanner");
+  const auditDrawer = el("#popupAuditDrawer");
+
+  statusEl.className = "status";
+  statusEl.textContent = "Scanning and autofilling React/Next.js inputs on active tab…";
+  if (captchaEl) captchaEl.classList.add("hidden");
+  if (auditDrawer) {
+    auditDrawer.classList.add("hidden");
+    auditDrawer.innerHTML = "";
+  }
+  el("#autofillCurrentTabBtn").disabled = true;
+
+  const res = await send({ type: "AUTOFILL_ACTIVE_TAB" });
+  el("#autofillCurrentTabBtn").disabled = false;
+
+  if (!res.ok) {
+    statusEl.className = "status err";
+    statusEl.textContent = res.error || "Autofill execution failed.";
+    return;
+  }
+
+  const d = res.data;
+  if (d && d.filled_count !== undefined) {
+    statusEl.className = "status ok";
+    statusEl.textContent = `Autofilled ${d.filled_count} fields cleanly with React event dispatch!`;
+
+    // CAPTCHA Alert
+    if (d.captcha && d.captcha.detected && captchaEl) {
+      captchaEl.classList.remove("hidden");
+      captchaEl.innerHTML = `⚠️ <strong>${escapeHtml(d.captcha.type)} Detected</strong>: Please solve verification on page. All other fields filled!`;
+    }
+
+    // Audit Breakdown Drawer
+    if (d.details && d.details.length > 0 && auditDrawer) {
+      auditDrawer.classList.remove("hidden");
+      auditDrawer.innerHTML = `<div style="font-weight:700; color:#38bdf8; margin-bottom:6px;">Ghost Fill Summary (${d.filled_count} fields):</div>` +
+        d.details.slice(0, 10).map((item) => `
+          <div style="display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid #334155;">
+            <span style="color:#94a3b8;">${escapeHtml(item.category || item.label || 'Custom Question')}</span>
+            <span style="color:#38bdf8; font-weight:600; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeAttr(String(item.value))}">${escapeHtml(String(item.value))}</span>
+          </div>
+        `).join('');
+    }
+  } else {
+    statusEl.className = "status";
+    statusEl.textContent = (d && d.error) || "Autofill completed.";
+  }
 });
 
 el("#settingsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
@@ -55,6 +185,118 @@ async function loadStats() {
     typeof s.success_rate === "number" ? `${s.success_rate.toFixed(1)}%` : "–";
 }
 el("#refreshStats").addEventListener("click", loadStats);
+
+// ── Workday Auto-Apply ────────────────────────────────────────────────────
+async function loadWorkdayStatus() {
+  const res = await send({ type: "WORKDAY_GET_STATUS" });
+  if (!res.ok) {
+    showBanner(res.error || "Failed to load Workday status.");
+    return;
+  }
+  hideBanner();
+  const data = res.data;
+  const config = data.config || {};
+  const profile = data.profile || {};
+  if (el("#wdEmail") && profile.email) {
+    el("#wdEmail").textContent = profile.email;
+  }
+  if (el("#wdDailyProgress")) {
+    el("#wdDailyProgress").textContent = `${config.daily_used ?? 0} / ${config.daily_limit ?? 100}`;
+  }
+  if (el("#wdAccountsCount")) {
+    el("#wdAccountsCount").textContent = `${data.accounts_count ?? 0}`;
+  }
+}
+
+el("#refreshWdBtn")?.addEventListener("click", loadWorkdayStatus);
+
+el("#launchWdBatchBtn")?.addEventListener("click", async () => {
+  const targetCount = parseInt(el("#wdBatchCount").value, 10) || 25;
+  const minFitScore = parseFloat(el("#wdMinScore").value) || 60.0;
+  const statusEl = el("#wdStatus");
+  statusEl.className = "status";
+  statusEl.textContent = `Dispatching batch of ${targetCount} jobs via Workday Autopilot...`;
+  el("#launchWdBatchBtn").disabled = true;
+
+  const res = await send({
+    type: "WORKDAY_BATCH_APPLY",
+    targetCount,
+    minFitScore,
+  });
+  el("#launchWdBatchBtn").disabled = false;
+
+  if (!res.ok) {
+    statusEl.className = "status err";
+    statusEl.textContent = res.error || "Workday batch application failed.";
+    return;
+  }
+
+  const d = res.data;
+  if (d.status === "completed") {
+    statusEl.className = "status ok";
+    statusEl.textContent = `Dispatched ${d.successful_submissions} Workday applications! Quota: ${d.daily_progress}`;
+  } else {
+    statusEl.className = "status";
+    statusEl.textContent = d.message || "Batch completed.";
+  }
+  loadWorkdayStatus();
+});
+
+// ── NextRaise Auto-Apply ──────────────────────────────────────────────────
+async function loadNextRaiseStatus() {
+  const res = await send({ type: "NEXTRAISE_GET_STATUS" });
+  if (!res.ok) {
+    showBanner(res.error || "Failed to load NextRaise status.");
+    return;
+  }
+  hideBanner();
+  const data = res.data;
+  const q = data.quota || {};
+  const acct = data.account || {};
+  if (el("#nrEmail") && acct.account_email) {
+    el("#nrEmail").textContent = acct.account_email;
+  }
+  if (el("#nrDailyProgress")) {
+    el("#nrDailyProgress").textContent = `${q.daily_used ?? 0} / ${q.daily_limit ?? 300}`;
+  }
+  if (el("#nrRemaining")) {
+    el("#nrRemaining").textContent = `${q.daily_remaining ?? 300}`;
+  }
+}
+
+el("#refreshNrBtn")?.addEventListener("click", loadNextRaiseStatus);
+
+el("#launchNrBatchBtn")?.addEventListener("click", async () => {
+  const targetCount = parseInt(el("#nrBatchCount").value, 10) || 250;
+  const minFitScore = parseFloat(el("#nrMinScore").value) || 50.0;
+  const statusEl = el("#nrStatus");
+  statusEl.className = "status";
+  statusEl.textContent = `Dispatching batch of ${targetCount} jobs via NextRaise...`;
+  el("#launchNrBatchBtn").disabled = true;
+
+  const res = await send({
+    type: "NEXTRAISE_BATCH_APPLY",
+    targetCount,
+    minFitScore,
+  });
+  el("#launchNrBatchBtn").disabled = false;
+
+  if (!res.ok) {
+    statusEl.className = "status err";
+    statusEl.textContent = res.error || "Batch application failed.";
+    return;
+  }
+
+  const d = res.data;
+  if (d.status === "completed") {
+    statusEl.className = "status ok";
+    statusEl.textContent = `Dispatched ${d.successful_submissions} applications! Quota: ${d.daily_progress}`;
+  } else {
+    statusEl.className = "status";
+    statusEl.textContent = d.message || "Batch completed.";
+  }
+  loadNextRaiseStatus();
+});
 
 // ── Jobs list ────────────────────────────────────────────────────────────
 let jobsPage = 1;

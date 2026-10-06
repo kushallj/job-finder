@@ -66,3 +66,18 @@ class AnsweredQuestion(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     last_used_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "question_text": self.question_text,
+            "normalized_question": self.normalized_question,
+            "answer_text": self.answer_text,
+            "source": self.source,
+            "category": self.category,
+            "context": self.context,
+            "approved": self.approved,
+            "times_used": self.times_used,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
+        }

@@ -1,5 +1,5 @@
-// In-Memory Fast Trie & Radical Interview Knowledge Bank
-const INTERVIEW_BANK = [
+// In-Memory Fast Trie & Radical Interview Knowledge Bank (Populated dynamically on startup)
+let INTERVIEW_BANK = [
   {
     title: 'LRU Cache (Least Recently Used)',
     keywords: ['lru', 'lru cache', 'least recently used', 'cache eviction', 'doubly linked list'],
@@ -19,51 +19,67 @@ const INTERVIEW_BANK = [
     ]
   },
   {
-    title: 'Consistent Hashing & Virtual Nodes',
-    keywords: ['consistent hashing', 'virtual nodes', 'hash ring', 'distributed cache', 'sharding'],
+    title: 'StateFlow vs SharedFlow vs LiveData vs Channels in Kotlin',
+    keywords: ['stateflow', 'sharedflow', 'stateflow vs sharedflow', 'livedata vs flow', 'channels vs flow'],
     bullets: [
-      'Architecture: Hash ring [0, 2^32 - 1]. Nodes and keys mapped to ring; key stored on first clockwise node.',
-      'Virtual Nodes: Assign 150–250 virtual tokens per physical node to eliminate hotspot skew.',
-      'Rebalance: Adding/removing node N only migrates K/N keys rather than re-hashing the entire cluster.'
+      'StateFlow: Hot stream with initial value, conflates duplicate emissions, always retains latest state (replay=1).',
+      'SharedFlow: Hot event bus with configurable replay cache and buffer capacity, ideal for one-off events (navigation, snackbars).',
+      'Channels vs Flow: Channel is hot point-to-point stream (each event consumed once); Flow is declarative broadcast stream.'
     ]
   },
   {
-    title: 'Top K Frequent Elements',
-    keywords: ['top k', 'top k frequent', 'bucket sort frequency', 'min heap'],
+    title: 'Kotlin Coroutines vs Threads',
+    keywords: ['coroutines vs threads', 'coroutine vs thread', 'kotlin coroutine', 'structured concurrency'],
     bullets: [
-      'Core: Frequency Map + Bucket Sort array where index = count (or Min-Heap of bounded size K).',
-      'Complexity: Bucket Sort: O(N) time & O(N) space | Min-Heap: O(N log K) time.',
-      'Edge Cases: All elements have unique frequencies | K equals distinct element count.'
+      'Lightweight User-Space: Coroutines are cooperative routines multiplexed over shared OS thread pools with ~few KB stack.',
+      'Non-Blocking Suspension: Suspending functions release carrier thread back to Dispatcher during I/O delays.',
+      'Structured Concurrency: CoroutineScope guarantees parent awaits all children; cancellation cascades downward automatically.'
     ]
   },
   {
-    title: 'Course Schedule (Topological Sort)',
-    keywords: ['course schedule', 'topological sort', 'kahns algorithm', 'cycle detection', 'dag'],
+    title: 'ConcurrentHashMap Internals (Java 8+ vs 7)',
+    keywords: ['concurrenthashmap', 'concurrenthashmap internals', 'java hashmap treeify', 'cas node bin'],
     bullets: [
-      'Core: Directed Graph in-degree array + Queue (Kahn BFS) or 3-color DFS cycle detection.',
-      'Complexity: Time: O(V + E) vertices + edges | Space: O(V + E) adjacency list.',
-      'Edge Cases: Disconnected graph components | Self-loops (Course requires itself).'
+      'Locking Strategy: Java 8+ eliminated ReentrantLock Segments; uses CAS for first node insertion and synchronized on bucket head.',
+      'Treeification: Bucket converts from Linked List to Red-Black Tree when chain length >= 8 and table capacity >= 64 (O(log N) worst case).',
+      'Concurrent Resizing: Multiple threads assist in table transfer using sizeCtl and ForwardingNode markers.'
     ]
   },
   {
-    title: 'Kafka High-Throughput Event Streaming',
-    keywords: ['kafka', 'message broker', 'event streaming', 'partitioning', 'zero copy', 'pagecache'],
+    title: 'Virtual Threads (Java 21 Project Loom)',
+    keywords: ['virtual threads', 'project loom', 'virtual thread java', 'carrier thread pinning'],
     bullets: [
-      'Core: Append-only disk commit log + OS PageCache + zero-copy sendfile() direct to network socket.',
-      'Partitioning: Partition key hash guarantees strictly ordered delivery within each partition.',
-      'Consumer Groups: Scale horizontally up to partition count with offset commit management.'
+      'M:N User Threads: Millions of virtual threads scheduled on small pool of carrier platform OS threads with unpark/continuation.',
+      'Carrier Pinning Caveat: Avoid native JNI calls or synchronized blocks inside virtual threads; use ReentrantLock instead.',
+      'High-Throughput I/O: Replaces reactive callback spaghetti with synchronous blocking code style without thread exhaustion.'
     ]
   },
   {
-    title: 'Distributed Lock with Redis (Redlock)',
-    keywords: ['redis lock', 'distributed lock', 'redlock', 'mutex', 'concurrency'],
+    title: 'volatile Keyword & Java Memory Model (JMM)',
+    keywords: ['volatile', 'volatile java', 'java memory model', 'visibility memory barrier', 'happens-before'],
     bullets: [
-      'Core: SET resource_name my_random_value NX PX 30000 (atomic check & set with TTL).',
-      'Release Safety: Lua script verifies random value before deleting key to prevent releasing expired locks.',
-      'Drift Mitigation: Lock validity time = TTL - clock drift - acquisition time.'
+      'Visibility Guarantee: Direct reads and writes bypass CPU L1/L2 core caches, flushing directly to main memory.',
+      'Instruction Reordering: Emits hardware memory barriers (LoadLoad/StoreStore) enforcing Happens-Before ordering.',
+      'Atomicity Caveat: volatile does NOT guarantee atomicity for compound operations (e.g., count++); use AtomicInteger or CAS.'
     ]
   }
 ];
+
+// Asynchronously load all 550 documents from backend bank
+async function loadFullKnowledgeBank() {
+  try {
+    const res = await fetch('http://127.0.0.1:8000/api/sidekick/bank');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.documents && Array.isArray(data.documents) && data.documents.length > 0) {
+        INTERVIEW_BANK = data.documents;
+      }
+    }
+  } catch (err) {
+    console.warn('[GhostCopilot] Backend bank offline, using local bank.');
+  }
+}
+loadFullKnowledgeBank();
 
 // DOM Elements
 const hudContainer = document.getElementById('hudContainer');
@@ -74,6 +90,7 @@ const bulletsContainer = document.getElementById('bulletsContainer');
 const panicBtn = document.getElementById('panicBtn');
 const minimizeBtn = document.getElementById('minimizeBtn');
 const micBtn = document.getElementById('micBtn');
+const llmBtn = document.getElementById('llmBtn');
 const clickThroughBadge = document.getElementById('clickThroughBadge');
 const invisibilityBadge = document.getElementById('invisibilityBadge');
 const compactModeBadge = document.getElementById('compactModeBadge');
@@ -83,13 +100,13 @@ const clarityValue = document.getElementById('clarityValue');
 const rambleBanner = document.getElementById('rambleBanner');
 
 let isMicListening = false;
-let recognition = null;
 let isClickThrough = false;
 let isCompact = false;
+let lastLiveHintTimestamp = 0;
 
 // Conversational filler cleaner
 const CONV_PREFIXES = [
-  /^(can you|could you|would you|please)?\s*(walk me through|tell me about|explain|describe|what is|how does|how do you|how would you)\s+/i,
+  /^(can you|could you|would you|please)?\s*(walk me through|tell me about|explain|describe|what is|what are|how does|how do you|how would you|what are the trade-offs of|what is the difference between|compare)\s+/i,
   /^(so|well|okay|now|next|also|tell me|give me|can you share)\s+/i,
 ];
 
@@ -130,6 +147,57 @@ async function executeQuery(query) {
     renderResult(match.item, match.latency);
   }
 }
+
+// Direct Inference on Local Ollama Qwen2.5:3b
+async function askLocalLLM(query) {
+  if (!query || !query.trim()) return;
+  const q = query.trim();
+  questionTitle.textContent = `🤖 Ollama Thinking: "${q}"...`;
+  latencyBadge.textContent = '⚡ Inferring Qwen2.5...';
+  bulletsContainer.innerHTML = `
+    <div class="bullet-card">
+      <div class="bullet-num">⏳</div>
+      <div class="bullet-content">
+        <strong class="bullet-highlight">Generating:</strong> Streaming local LLM tokens from Ollama qwen2.5:3b on Apple Silicon...
+      </div>
+    </div>
+  `;
+
+  try {
+    const res = await fetch('http://127.0.0.1:8000/api/sidekick/ask-llm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, force_llm: true })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      renderResult(data, data.latency_milliseconds * 1000);
+      return;
+    }
+  } catch (err) {
+    console.warn('Local LLM inference error:', err);
+  }
+
+  executeQuery(q);
+}
+
+// Live Hint Polling from Native Hardware Mic Daemon
+async function pollLiveHint() {
+  try {
+    const res = await fetch('http://127.0.0.1:8000/api/sidekick/live-hint');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.timestamp && data.timestamp > lastLiveHintTimestamp && data.hint) {
+        lastLiveHintTimestamp = data.timestamp;
+        if (data.transcript && queryInput) {
+          queryInput.value = data.transcript;
+        }
+        renderResult(data.hint, data.hint.latency_microseconds || 50);
+      }
+    }
+  } catch (_) {}
+}
+setInterval(pollLiveHint, 350);
 
 // Sub-microsecond Local In-Memory Fallback
 function searchLocalBank(query) {
@@ -185,12 +253,31 @@ function renderResult(item, latencyUs) {
     .join('');
 }
 
-// Live Input Event
+// Live Input Event & Enter Key for Local LLM
 queryInput.addEventListener('input', (e) => {
   const val = e.target.value;
   if (!val.trim()) return;
   executeQuery(val);
 });
+
+queryInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const val = queryInput.value;
+    if (val && val.trim()) {
+      askLocalLLM(val);
+    }
+  }
+});
+
+if (llmBtn) {
+  llmBtn.addEventListener('click', () => {
+    const val = queryInput.value || questionTitle.textContent;
+    if (val && val.trim()) {
+      askLocalLLM(val);
+    }
+  });
+}
 
 // Preset Button Clicks
 document.querySelectorAll('.preset-chip').forEach((btn) => {
@@ -299,124 +386,195 @@ function updateCadenceMetrics(transcript) {
   if (clarityValue) clarityValue.textContent = `${clarity}%`;
 }
 
-// Speech Recognition (Web Speech API) with Continuous Auto-Reconnect
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recognition = new SpeechRec();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.lang = 'en-US';
-
-  let debounceSpeech = null;
-
-  recognition.onresult = (event) => {
-    const transcript = Array.from(event.results)
-      .map((r) => r[0].transcript)
-      .join(' ')
-      .trim();
-    if (!transcript) return;
-    queryInput.value = transcript;
-    updateCadenceMetrics(transcript);
-
-    if (debounceSpeech) clearTimeout(debounceSpeech);
-    debounceSpeech = setTimeout(() => {
-      executeQuery(transcript);
-    }, 200);
-  };
-
-  recognition.onerror = (e) => {
-    if (e.error !== 'no-speech') {
-      console.log('Speech error:', e);
-    }
-  };
-
-  recognition.onend = () => {
-    // Keep listening active continuously
-    if (isMicListening) {
-      setTimeout(() => {
-        if (isMicListening) {
-          try { recognition.start(); } catch (_) {}
-        }
-      }, 200);
-    }
-  };
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// Continuous Standalone Audio Stream & Real-Time Voice Transcriber Pipeline
+// ═══════════════════════════════════════════════════════════════════════════
 
 let mediaStream = null;
-let mediaRecorder = null;
+let currentRecorder = null;
+let captureTimer = null;
+let recognition = null;
 
-async function startMediaRecorderStream() {
+// Initialize Web Speech API for Chromium/Web Browsers
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaStream = stream;
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRec();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
 
-    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-      ? 'audio/webm;codecs=opus'
-      : MediaRecorder.isTypeSupported('audio/webm')
-      ? 'audio/webm'
-      : '';
-
-    if (mimeType) {
-      const recorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorder = recorder;
-      recorder.ondataavailable = async (e) => {
-        if (e.data && e.data.size > 2000 && isMicListening) {
-          try {
-            const formData = new FormData();
-            formData.append('file', e.data, 'chunk.webm');
-            const res = await fetch('http://127.0.0.1:8000/api/sidekick/audio/transcribe', {
-              method: 'POST',
-              body: formData,
-            });
-            if (res.ok) {
-              const data = await res.json();
-              if (data.transcript && data.transcript.trim()) {
-                const text = data.transcript.trim();
-                queryInput.value = text;
-                updateCadenceMetrics(text);
-                if (data.query_response) {
-                  renderResult(data.query_response, data.query_response.latency_microseconds || 50);
-                }
-              }
-            }
-          } catch (_) {}
+    recognition.onresult = (event) => {
+      let finalStr = '';
+      let interimStr = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalStr += event.results[i][0].transcript;
+        } else {
+          interimStr += event.results[i][0].transcript;
         }
-      };
-      recorder.start(2500); // 2.5s slices
+      }
+      const text = (finalStr || interimStr).trim();
+      if (text && text.length >= 2) {
+        queryInput.value = text;
+        updateCadenceMetrics(text);
+        executeQuery(text);
+      }
+    };
+
+    recognition.onerror = (e) => {
+      if (e.error !== 'no-speech') {
+        console.log('[GhostCopilot] WebSpeech event:', e.error);
+      }
+    };
+
+    recognition.onend = () => {
+      if (isMicListening) {
+        setTimeout(() => {
+          if (isMicListening && recognition) {
+            try { recognition.start(); } catch (_) {}
+          }
+        }, 200);
+      }
+    };
+  } catch (_) {}
+}
+
+async function sendAudioBlobToBackend(blob) {
+  try {
+    const formData = new FormData();
+    formData.append('file', blob, 'speech_chunk.webm');
+    const res = await fetch('http://127.0.0.1:8000/api/sidekick/audio/transcribe', {
+      method: 'POST',
+      body: formData,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === 'success' && data.transcript && data.transcript.trim()) {
+        const text = data.transcript.trim();
+        queryInput.value = text;
+        updateCadenceMetrics(text);
+        if (data.query_response) {
+          renderResult(data.query_response, data.query_response.latency_microseconds || 45);
+        } else {
+          executeQuery(text);
+        }
+      }
     }
   } catch (err) {
-    console.warn('Microphone MediaRecorder error:', err);
+    console.warn('[GhostCopilot] Backend transcribe call:', err);
   }
 }
 
-function stopMediaRecorderStream() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    try { mediaRecorder.stop(); } catch (_) {}
-    mediaRecorder = null;
+function runStandaloneAudioCycle(stream) {
+  if (!isMicListening || !stream) return;
+
+  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+    ? 'audio/webm;codecs=opus'
+    : MediaRecorder.isTypeSupported('audio/webm')
+    ? 'audio/webm'
+    : '';
+
+  const chunks = [];
+  let recorder;
+  try {
+    recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+  } catch (e) {
+    recorder = new MediaRecorder(stream);
+  }
+  currentRecorder = recorder;
+
+  recorder.ondataavailable = (e) => {
+    if (e.data && e.data.size > 0) {
+      chunks.push(e.data);
+    }
+  };
+
+  recorder.onstop = () => {
+    if (chunks.length > 0 && isMicListening) {
+      const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+      if (blob.size > 600) {
+        sendAudioBlobToBackend(blob);
+      }
+    }
+    // Continue next audio cycle seamlessly
+    if (isMicListening) {
+      runStandaloneAudioCycle(stream);
+    }
+  };
+
+  recorder.start();
+
+  // 2.5 second audio chunk interval
+  captureTimer = setTimeout(() => {
+    if (recorder.state === 'recording') {
+      try {
+        recorder.stop();
+      } catch (_) {}
+    }
+  }, 2500);
+}
+
+async function startListeningPipeline() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      }
+    });
+    mediaStream = stream;
+
+    // Start standalone chunk recording loop
+    runStandaloneAudioCycle(stream);
+
+    // Also try WebSpeech API if available
+    if (recognition) {
+      try { recognition.start(); } catch (_) {}
+    }
+  } catch (err) {
+    console.error('[GhostCopilot] Mic access failed:', err);
+  }
+}
+
+function stopListeningPipeline() {
+  if (captureTimer) {
+    clearTimeout(captureTimer);
+    captureTimer = null;
+  }
+  if (currentRecorder && currentRecorder.state !== 'inactive') {
+    try { currentRecorder.stop(); } catch (_) {}
+    currentRecorder = null;
   }
   if (mediaStream) {
     mediaStream.getTracks().forEach((t) => t.stop());
     mediaStream = null;
   }
+  if (recognition) {
+    try { recognition.stop(); } catch (_) {}
+  }
 }
 
+// Mic Button Click Listener
 micBtn.addEventListener('click', () => {
   isMicListening = !isMicListening;
   if (isMicListening) {
     micBtn.classList.add('active');
+    const label = micBtn.querySelector('.mic-label');
+    if (label) label.textContent = 'LISTENING';
     speechStartTime = Date.now();
-    startMediaRecorderStream();
-    if (recognition) {
-      try { recognition.start(); } catch (_) {}
-    }
+    startListeningPipeline();
   } else {
     micBtn.classList.remove('active');
-    if (monologueInterval) clearInterval(monologueInterval);
+    const label = micBtn.querySelector('.mic-label');
+    if (label) label.textContent = 'LISTEN';
+    if (monologueInterval) {
+      clearInterval(monologueInterval);
+      monologueInterval = null;
+    }
     speechStartTime = null;
     if (rambleBanner) rambleBanner.style.display = 'none';
-    stopMediaRecorderStream();
-    if (recognition) {
-      try { recognition.stop(); } catch (_) {}
-    }
+    stopListeningPipeline();
   }
 });

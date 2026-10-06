@@ -17,6 +17,8 @@ import MarketRadar from './pages/MarketRadar';
 import { SetupGuide } from './pages/SetupGuide';
 import { InterviewCopilotPage } from './pages/InterviewCopilotPage';
 import { InterviewSidekickHUD } from './components/sidekick/InterviewSidekickHUD';
+import { NextRaiseStudio } from './components/nextraise/NextRaiseStudio';
+import { WorkdayStudio } from './components/workday/WorkdayStudio';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -44,6 +46,8 @@ const App: React.FC = () => {
               <Route path="agents" element={<AgentsHub />} />
               <Route path="copilot" element={<Copilot />} />
               <Route path="interview-copilot" element={<InterviewCopilotPage />} />
+              <Route path="nextraise" element={<NextRaiseStudio />} />
+              <Route path="workday" element={<WorkdayStudio />} />
               <Route path="market-radar" element={<MarketRadar />} />
               <Route path="contacts" element={<Contacts />} />
               <Route path="outreach" element={<Outreach />} />

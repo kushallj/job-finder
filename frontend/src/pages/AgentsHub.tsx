@@ -6,8 +6,10 @@ import LeadsTab from './agents/LeadsTab';
 import NetworkerPitchTab from './agents/NetworkerPitchTab';
 import InterviewSimulatorTab from './agents/InterviewSimulatorTab';
 import NegotiatorTab from './agents/NegotiatorTab';
+import { NextRaiseStudio } from '../components/nextraise/NextRaiseStudio';
 
 const TAB_LABELS = [
+  '🚀 NextRaise Auto-Apply (300/day)',
   '🤖 Personal Google AI Fleet (BYOK)',
   'Overview & Daily Run',
   'Leads (CRM)',
@@ -45,12 +47,13 @@ const AgentsHub: React.FC = () => {
         ))}
       </Tabs>
 
-      {tab === 0 && <PersonalFleetTab />}
-      {tab === 1 && <CompaniesOverviewTab />}
-      {tab === 2 && <LeadsTab />}
-      {tab === 3 && <NetworkerPitchTab />}
-      {tab === 4 && <InterviewSimulatorTab />}
-      {tab === 5 && <NegotiatorTab />}
+      {tab === 0 && <NextRaiseStudio />}
+      {tab === 1 && <PersonalFleetTab />}
+      {tab === 2 && <CompaniesOverviewTab />}
+      {tab === 3 && <LeadsTab />}
+      {tab === 4 && <NetworkerPitchTab />}
+      {tab === 5 && <InterviewSimulatorTab />}
+      {tab === 6 && <NegotiatorTab />}
     </Box>
   );
 };

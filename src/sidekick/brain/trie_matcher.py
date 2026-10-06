@@ -17,7 +17,10 @@ logger = logging.getLogger("sidekick.brain.trie")
 
 STOP_WORDS = frozenset({
     "a", "an", "the", "in", "on", "at", "for", "to", "of", "and", "or", "how", "what",
-    "is", "are", "do", "does", "explain", "design", "implement", "tell", "me", "about", "write"
+    "is", "are", "do", "does", "explain", "design", "implement", "tell", "me", "about", "write",
+    "can", "you", "could", "would", "please", "between", "difference", "differences", "terms",
+    "using", "use", "used", "with", "from", "vs", "versus", "work", "works", "working", "like",
+    "so", "well", "okay", "also", "give", "share", "walk", "through", "briefly", "detail", "details"
 })
 
 
@@ -99,7 +102,7 @@ class InterviewKnowledgeTrie:
 
     def search_best_substring(self, query: str) -> Optional[Tuple[Dict[str, Any], float]]:
         """
-        Scans n-gram windows of normalized query with zero redundant normalization allocations.
+        Scans n-gram windows of normalized query with priority on multi-word technical concepts.
         """
         t0 = time.perf_counter_ns()
         norm = self.normalize_text(query)
@@ -113,12 +116,15 @@ class InterviewKnowledgeTrie:
                 t1 = time.perf_counter_ns()
                 return payload, (t1 - t0) / 1000.0
 
-            # 2. Sliding window n-grams
+            # 2. Sliding window n-grams (prioritize longer phrases first)
             words = norm.split()
             word_count = len(words)
-            for length in range(word_count, 0, -1):
+            for length in range(min(word_count, 6), 0, -1):
                 for i in range(word_count - length + 1):
                     sub_phrase = " ".join(words[i : i + length])
+                    # If single word, require it to be at least 3 chars
+                    if length == 1 and len(sub_phrase) < 3:
+                        continue
                     payload = self._search_normalized(sub_phrase)
                     if payload:
                         t1 = time.perf_counter_ns()

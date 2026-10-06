@@ -822,6 +822,18 @@ try:
 except Exception as e:
     log.warning(f"Could not load sidekick_router: {e}")
 
+try:
+    from src.nextraise.api.nextraise_router import router as nextraise_router
+    app.include_router(nextraise_router)
+except Exception as e:
+    log.warning(f"Could not load nextraise_router: {e}")
+
+try:
+    from src.workday.api.workday_router import router as workday_router
+    app.include_router(workday_router)
+except Exception as e:
+    log.warning(f"Could not load workday_router: {e}")
+
 
 
 app.add_middleware(

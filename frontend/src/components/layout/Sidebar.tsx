@@ -29,6 +29,7 @@ import {
   Psychology as CopilotIcon,
   RocketLaunch as RocketIcon,
   VisibilityOff as StealthIcon,
+  Layers as WorkdayIcon,
 } from '@mui/icons-material';
 import { useUIStore } from '../../stores/useUIStore';
 
@@ -42,6 +43,8 @@ interface SidebarProps {
 const mainNavItems = [
   { text: 'Command Center', icon: <DashboardIcon fontSize="small" />, path: '/', tag: '100s' },
   { text: 'Opportunities', icon: <JobsIcon fontSize="small" />, path: '/jobs', tag: '2,050+' },
+  { text: 'Workday Autopilot', icon: <WorkdayIcon fontSize="small" />, path: '/workday', tag: 'ATS' },
+  { text: 'NextRaise Auto-Apply', icon: <RocketIcon fontSize="small" />, path: '/nextraise', tag: '300/DAY' },
   { text: 'AI Agents Fleet', icon: <AgentsIcon fontSize="small" />, path: '/agents', tag: '15' },
   { text: 'Ghost Copilot', icon: <StealthIcon fontSize="small" />, path: '/interview-copilot', tag: '<5µs' },
   { text: 'AI OSINT Copilot', icon: <CopilotIcon fontSize="small" />, path: '/copilot', tag: 'AI' },

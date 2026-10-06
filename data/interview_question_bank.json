@@ -1,5 +1,5 @@
 {
-  "version": "2.2.0",
+  "version": "2.4.0",
   "dsa_patterns": [
     {
       "id": "lru_cache",
@@ -10444,6 +10444,907 @@
         "Core Concept: Address fundamental architectural mechanism for 'usestate vs useref'.",
         "Implementation & Complexity: Discuss time/space trade-offs, standard patterns in React.js & Frontend State, and production edge cases.",
         "Production Considerations: Highlight monitoring, error handling, backward compatibility, and graceful degradation."
+      ]
+    },
+    {
+      "id": "kotlin_coroutines_vs_threads",
+      "title": "Difference between Coroutines and Threads in Kotlin",
+      "category": "Kotlin Coroutines & Concurrency",
+      "technology": "Kotlin",
+      "keywords": [
+        "coroutines vs threads",
+        "difference between coroutines and threads",
+        "lightweight threads",
+        "continuation",
+        "coroutine vs thread",
+        "cooperative multitasking",
+        "suspending function"
+      ],
+      "bullets": [
+        "Architecture: Threads are managed by OS kernel with ~1MB stack & costly context switches; Coroutines are user-space state machines (~few KB) scheduled across thread pools.",
+        "Execution Model: Coroutines use cooperative suspension (`suspend`) without blocking underlying OS threads, allowing tens of thousands of concurrent tasks on few worker threads.",
+        "Under the Hood: The Kotlin compiler transforms suspending functions into finite state machines using continuation passing style (`Continuation<T>`)."
+      ]
+    },
+    {
+      "id": "kotlin_launch_vs_async",
+      "title": "Difference between launch and async in Kotlin Coroutines",
+      "category": "Kotlin Coroutines & Concurrency",
+      "technology": "Kotlin",
+      "keywords": [
+        "launch vs async",
+        "difference between launch and async",
+        "job vs deferred",
+        "await in kotlin",
+        "coroutine builder",
+        "launch vs async exception"
+      ],
+      "bullets": [
+        "Return Types: `launch` is a fire-and-forget builder returning a `Job` (no result value); `async` returns a `Deferred<T>` allowing `await()` to receive computed value.",
+        "Exception Handling: `launch` propagates exceptions immediately to parent scope/uncaught exception handler; `async` encapsulates exceptions in `Deferred` and throws upon calling `await()`.",
+        "Best Practice: Use `async` for parallel decomposition (e.g. `awaitAll(fetchUser, fetchOrders)`), use `launch` for standalone asynchronous tasks."
+      ]
+    },
+    {
+      "id": "kotlin_flow_vs_livedata_vs_stateflow",
+      "title": "StateFlow vs SharedFlow vs LiveData vs Channels in Kotlin",
+      "category": "Kotlin Reactive & Flows",
+      "technology": "Kotlin",
+      "keywords": [
+        "stateflow vs sharedflow",
+        "livedata vs flow",
+        "stateflow vs livedata",
+        "hot flow vs cold flow",
+        "channels vs flow",
+        "replay cache"
+      ],
+      "bullets": [
+        "StateFlow: Hot stream with initial value, conflates duplicate emissions, always retains the latest state (`replay=1`), lifecycle-aware with `repeatOnLifecycle`.",
+        "SharedFlow: Hot event bus with configurable `replay` cache and `extraBufferCapacity`, ideal for one-off events (navigation, toasts, snackbars).",
+        "Channels vs Flow: `Channel` is hot point-to-point communication (each event consumed once); `Flow` is declarative stream (cold for standard flows, broadcast for hot flows)."
+      ]
+    },
+    {
+      "id": "kotlin_cold_flow_vs_hot_flow",
+      "title": "Cold Flow vs Hot Flow in Kotlin",
+      "category": "Kotlin Reactive & Flows",
+      "technology": "Kotlin",
+      "keywords": [
+        "cold flow vs hot flow",
+        "cold stream",
+        "hot stream",
+        "flow builder",
+        "sharedflow cold hot",
+        "stateflow cold hot"
+      ],
+      "bullets": [
+        "Cold Flow (`flow { }`): Producer code does not execute until a terminal operator (`collect`, `toList`) is attached; each subscriber triggers independent execution from the beginning.",
+        "Hot Flow (`StateFlow`, `SharedFlow`): Producer emits values independently of whether there are active collectors; subscribers only receive values emitted during active collection.",
+        "Conversion: Convert Cold Flow to Hot using `stateIn(scope, SharingStarted.WhileSubscribed(5000), initialValue)` or `shareIn()`."
+      ]
+    },
+    {
+      "id": "kotlin_dispatchers",
+      "title": "Coroutine Dispatchers: Main, IO, Default, and Unconfined",
+      "category": "Kotlin Coroutines & Concurrency",
+      "technology": "Kotlin",
+      "keywords": [
+        "dispatchers.io vs default",
+        "coroutine dispatchers",
+        "dispatchers.main",
+        "dispatchers.unconfined",
+        "thread pool dispatchers"
+      ],
+      "bullets": [
+        "Dispatchers.Default: Backed by a shared thread pool sized to CPU cores (min 2); optimized for CPU-intensive tasks (sorting, JSON parsing, algorithms).",
+        "Dispatchers.IO: Backed by an elastic thread pool (default up to 64 threads); optimized for blocking I/O (disk, network, database queries).",
+        "Dispatchers.Main & Unconfined: `Main` targets platform UI thread (Android Looper / JavaFX); `Unconfined` starts in caller thread until first suspension point, then resumes in whatever thread resumed it."
+      ]
+    },
+    {
+      "id": "kotlin_structured_concurrency",
+      "title": "Structured Concurrency and SupervisorJob in Kotlin",
+      "category": "Kotlin Coroutines & Concurrency",
+      "technology": "Kotlin",
+      "keywords": [
+        "structured concurrency",
+        "supervisorjob",
+        "coroutine scope",
+        "coroutineexceptionhandler",
+        "job hierarchy",
+        "supervisorScope"
+      ],
+      "bullets": [
+        "Structured Concurrency: Coroutines must be launched in specific `CoroutineScope`, establishing parent-child hierarchy; parent waits for all children and cancels them on failure.",
+        "Job vs SupervisorJob: Regular `Job` failure in one child cancels parent and all sibling coroutines; `SupervisorJob` isolates child failure so siblings continue running.",
+        "Scope Builders: `coroutineScope` fails fast if any child throws; `supervisorScope` keeps remaining child jobs alive when one child fails."
+      ]
+    },
+    {
+      "id": "kotlin_coroutine_cancellation",
+      "title": "Coroutine Cancellation and Cooperative Suspension",
+      "category": "Kotlin Coroutines & Concurrency",
+      "technology": "Kotlin",
+      "keywords": [
+        "coroutine cancellation",
+        "cooperative cancellation",
+        "ensureactive",
+        "yield",
+        "noncancellable",
+        "cancellationexception"
+      ],
+      "bullets": [
+        "Cooperative Nature: Cancellation is cooperative; coroutine code must check cancellation status (`isActive`, `ensureActive()`, or call suspending functions like `delay()`, `yield()`).",
+        "CancellationException: Thrown internally on cancellation to clean up without bubbling up to uncaught exception handlers; never swallow it in a catch-all block.",
+        "Non-Cancellable Cleanup: When executing mandatory cleanup (closing DB connections, file streams) in `finally`, wrap with `withContext(NonCancellable) { ... }`."
+      ]
+    },
+    {
+      "id": "kotlin_inline_noinline_crossinline",
+      "title": "Inline, Noinline, and Crossinline Functions in Kotlin",
+      "category": "Kotlin Advanced Syntax",
+      "technology": "Kotlin",
+      "keywords": [
+        "inline noinline crossinline",
+        "inline function",
+        "noinline",
+        "crossinline",
+        "reified",
+        "lambda allocation overhead"
+      ],
+      "bullets": [
+        "inline: Compiler copies bytecode of function and lambda parameter directly to call site, eliminating lambda object instantiation and function call overhead.",
+        "noinline: Marks specific lambda parameters inside an inline function to NOT be inlined (allows storing as variable or passing to other non-inline functions).",
+        "crossinline: Prevents non-local returns from a lambda passed to an inline function when the lambda is executed inside an indirect execution context (e.g. Runnable)."
+      ]
+    },
+    {
+      "id": "kotlin_reified_type_parameters",
+      "title": "Reified Type Parameters and Type Erasure in Kotlin",
+      "category": "Kotlin Advanced Syntax",
+      "technology": "Kotlin",
+      "keywords": [
+        "reified",
+        "reified type parameter",
+        "type erasure kotlin",
+        "inline reified",
+        "inline fun reified"
+      ],
+      "bullets": [
+        "Mechanism: In JVM, generics undergo type erasure at compile-time (`List<String>` becomes `List`); `reified` modifier inside an `inline` function preserves concrete runtime type.",
+        "Capabilities: Allows calling `T::class.java`, `is T`, and type casting directly without passing explicit `Class<T>` parameters.",
+        "Limitation: Only allowed in `inline` functions because compiler replaces type placeholder with concrete class at inlined call site."
+      ]
+    },
+    {
+      "id": "kotlin_sealed_class_vs_interface_vs_enum",
+      "title": "Sealed Class vs Sealed Interface vs Enum in Kotlin",
+      "category": "Kotlin Advanced Syntax",
+      "technology": "Kotlin",
+      "keywords": [
+        "sealed class vs sealed interface",
+        "sealed class vs enum",
+        "sealed class",
+        "sealed interface",
+        "pattern matching when"
+      ],
+      "bullets": [
+        "Sealed Class vs Enum: `Enum` represents single static constant instances; `Sealed Class` represents restricted hierarchies where subclasses can hold distinct dynamic state.",
+        "Sealed Class vs Sealed Interface: `Sealed Class` provides common constructor state and protected modifiers; `Sealed Interface` enables multiple inheritance across unrelated hierarchies.",
+        "Exhaustive When: Kotlin compiler knows all subtypes at compile time, eliminating need for `else` branches in `when` expressions."
+      ]
+    },
+    {
+      "id": "kotlin_delegated_properties",
+      "title": "Delegated Properties and Custom Delegates in Kotlin",
+      "category": "Kotlin Advanced Syntax",
+      "technology": "Kotlin",
+      "keywords": [
+        "by lazy",
+        "delegated properties",
+        "delegates.observable",
+        "lazy vs lateinit",
+        "custom delegate kotlin",
+        "getvalue setvalue"
+      ],
+      "bullets": [
+        "by lazy: Thread-safe lazy initialization (`LazyThreadSafetyMode.SYNCHRONIZED` default); computes value once on first access, only usable with read-only `val`.",
+        "lateinit var vs lazy val: `lateinit` is for mutable `var` initialized before use (non-primitive); `lazy` is for immutable `val` evaluated on demand with lambda.",
+        "Custom Delegate: Implements `ReadOnlyProperty<Any?, T>` or `ReadWriteProperty<Any?, T>` implementing operator functions `getValue` and `setValue`."
+      ]
+    },
+    {
+      "id": "kotlin_scope_functions",
+      "title": "Kotlin Scope Functions: let, run, with, apply, and also",
+      "category": "Kotlin Core Concepts",
+      "technology": "Kotlin",
+      "keywords": [
+        "scope functions",
+        "let vs apply",
+        "run vs with",
+        "apply vs also",
+        "let run with apply also",
+        "scope functions difference"
+      ],
+      "bullets": [
+        "Context Object (`this` vs `it`): `run`, `with`, `apply` use `this` receiver; `let`, `also` pass the object as lambda argument `it`.",
+        "Return Value (Result vs Context): `let`, `run`, `with` return lambda result; `apply`, `also` return context object itself (method chaining).",
+        "Idiomatic Usages: `let` for null-checks (`obj?.let { }`); `apply` for object builder configuration; `also` for side-effects/logging; `run` for scoping & transformation."
+      ]
+    },
+    {
+      "id": "kotlin_generics_variance",
+      "title": "Generics Variance in Kotlin: Declaration-site (out/in) vs Java Wildcards",
+      "category": "Kotlin Advanced Syntax",
+      "technology": "Kotlin",
+      "keywords": [
+        "variance kotlin",
+        "out vs in kotlin",
+        "covariance contravariance",
+        "declaration site variance",
+        "star projection",
+        "pecs in kotlin"
+      ],
+      "bullets": [
+        "out (Covariance / Producer): Equivalent to Java `? extends T`; can only produce/read `T` from methods, never consume. E.g. `List<out Number>`.",
+        "in (Contravariance / Consumer): Equivalent to Java `? super T`; can only consume/write `T` into methods. E.g. `Comparable<in String>`.",
+        "Declaration-Site Variance: Kotlin allows annotating class definition directly (`interface List<out E>`) rather than repeating wildcards at every call site."
+      ]
+    },
+    {
+      "id": "kotlin_java_interop",
+      "title": "Kotlin-Java Interoperability: @JvmStatic, @JvmOverloads, @JvmField",
+      "category": "Kotlin-Java Interop",
+      "technology": "Kotlin",
+      "keywords": [
+        "jvmstatic",
+        "jvmoverloads",
+        "jvmfield",
+        "kotlin java interop",
+        "calling kotlin from java",
+        "jvmname"
+      ],
+      "bullets": [
+        "@JvmStatic: Tells compiler to generate true static Java method on companion objects / named objects instead of requiring `Companion.INSTANCE` invocation.",
+        "@JvmOverloads: Instructs compiler to synthesize multiple overloaded Java constructors/methods for functions containing default parameter values.",
+        "@JvmField: Exposes Kotlin property as a public raw Java field without generating getter/setter bytecodes, eliminating accessor overhead."
+      ]
+    },
+    {
+      "id": "kotlin_data_class_internals",
+      "title": "Kotlin Data Class Internals and componentN functions",
+      "category": "Kotlin Core Concepts",
+      "technology": "Kotlin",
+      "keywords": [
+        "data class internals",
+        "data class copy",
+        "componentn",
+        "destructuring declaration",
+        "data class hashcode equals"
+      ],
+      "bullets": [
+        "Compiler Generated: Automatically synthesizes `equals()`, `hashCode()`, `toString()`, `copy()`, and `componentN()` destructuring operators based solely on primary constructor parameters.",
+        "Destructuring Declarations: `val (name, age) = user` maps to `user.component1()` and `user.component2()` by position, not by parameter name.",
+        "Inheritance Limitation: Data classes cannot be `open`, `abstract`, or `sealed`, but can implement interfaces."
+      ]
+    },
+    {
+      "id": "java_concurrenthashmap_internals",
+      "title": "ConcurrentHashMap Internal Architecture (Java 8+ vs Java 7)",
+      "category": "Java Collections & Concurrency",
+      "technology": "Java",
+      "keywords": [
+        "concurrenthashmap internals",
+        "concurrenthashmap java 8",
+        "segment locking vs cas",
+        "treebin concurrenthashmap",
+        "hashmap vs concurrenthashmap"
+      ],
+      "bullets": [
+        "Java 8+ Architecture: Replaced Java 7's 16-Segment locks with Lock-Free CAS (Compare-And-Swap) for empty bucket insertions and fine-grained `synchronized` lock on the first node of each bin.",
+        "Collision Treeification: Chained bins treeify into Red-Black Trees (`TreeBin`) when bucket count exceeds threshold 8 and table capacity >= 64, keeping worst-case lookup at O(log N).",
+        "Concurrent Size & Resize: High-concurrency size calculation uses Striped `CounterCell` array (LongAdder pattern); resizing occurs concurrently with helper threads."
+      ]
+    },
+    {
+      "id": "java_virtual_threads",
+      "title": "Virtual Threads (Project Loom) in Java 21+ vs Platform Threads",
+      "category": "Java Concurrency & Multithreading",
+      "technology": "Java",
+      "keywords": [
+        "virtual threads java",
+        "project loom",
+        "virtual threads vs platform threads",
+        "carrier threads",
+        "thread pinning virtual threads",
+        "virtual thread pool"
+      ],
+      "bullets": [
+        "Architecture: Virtual threads are lightweight user-mode threads managed by the JVM (ForkJoinPool carrier threads), with tiny ~few hundred bytes heap footprints.",
+        "Blocking I/O Without OS Blocking: When a virtual thread executes blocking I/O (Socket, DB), the JVM unmounts its `Continuation` from carrier thread, freeing carrier thread for other tasks.",
+        "Thread Pinning Caveat: Avoid holding native monitors (`synchronized` blocks or native methods) during blocking I/O which pins carrier thread; use `ReentrantLock` instead."
+      ]
+    },
+    {
+      "id": "java_volatile_keyword",
+      "title": "Volatile Keyword, Memory Barriers, and Visibility in Java",
+      "category": "Java Concurrency & Multithreading",
+      "technology": "Java",
+      "keywords": [
+        "volatile in java",
+        "memory barrier",
+        "happens before relationship",
+        "volatile vs synchronized",
+        "instruction reordering",
+        "is volatile atomic"
+      ],
+      "bullets": [
+        "Visibility Guarantee: Ensures reads and writes go directly to CPU main memory (RAM) rather than CPU L1/L2 caches, establishing a Happens-Before relationship.",
+        "Instruction Reordering Prevention: Inserts hardware memory barriers (LoadLoad, StoreStore, LoadStore, StoreLoad) preventing JVM/CPU compiler reordering.",
+        "Non-Atomicity: `volatile` does NOT make compound operations atomic (e.g., `count++` requires read-modify-write and will suffer race conditions without `AtomicInteger` or locks)."
+      ]
+    },
+    {
+      "id": "java_synchronized_vs_reentrantlock",
+      "title": "Synchronized vs ReentrantLock in Java",
+      "category": "Java Concurrency & Multithreading",
+      "technology": "Java",
+      "keywords": [
+        "synchronized vs reentrantlock",
+        "reentrantlock features",
+        "fairness in reentrantlock",
+        "condition variables",
+        "trylock java"
+      ],
+      "bullets": [
+        "Flexibility: `synchronized` is block-scoped and managed by JVM monitor; `ReentrantLock` allows explicit `lock()` and `unlock()` in `try-finally` blocks.",
+        "Advanced Capabilities: `ReentrantLock` supports `tryLock(timeout)`, lock interruptibility (`lockInterruptibly`), fairness policies (FIFO lock queue), and multiple `Condition` queues.",
+        "Performance: Modern JVM optimizes `synchronized` with Biased Locking, Lightweight Locking, and Lock Coarsening; `ReentrantLock` avoids thread pinning with Virtual Threads."
+      ]
+    },
+    {
+      "id": "java_threadpoolexecutor_tuning",
+      "title": "ThreadPoolExecutor Architecture and Rejection Policies in Java",
+      "category": "Java Concurrency & Multithreading",
+      "technology": "Java",
+      "keywords": [
+        "threadpoolexecutor",
+        "corepoolsize maxpoolsize",
+        "rejectedexecutionhandler",
+        "thread pool rejection policy",
+        "caller runs policy"
+      ],
+      "bullets": [
+        "Task Flow: 1. If active threads < `corePoolSize`, create new thread. 2. If >= core, queue task in `BlockingQueue`. 3. If queue full and threads < `maxPoolSize`, spawn thread. 4. If queue full and threads == max, trigger `RejectedExecutionHandler`.",
+        "Rejection Policies: `AbortPolicy` (throws RejectedExecutionException), `CallerRunsPolicy` (executes in caller thread to apply backpressure), `DiscardPolicy`, `DiscardOldestPolicy`.",
+        "Sizing Heuristic: CPU-bound: `cores + 1`; I/O-bound: `cores * (1 + WaitTime / ServiceTime)` or migrate to Java 21 Virtual Threads."
+      ]
+    },
+    {
+      "id": "java_completablefuture",
+      "title": "CompletableFuture Async Chaining and Exception Handling in Java",
+      "category": "Java Concurrency & Multithreading",
+      "technology": "Java",
+      "keywords": [
+        "completablefuture",
+        "thenapply vs thencompose",
+        "thencombine",
+        "allof completablefuture",
+        "async programming java",
+        "exceptionally completablefuture"
+      ],
+      "bullets": [
+        "thenApply vs thenCompose: `thenApply` transforms value `T -> R` (map); `thenCompose` flattens nested future `T -> CompletableFuture<R>` (flatMap).",
+        "Parallel Combination: `thenCombine` combines results of two independent futures; `CompletableFuture.allOf(...)` awaits an array of async tasks.",
+        "Exception Handling: Handle async errors gracefully using `.exceptionally(ex -> fallback)` or `.handle((res, ex) -> ...)`."
+      ]
+    },
+    {
+      "id": "java_deadlock_detection_prevention",
+      "title": "Deadlock Conditions, Detection, and Prevention in Java",
+      "category": "Java Concurrency & Multithreading",
+      "technology": "Java",
+      "keywords": [
+        "deadlock in java",
+        "coffman conditions",
+        "deadlock prevention",
+        "thread dump deadlock",
+        "jstack deadlock detection",
+        "lock ordering"
+      ],
+      "bullets": [
+        "4 Coffman Conditions: Mutual Exclusion, Hold & Wait, No Preemption, Circular Wait.",
+        "Prevention Strategies: 1. Strict global lock acquisition ordering. 2. Use `tryLock(timeout)` to back off. 3. Minimize lock scope.",
+        "Production Detection: Generate JVM thread dump via `jstack <pid>` or `jcmd <pid> Thread.print` to locate `Found 1 deadlock` cycle."
+      ]
+    },
+    {
+      "id": "java_jvm_memory_model",
+      "title": "JVM Memory Model: Heap, Stack, Metaspace, and Off-Heap",
+      "category": "JVM Memory & Architecture",
+      "technology": "Java",
+      "keywords": [
+        "jvm memory model",
+        "heap vs stack",
+        "metaspace in java",
+        "permgen vs metaspace",
+        "off-heap memory",
+        "jvm memory structure"
+      ],
+      "bullets": [
+        "Heap Memory: Shared across all threads; divided into Young Generation (Eden, Survivor S0/S1) and Old/Tenured Generation.",
+        "Thread Stack: Thread-private memory containing stack frames with local primitive variables, method calls, and object reference pointers (`StackOverflowError`).",
+        "Metaspace: Replaced Java 7 PermGen in native OS memory; stores class metadata, static variables, and bytecode; auto-grows bound by `-XX:MaxMetaspaceSize` (`OutOfMemoryError: Metaspace`)."
+      ]
+    },
+    {
+      "id": "java_garbage_collection_algorithms",
+      "title": "Garbage Collection Algorithms: G1GC vs ZGC vs Shenandoah",
+      "category": "JVM Memory & Architecture",
+      "technology": "Java",
+      "keywords": [
+        "g1gc vs zgc",
+        "garbage collection algorithms",
+        "zgc ultra low latency",
+        "g1 collector",
+        "stop the world gc",
+        "cms vs g1"
+      ],
+      "bullets": [
+        "G1GC (Garbage-First): Default in Java 9+; partitions heap into equal-sized regions (1MB\u201332MB), prioritizes regions with most garbage to meet max pause target `-XX:MaxGCPauseMillis`.",
+        "ZGC (Z Garbage Collector): Scalable ultra-low latency collector (<1ms pause times) handling terabytes of heap; performs concurrent marking, relocation, and colored pointers with load barriers.",
+        "Shenandoah: Ultra-low pause concurrent collector utilizing Brooks pointers for concurrent object evacuation."
+      ]
+    },
+    {
+      "id": "java_memory_leaks_and_oom",
+      "title": "Troubleshooting Java Memory Leaks and OutOfMemoryError",
+      "category": "JVM Memory & Architecture",
+      "technology": "Java",
+      "keywords": [
+        "java memory leaks",
+        "outofmemoryerror heap space",
+        "heap dump analysis",
+        "eclipse mat",
+        "weakreference softreference",
+        "threadlocal leak"
+      ],
+      "bullets": [
+        "Common Causes: Unclosed resources/listeners, static collections holding references, non-static inner class references, unremoved `ThreadLocal` variables in pooled threads.",
+        "Diagnostics: Launch JVM with `-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/dumps/` and analyze using Eclipse Memory Analyzer (MAT) or JProfiler for GC roots leak suspects.",
+        "Reference Types: `StrongReference` (never collected), `SoftReference` (collected only before OOM), `WeakReference` (collected at next GC cycle, e.g. WeakHashMap), `PhantomReference`."
+      ]
+    },
+    {
+      "id": "java_hashmap_internals",
+      "title": "HashMap Internal Working, Hash Collisions, and Treeification in Java 8+",
+      "category": "Java Collections & Internals",
+      "technology": "Java",
+      "keywords": [
+        "hashmap internals",
+        "hashmap collision resolution",
+        "treeify threshold 8",
+        "hashmap put working",
+        "load factor 0.75",
+        "hashcode and equals in hashmap"
+      ],
+      "bullets": [
+        "Hashing & Indexing: Computes `hash = (h = key.hashCode()) ^ (h >>> 16)` and calculates bucket index via bitwise `(n - 1) & hash` (capacity power of 2).",
+        "Collision Chaining: Collisions form a linked list (`Node<K,V>`); if bucket length reaches `TREEIFY_THRESHOLD = 8` and table capacity >= 64, converted into Red-Black Tree (`TreeNode<K,V>`).",
+        "Resize & Load Factor: Resizes (doubles capacity) when `size > capacity * 0.75`; re-indexes nodes using high-bit check (`(e.hash & oldCap) == 0`) without recomputing hash codes."
+      ]
+    },
+    {
+      "id": "java_equals_hashcode_contract",
+      "title": "Equals and HashCode Contract in Java",
+      "category": "Java Collections & Internals",
+      "technology": "Java",
+      "keywords": [
+        "equals and hashcode contract",
+        "why override hashcode with equals",
+        "hashcode equals violation",
+        "hashmap broken key"
+      ],
+      "bullets": [
+        "Contract Rule 1: If `a.equals(b) == true`, then `a.hashCode()` MUST equal `b.hashCode()`.",
+        "Contract Rule 2: If `a.hashCode() == b.hashCode()`, `a.equals(b)` is NOT required to be true (hash collision).",
+        "Violation Consequence: If `equals` is overridden without `hashCode`, two equal objects will land in different HashMap buckets, making `.get(key)` return `null`."
+      ]
+    },
+    {
+      "id": "java_fail_fast_vs_fail_safe",
+      "title": "Fail-Fast vs Fail-Safe Iterators in Java",
+      "category": "Java Collections & Internals",
+      "technology": "Java",
+      "keywords": [
+        "fail fast vs fail safe",
+        "concurrentmodificationexception",
+        "copyonwritearraylist iterator",
+        "modcount java"
+      ],
+      "bullets": [
+        "Fail-Fast (ArrayList, HashMap): Checks internal `modCount` on every iteration; if collection is modified structurally by another thread or loop, throws `ConcurrentModificationException` immediately.",
+        "Fail-Safe (CopyOnWriteArrayList, ConcurrentHashMap): Operates on a cloned snapshot of the underlying array/collection; never throws `ConcurrentModificationException` but reflects weakly consistent data.",
+        "Safe Modification: To delete while iterating fail-fast collections, use `iterator.remove()` rather than `collection.remove()`."
+      ]
+    },
+    {
+      "id": "spring_boot_bean_lifecycle",
+      "title": "Spring Bean Lifecycle and Scopes in Spring Boot",
+      "category": "Spring Boot & Backend Architecture",
+      "technology": "Spring Boot",
+      "keywords": [
+        "spring bean lifecycle",
+        "beanpostprocessor",
+        "postconstruct predestroy",
+        "spring bean scopes",
+        "singleton vs prototype scope"
+      ],
+      "bullets": [
+        "Lifecycle Sequence: Instantiation -> Populate Properties -> `BeanNameAware` / `ApplicationContextAware` -> `BeanPostProcessor.beforeInitialization` -> `@PostConstruct` / `InitializingBean` -> `BeanPostProcessor.afterInitialization` -> Ready -> `@PreDestroy`.",
+        "Bean Scopes: Singleton (default, 1 per Spring container), Prototype (new instance on every injection), Request/Session/Application (Web scopes).",
+        "Best Practice: Use constructor injection over `@Autowired` field injection for immutability, testability, and explicit dependency declaration."
+      ]
+    },
+    {
+      "id": "spring_transactional_pitfalls",
+      "title": "@Transactional Propagation, Self-Invocation, and Rollback Pitfalls in Spring",
+      "category": "Spring Boot & Backend Architecture",
+      "technology": "Spring Boot",
+      "keywords": [
+        "@transactional self invocation",
+        "transaction propagation required requires_new",
+        "transactional rollbackfor",
+        "spring transactional proxy",
+        "spring aop cglib"
+      ],
+      "bullets": [
+        "Self-Invocation Pitfall: Calling a `@Transactional` method from another method in the SAME class bypasses the Spring AOP Proxy, executing without transaction interceptors.",
+        "Rollback Rules: By default, Spring only rolls back on unchecked `RuntimeException` and `Error`; to roll back on checked exceptions, declare `@Transactional(rollbackFor = Exception.class)`.",
+        "Propagation: `REQUIRED` (joins existing or creates new), `REQUIRES_NEW` (suspends existing transaction to execute independently), `MANDATORY` (must run in existing transaction)."
+      ]
+    },
+    {
+      "id": "spring_boot_autoconfiguration",
+      "title": "How Spring Boot Auto-Configuration Works Internally",
+      "category": "Spring Boot & Backend Architecture",
+      "technology": "Spring Boot",
+      "keywords": [
+        "spring boot autoconfiguration",
+        "how autoconfiguration works",
+        "@enableautoconfiguration",
+        "@conditionalonclass",
+        "spring.factories autoconfiguration"
+      ],
+      "bullets": [
+        "Mechanism: `@SpringBootApplication` enables `@EnableAutoConfiguration` which uses `AutoConfigurationImportSelector` to load configuration classes listed in `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`.",
+        "Conditional Annotations: Evaluates conditions before creating beans (`@ConditionalOnClass`, `@ConditionalOnMissingBean`, `@ConditionalOnProperty`).",
+        "Custom Starters: Packaged with autoconfiguration classes and custom `@ConfigurationProperties` to bootstrap SDKs without boilerplate."
+      ]
+    },
+    {
+      "id": "dsa_lru_cache_java_kotlin",
+      "title": "Implement LRU Cache in Java and Kotlin",
+      "category": "Algorithms & Problem Solving",
+      "technology": "Java / Kotlin",
+      "keywords": [
+        "lru cache java",
+        "lru cache kotlin",
+        "linkedhashmap lru",
+        "lru cache doubly linked list",
+        "design lru cache"
+      ],
+      "bullets": [
+        "Doubly Linked List + HashMap: Map stores key -> `Node(key, value, prev, next)` for O(1) lookups; DLL maintains access order for O(1) removal and head insertion.",
+        "LinkedHashMap Approach: In Java, extend `LinkedHashMap(capacity, 0.75f, true)` and override `removeEldestEntry(entry) -> size() > capacity`.",
+        "Concurrency: Wrap accesses with `ReentrantReadWriteLock` or synchronize DLL node operations."
+      ]
+    },
+    {
+      "id": "dsa_thread_safe_singleton",
+      "title": "Thread-Safe Singleton in Java and Kotlin (Double-Checked Locking)",
+      "category": "Design Patterns & Architecture",
+      "technology": "Java / Kotlin",
+      "keywords": [
+        "thread safe singleton",
+        "double checked locking java",
+        "singleton with volatile",
+        "enum singleton",
+        "kotlin object singleton"
+      ],
+      "bullets": [
+        "Double-Checked Locking (Java): Declare `private static volatile Singleton instance;` checking `if (instance == null)` before and inside `synchronized(Singleton.class)` block to prevent reordering.",
+        "Enum Singleton (Effective Java): `public enum Singleton { INSTANCE; }` provides JVM-level serialization and reflection-attack safety.",
+        "Kotlin Implementation: Simply declare `object Singleton { ... }` which the Kotlin compiler compiles into a thread-safe static initialization block (`by lazy` for lazy loading)."
+      ]
+    },
+    {
+      "id": "dsa_producer_consumer",
+      "title": "Thread-Safe Producer-Consumer Pattern in Java and Kotlin",
+      "category": "Design Patterns & Architecture",
+      "technology": "Java / Kotlin",
+      "keywords": [
+        "producer consumer pattern",
+        "blockingqueue producer consumer",
+        "wait notify producer consumer",
+        "channel producer consumer kotlin",
+        "reentrantlock condition"
+      ],
+      "bullets": [
+        "BlockingQueue (Java): `ArrayBlockingQueue` or `LinkedBlockingQueue` with `put()` (blocks if full) and `take()` (blocks if empty).",
+        "ReentrantLock & Condition: Use single lock with `notFull` and `notEmpty` Condition instances for fine-grained signaling without spurious wakeups.",
+        "Kotlin Coroutines: Use `Channel<T>(capacity = Channel.BUFFERED)` with `channel.send()` and `channel.receive()` suspending functions."
+      ]
+    },
+    {
+      "id": "dsa_top_k_frequent_elements",
+      "title": "Top K Frequent Elements in Java and Kotlin",
+      "category": "Algorithms & Problem Solving",
+      "technology": "Java / Kotlin",
+      "keywords": [
+        "top k frequent elements",
+        "top k elements min heap",
+        "bucket sort top k",
+        "priorityqueue java top k"
+      ],
+      "bullets": [
+        "Min-Heap Approach: Build Frequency Map O(N), maintain `PriorityQueue` of size K ordered by frequency O(N log K) time and O(N) space.",
+        "Bucket Sort Approach (Optimal): Frequency map -> Array of Lists where index = frequency count O(N) time and O(N) space.",
+        "Kotlin Idiomatic: `nums.toList().groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(k).map { it.key }`."
+      ]
+    },
+    {
+      "id": "dsa_course_schedule_topological_sort",
+      "title": "Course Schedule (Cycle Detection & Topological Sort)",
+      "category": "Algorithms & Problem Solving",
+      "technology": "Java / Kotlin",
+      "keywords": [
+        "course schedule",
+        "topological sort java",
+        "kahns algorithm",
+        "cycle detection directed graph",
+        "indegree array bfs"
+      ],
+      "bullets": [
+        "Kahn's BFS Algorithm: Compute in-degree array for each course, add all 0 in-degree nodes to Queue, decrement neighbors on dequeue; cycle exists if processed count < N.",
+        "DFS 3-Coloring: State 0 (unvisited), State 1 (visiting in current recursion stack), State 2 (fully visited); detecting neighbor in State 1 indicates a cycle.",
+        "Complexity: O(V + E) vertices and edges time, O(V + E) adjacency list space."
+      ]
+    },
+    {
+      "id": "kotlin_inline_value_classes",
+      "title": "Inline Value Classes in Kotlin (@JvmInline value class)",
+      "category": "Kotlin Advanced Syntax",
+      "technology": "Kotlin",
+      "keywords": [
+        "inline value class",
+        "jvminline value class",
+        "value class kotlin",
+        "type safety zero allocation",
+        "inline class vs typealias"
+      ],
+      "bullets": [
+        "Zero Allocation Wrapper: `@JvmInline value class Password(val value: String)` provides domain type-safety at compile time without runtime heap object instantiation.",
+        "Bytecode Compilation: Compiler unboxes value classes to their underlying primitive/reference in bytecode; boxes to wrapper class only when used as generic type or interface.",
+        "Value Class vs Typealias: `typealias` is merely an alias (assignable to raw type); `value class` creates a distinct non-interchangeable type enforcing strict type safety."
+      ]
+    },
+    {
+      "id": "kotlin_contracts",
+      "title": "Kotlin Contracts (returns(), callsInPlace())",
+      "category": "Kotlin Advanced Syntax",
+      "technology": "Kotlin",
+      "keywords": [
+        "kotlin contracts",
+        "smart cast with contract",
+        "callsinplace",
+        "contract builder kotlin",
+        "custom smart cast"
+      ],
+      "bullets": [
+        "Purpose: Informs the Kotlin compiler's type checker about conditions satisfied when a function returns, enabling automatic smart casts and variable initialization guarantees.",
+        "returns(): `contract { returns() implies (value != null) }` tells compiler that if the check succeeds, `value` is guaranteed non-null in the caller scope.",
+        "callsInPlace(): `contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }` allows initializing a `val` variable inside a higher-order lambda."
+      ]
+    },
+    {
+      "id": "kotlin_flow_operators",
+      "title": "Kotlin Flow Operators: debounce, flatMapLatest, conflate, and buffer",
+      "category": "Kotlin Reactive & Flows",
+      "technology": "Kotlin",
+      "keywords": [
+        "flow debounce",
+        "flatmaplatest vs flatmapmerge",
+        "conflate vs buffer",
+        "flow backpressure",
+        "search query debounce flow"
+      ],
+      "bullets": [
+        "debounce(ms): Emits an item only after a specified timeout has passed without another emission (ideal for live search query inputs).",
+        "flatMapLatest: Cancels the previous upstream flow collection and switches to the new flow whenever a new value arrives (e.g. search query typing).",
+        "conflate vs buffer: `buffer()` executes producer and collector concurrently in separate coroutines; `conflate()` skips intermediate slow emissions, keeping only latest."
+      ]
+    },
+    {
+      "id": "kotlin_companion_vs_object",
+      "title": "Companion Object vs Object Declaration vs Top-Level Functions in Kotlin",
+      "category": "Kotlin Core Concepts",
+      "technology": "Kotlin",
+      "keywords": [
+        "companion object vs object",
+        "singleton in kotlin",
+        "top level functions kotlin",
+        "static in kotlin",
+        "companion object internals"
+      ],
+      "bullets": [
+        "Object Declaration: Defines a thread-safe lazy Singleton instance created upon first class loading (`object DatabaseManager`).",
+        "Companion Object: Nested object tied to the enclosing class (like Java static methods/factory methods); can implement interfaces and hold extension functions.",
+        "Top-Level Functions: Compiled into static methods on a synthesized class (`FileNameKt.class`), eliminating boilerplate utility classes."
+      ]
+    },
+    {
+      "id": "kotlin_higher_order_functions_and_sam",
+      "title": "Higher-Order Functions and SAM Conversion in Kotlin",
+      "category": "Kotlin Core Concepts",
+      "technology": "Kotlin",
+      "keywords": [
+        "higher order functions kotlin",
+        "sam conversion kotlin",
+        "functional interface fun interface",
+        "lambda with receiver",
+        "dsl kotlin"
+      ],
+      "bullets": [
+        "Higher-Order Functions: Functions that accept other functions as parameters or return a function (e.g. `filter`, `map`, `fold`).",
+        "SAM (Single Abstract Method) Conversion: `fun interface OnClickListener { fun onClick() }` allows passing a clean lambda `{ ... }` instead of an anonymous object.",
+        "Function Types with Receiver: `T.() -> Unit` gives the lambda body access to `T` as `this` receiver, enabling type-safe DSL builders (e.g. HTML/Gradle DSLs)."
+      ]
+    },
+    {
+      "id": "java_jit_compilation_c1_c2",
+      "title": "JVM JIT Compilation, Tiered Compilation (C1 vs C2), and OSR",
+      "category": "JVM Memory & Architecture",
+      "technology": "Java",
+      "keywords": [
+        "jit compilation",
+        "c1 vs c2 compiler",
+        "tiered compilation java",
+        "on stack replacement osr",
+        "escape analysis java",
+        "method inlining jit"
+      ],
+      "bullets": [
+        "Tiered Compilation: Level 0 (Interpreter) -> Level 1-3 (C1 Client Compiler with profiling) -> Level 4 (C2 Server Compiler with heavy aggressive optimizations).",
+        "Escape Analysis & Scalar Replacement: JIT determines if an object's scope escapes the method; if not, avoids heap allocation and decomposes fields into CPU registers / stack.",
+        "OSR (On-Stack Replacement): Compiles hot loops while executing and replaces interpreted stack frames on the fly with compiled native code."
+      ]
+    },
+    {
+      "id": "java_classloader_hierarchy",
+      "title": "Java ClassLoader Hierarchy and Delegation Model",
+      "category": "JVM Memory & Architecture",
+      "technology": "Java",
+      "keywords": [
+        "classloader hierarchy",
+        "bootstrap classloader",
+        "parent delegation model",
+        "custom classloader java",
+        "classnotfoundexception vs noclassdeffounderror"
+      ],
+      "bullets": [
+        "Hierarchy: Bootstrap ClassLoader (native C++ core rt.jar/java.base) -> Platform/Extension ClassLoader -> Application/System ClassLoader -> Custom ClassLoader.",
+        "Parent Delegation Principle: A ClassLoader delegates loading request to its parent first; loads locally only if parent throws `ClassNotFoundException` (prevents core class hijacking).",
+        "ClassNotFoundException vs NoClassDefFoundError: `ClassNotFoundException` occurs when explicit reflection (`Class.forName`) fails; `NoClassDefFoundError` occurs when a class present at compile-time is missing or failed static init at runtime."
+      ]
+    },
+    {
+      "id": "java_cas_atomic_aba_problem",
+      "title": "Compare-And-Swap (CAS), Atomic Variables, and the ABA Problem",
+      "category": "Java Concurrency & Multithreading",
+      "technology": "Java",
+      "keywords": [
+        "compare and swap",
+        "cas in java",
+        "aba problem",
+        "atomicstampedreference",
+        "atomicinteger vs synchronized",
+        "unsafe in java"
+      ],
+      "bullets": [
+        "CAS Mechanism: Hardware CPU instruction (`cmpxchg`) that atomically updates memory address only if current value matches expected value, without blocking OS threads.",
+        "ABA Problem: Thread 1 reads value A; Thread 2 changes A -> B -> A; Thread 1's CAS succeeds even though the state changed in between (critical in memory-reclaiming data structures).",
+        "Solution: Use `AtomicStampedReference` or `AtomicMarkableReference` which pair the object pointer with an integer version stamp / sequence number."
+      ]
+    },
+    {
+      "id": "java_streams_parallel_performance",
+      "title": "Java Stream API Internals, Lazy Evaluation, and Parallel Streams",
+      "category": "Java Core Concepts",
+      "technology": "Java",
+      "keywords": [
+        "java streams internals",
+        "lazy evaluation streams",
+        "parallelstream forkjoinpool",
+        "spliterator java",
+        "streams vs loops performance"
+      ],
+      "bullets": [
+        "Lazy Evaluation: Intermediate operations (`filter`, `map`) return pipeline pipelines and do not process elements until a terminal operator (`collect`, `reduce`, `forEach`) is invoked.",
+        "Spliterator & Pipeline Fusion: JVM fuses stateless operations into a single traversal pass over data to avoid intermediate buffer allocations.",
+        "Parallel Streams Caution: `parallelStream()` uses the common `ForkJoinPool.commonPool()`; blocking I/O inside parallel streams starves the entire JVM application pool."
+      ]
+    },
+    {
+      "id": "java_records_and_pattern_matching",
+      "title": "Java Records, Sealed Classes, and Pattern Matching (Java 17-21+)",
+      "category": "Java Modern Features",
+      "technology": "Java",
+      "keywords": [
+        "java records",
+        "record class java",
+        "pattern matching switch java",
+        "sealed classes java",
+        "java 17 features",
+        "java 21 features"
+      ],
+      "bullets": [
+        "Record Classes: Immutable transparent data carrier generating canonical constructor, getters (`name()`), `equals()`, `hashCode()`, and `toString()`.",
+        "Sealed Classes/Interfaces: `sealed interface Shape permits Circle, Rectangle` restricts permitted implementations, enabling exhaustive pattern matching.",
+        "Pattern Matching for Switch: `switch (obj) { case Circle c -> c.radius(); case Rectangle r -> r.area(); }` eliminates verbose `instanceof` and casting."
+      ]
+    },
+    {
+      "id": "spring_security_filter_chain",
+      "title": "Spring Security Architecture and SecurityFilterChain Internals",
+      "category": "Spring Boot & Backend Architecture",
+      "technology": "Spring Boot",
+      "keywords": [
+        "spring security architecture",
+        "securityfilterchain",
+        "delegatingfilterproxy",
+        "jwt authentication spring security",
+        "securitycontextholder"
+      ],
+      "bullets": [
+        "DelegatingFilterProxy: Standard Servlet Filter that delegates execution to the Spring-managed `FilterChainProxy` containing the `SecurityFilterChain`.",
+        "Authentication Flow: `AuthenticationFilter` extracts credentials -> `AuthenticationManager` -> `AuthenticationProvider` validates -> populates `SecurityContextHolder.getContext().setAuthentication(auth)`.",
+        "ThreadLocal Storage: `SecurityContextHolder` defaults to `MODE_THREADLOCAL`; use `DelegatingSecurityContextAsyncTaskExecutor` when propagating security context across async threads."
+      ]
+    },
+    {
+      "id": "spring_aop_proxies_cglib_dynamic",
+      "title": "Spring AOP: JDK Dynamic Proxies vs CGLIB Proxies",
+      "category": "Spring Boot & Backend Architecture",
+      "technology": "Spring Boot",
+      "keywords": [
+        "jdk dynamic proxy vs cglib",
+        "spring aop proxy",
+        "cglib subclass proxy",
+        "why transactional fails in same class"
+      ],
+      "bullets": [
+        "JDK Dynamic Proxy: Built into Java reflection; creates proxies for interfaces (`java.lang.reflect.Proxy`), target class must implement at least one interface.",
+        "CGLIB Proxy: Generates dynamic bytecode subclasses of target class at runtime (default in Spring Boot 2+ & 3+); does not require interface, but target class cannot be `final`.",
+        "Self-Invocation Fix: Inject self bean `@Autowired @Lazy private MyService self;` or use `AopContext.currentProxy()` to trigger transactional proxies on internal calls."
+      ]
+    },
+    {
+      "id": "spring_resilience4j_circuit_breaker",
+      "title": "Circuit Breaker Pattern with Resilience4j in Spring Boot Microservices",
+      "category": "Spring Boot & Backend Architecture",
+      "technology": "Spring Boot",
+      "keywords": [
+        "circuit breaker spring boot",
+        "resilience4j circuitbreaker",
+        "circuit breaker states",
+        "half open state",
+        "fallback method resilience4j"
+      ],
+      "bullets": [
+        "3 Core States: `CLOSED` (normal traffic), `OPEN` (error rate exceeds threshold, calls fail fast immediately to fallback), `HALF-OPEN` (trials a limited request sample to check if downstream recovered).",
+        "Sliding Window: Computes failure rate over Count-Based or Time-Based sliding windows (e.g. if >50% of last 20 calls fail, trip to OPEN).",
+        "Fallback Design: Define `@CircuitBreaker(name = \"serviceA\", fallbackMethod = \"cachedFallback\")` to return degraded cache or default response."
       ]
     }
   ]

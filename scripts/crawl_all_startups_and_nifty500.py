@@ -168,31 +168,35 @@ class MasterJobCrawler:
 
         with SessionLocal() as db:
             for j in jobs:
-                # Deduplicate by url or company+title
-                title = j["title"]
-                comp = j["company"]
-                existing = db.query(Job).filter(
-                    (Job.url == j["url"]) | ((Job.company == comp) & (Job.title == title))
-                ).first()
+                try:
+                    title = j["title"]
+                    comp = j["company"]
+                    url = j.get("url", "")
+                    existing = db.query(Job).filter(
+                        (Job.url == url) | ((Job.company == comp) & (Job.title == title))
+                    ).first()
 
-                if not existing:
-                    job_id = f"crawl_{abs(hash(comp + title + j['url'])) % 10000000}"
-                    tech_stack = extract_tech_stack(title + " " + " ".join(j.get("tags", [])))
-                    new_job = Job(
-                        job_id=job_id,
-                        title=title,
-                        company=comp,
-                        location=j.get("location", "India / Remote"),
-                        url=j.get("url", ""),
-                        source=j.get("source", "crawler"),
-                        tags=json.dumps(j.get("tags", ["Engineering"])),
-                        description=f"Software engineering opening at {comp}. Tech Stack: {', '.join(tech_stack)}.",
-                        fetched_at=datetime.now(timezone.utc),
-                    )
-                    db.add(new_job)
-                    self.total_inserted += 1
-
-            db.commit()
+                    if not existing:
+                        unique_suffix = f"{int(time.time() * 1000) % 1000000}_{abs(hash(url or title)) % 10000}"
+                        job_id = f"crawl_{abs(hash(comp + title)) % 100000}_{unique_suffix}"
+                        tech_stack = extract_tech_stack(title + " " + " ".join(j.get("tags", [])))
+                        new_job = Job(
+                            job_id=job_id,
+                            title=title,
+                            company=comp,
+                            location=j.get("location", "India / Remote"),
+                            url=url,
+                            source=j.get("source", "crawler"),
+                            tags=json.dumps(j.get("tags", ["Engineering"])),
+                            description=f"Software engineering opening at {comp}. Tech Stack: {', '.join(tech_stack)}.",
+                            fetched_at=datetime.now(timezone.utc),
+                        )
+                        db.add(new_job)
+                        db.commit()
+                        self.total_inserted += 1
+                except Exception as e:
+                    db.rollback()
+                    logger.debug(f"Skipping duplicate or conflict for {j.get('title')}: {e}")
 
     async def run_full_crawler_cycle(self):
         """Execute concurrent multi-source crawler across all catalogs."""

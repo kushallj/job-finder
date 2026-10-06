@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import sys
 import os
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import time
 import uuid
 import json
@@ -27,7 +30,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("job_harvester")
 
 
-async def fetch_arbeitnow_jobs(max_pages: int = 5) -> List[Dict[str, Any]]:
+async def fetch_arbeitnow_jobs(max_pages: int = 20) -> List[Dict[str, Any]]:
     """Fetches real live tech jobs across multiple pages of Arbeitnow public board API."""
     jobs = []
     async with httpx.AsyncClient(timeout=25.0, follow_redirects=True) as client:
@@ -126,7 +129,7 @@ async def main():
     print(f"📊 Initial Job Count in DB: {initial_count}")
 
     print("\n🌐 Fetching from Arbeitnow API (Multi-Page)...")
-    arbeitnow_jobs = await fetch_arbeitnow_jobs(max_pages=5)
+    arbeitnow_jobs = await fetch_arbeitnow_jobs(max_pages=20)
     print(f"  [✓] Retrieved {len(arbeitnow_jobs)} listings from Arbeitnow")
 
     print("\n🌐 Fetching from Remotive API (Multi-Category & Search)...")
