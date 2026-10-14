@@ -834,6 +834,20 @@ try:
 except Exception as e:
     log.warning(f"Could not load workday_router: {e}")
 
+try:
+    from src.api.routers.auth_router import router as auth_router
+    app.include_router(auth_router)
+    log.info("Loaded auth_router successfully")
+except Exception as e:
+    log.warning(f"Could not load auth_router: {e}")
+
+try:
+    from src.api.routers.billing_router import router as billing_router
+    app.include_router(billing_router)
+    log.info("Loaded billing_router successfully")
+except Exception as e:
+    log.warning(f"Could not load billing_router: {e}")
+
 
 
 app.add_middleware(
@@ -985,6 +999,11 @@ def _read_resume(path: str) -> str:
 async def root():
     return {"status": "healthy", "service": "Job Search API", "version": "2.1.0"}
 
+
+@app.get("/health", tags=["health"])
+async def root_health(state: AppState = Depends(get_state)):
+    """Liveness probe alias for cloud platforms (Fly.io, Render, Kubernetes)."""
+    return await health(state)
 
 @app.get("/api/health", tags=["health"])
 async def health(state: AppState = Depends(get_state)):
@@ -6397,6 +6416,39 @@ async def mine_common_crawl_domain(req: CommonCrawlMineRequest) -> Dict[str, Any
     )
     return intel
 
+
+
+# =============================================================================
+# Production SPA Static Mount & Fallback Routing
+# =============================================================================
+
+_frontend_dist = Path(__file__).resolve().parent / "frontend" / "dist"
+if _frontend_dist.is_dir() and (_frontend_dist / "index.html").is_file():
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+
+    # Mount static assets (/assets)
+    _assets_dir = _frontend_dist / "assets"
+    if _assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="spa_assets")
+
+    # Serve index.html or static asset for root and client-side SPA routes
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa_frontend(full_path: str):
+        # Do not intercept API, docs, or OpenAPI endpoints
+        if (
+            full_path.startswith("api/")
+            or full_path.startswith("docs")
+            or full_path.startswith("redoc")
+            or full_path.startswith("openapi.json")
+            or full_path == "health"
+        ):
+            raise HTTPException(status_code=404, detail="Not Found")
+        
+        target = _frontend_dist / full_path
+        if target.is_file():
+            return FileResponse(target)
+        return FileResponse(_frontend_dist / "index.html")
 
 
 # Dev entry point

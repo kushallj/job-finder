@@ -6,17 +6,31 @@ from src.models import Base
 from src.answer_bank import models as _answer_bank_models  # noqa: F401  (registers AnsweredQuestion on Base.metadata)
 from src.nextraise import models as _nextraise_models      # noqa: F401  (registers NextRaise on Base.metadata)
 
+def normalize_database_url(url: str) -> str:
+    """Normalize database URL for SQLAlchemy 2.0 (e.g. postgres:// -> postgresql://)."""
+    if not url:
+        return "sqlite:///./jobs.db"
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql://", 1)
+    return url
+
+db_url = normalize_database_url(settings.database_url)
+
 connect_args = {}
-if settings.database_url.startswith("sqlite"):
+engine_kwargs = {"pool_pre_ping": True}
+
+if db_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
+    engine_kwargs["connect_args"] = connect_args
+else:
+    # PostgreSQL / Supabase connection pooling
+    engine_kwargs["pool_size"] = 10
+    engine_kwargs["max_overflow"] = 20
+    engine_kwargs["pool_recycle"] = 300
 
-engine = create_engine(
-    settings.database_url,
-    connect_args=connect_args,
-    pool_pre_ping=True,
-)
+engine = create_engine(db_url, **engine_kwargs)
 
-if settings.database_url.startswith("sqlite"):
+if db_url.startswith("sqlite"):
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
@@ -36,9 +50,9 @@ def db_session():
 
 
 def init_db():
-    """Initialize database tables and add nullable columns to existing SQLite DBs."""
+    """Initialize database tables and add nullable columns to existing SQLite/PostgreSQL DBs."""
     Base.metadata.create_all(bind=engine)
-    if engine.url.get_backend_name() == "sqlite":
+    if engine.url.get_backend_name() in ("sqlite", "postgresql"):
         inspector = inspect(engine)
         tables = set(inspector.get_table_names())
         if "jobs" in tables:
@@ -65,6 +79,7 @@ def init_db():
         if "applications" in tables:
             existing_apps = {c["name"] for c in inspector.get_columns("applications")}
             app_additions = {
+                "user_id": "INTEGER",
                 "ats_detected": "VARCHAR(100)",
                 "customized_resume_path": "TEXT",
                 "cover_letter_path": "TEXT",
@@ -76,6 +91,56 @@ def init_db():
                 for name, ddl in app_additions.items():
                     if name not in existing_apps:
                         conn.execute(_text(f"ALTER TABLE applications ADD COLUMN {name} {ddl}"))
+
+        if "resumes" in tables:
+            existing_resumes = {c["name"] for c in inspector.get_columns("resumes")}
+            if "user_id" not in existing_resumes:
+                with engine.begin() as conn:
+                    conn.execute(_text("ALTER TABLE resumes ADD COLUMN user_id INTEGER"))
+
+        if "users" in tables:
+            existing_users = {c["name"] for c in inspector.get_columns("users")}
+            user_additions = {
+                "stripe_subscription_id": "VARCHAR(255)",
+                "subscription_status": "VARCHAR(50)",
+                "current_period_end": "DATETIME",
+            }
+            with engine.begin() as conn:
+                for name, ddl in user_additions.items():
+                    if name not in existing_users:
+                        conn.execute(_text(f"ALTER TABLE users ADD COLUMN {name} {ddl}"))
+
+    # Seed default user for backward compatibility and local development
+    try:
+        from src.models import User, CreditTransaction
+        from src.auth.crypto import hash_password
+        with SessionLocal() as session:
+            existing_user = session.query(User).filter(User.email == "admin@jobfinder.ai").first()
+            if not existing_user:
+                admin_user = User(
+                    email="admin@jobfinder.ai",
+                    hashed_password=hash_password("admin123"),
+                    full_name="Default Administrator",
+                    subscription_tier="unlimited",
+                    credits_balance=1000,
+                    is_active=True,
+                    is_superuser=True,
+                )
+                session.add(admin_user)
+                session.flush()
+                # Record welcome transaction
+                tx = CreditTransaction(
+                    user_id=admin_user.id,
+                    amount=1000,
+                    balance_after=1000,
+                    action="system_seed",
+                    notes="Initial system administrator provisioning",
+                )
+                session.add(tx)
+                session.commit()
+    except Exception as exc:
+        print(f"⚠️ Notice on default user seed: {exc}")
+
     print("✅ Database tables created")
 
 def get_db():

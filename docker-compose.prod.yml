@@ -1,0 +1,82 @@
+# ==============================================================================
+# Production Docker Compose for Self-Hosted VPS / Cloud Deployments
+# ==============================================================================
+
+services:
+  # ── 1. Production PostgreSQL Database ───────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: jf_prod_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-job_finder_production}
+      POSTGRES_USER: ${POSTGRES_USER:-jf_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set strong POSTGRES_PASSWORD in .env.production}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jf_admin} -d ${POSTGRES_DB:-job_finder_production}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 2. Production Redis Broker & Cache ──────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: jf_prod_redis
+    restart: always
+    command: redis-server --appendonly yes
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── 3. Core SaaS Application (FastAPI + React SPA + Headless Chromium) ─────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jf_prod_app
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - ENV=production
+      - MULTI_TENANT_ENABLED=true
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-jf_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-job_finder_production}
+      - REDIS_URL=redis://redis:6379/0
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env.production}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8000}
+    volumes:
+      - app_data:/app/data
+      - app_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_data:
+    driver: local
+  app_logs:
+    driver: local

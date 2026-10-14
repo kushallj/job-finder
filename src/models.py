@@ -5,6 +5,46 @@ from datetime import datetime
 class Base(DeclarativeBase):
     pass
 
+class User(Base):
+    """Multi-tenant User account for SaaS commercialization."""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(500), nullable=False)
+    full_name = Column(String(255), nullable=True)
+    subscription_tier = Column(String(50), default="free")  # free, starter, pro, unlimited
+    credits_balance = Column(Integer, default=50)  # Complimentary starting credits
+    is_active = Column(Boolean, default=True)
+    is_superuser = Column(Boolean, default=False)
+    stripe_customer_id = Column(String(255), nullable=True)
+    stripe_subscription_id = Column(String(255), nullable=True)
+    subscription_status = Column(String(50), default="active")  # active, past_due, canceled
+    current_period_end = Column(DateTime, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    applications = relationship("Application", back_populates="user")
+    resumes = relationship("Resume", back_populates="user")
+    credit_transactions = relationship("CreditTransaction", back_populates="user")
+
+class CreditTransaction(Base):
+    """Audit log of credit additions, purchases, and AI generation/application deductions."""
+    __tablename__ = "credit_transactions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    amount = Column(Integer, nullable=False)  # e.g. -1 for tailor, +100 for top-up
+    balance_after = Column(Integer, nullable=False)
+    action = Column(String(100), nullable=False)  # "welcome_bonus", "resume_tailor", "workday_apply", "nextraise_apply", "topup"
+    reference_id = Column(String(255), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="credit_transactions")
+
 class Job(Base):
     __tablename__ = "jobs"
     
@@ -40,6 +80,7 @@ class Application(Base):
     __tablename__ = "applications"
     
     id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     job_id = Column(Integer, ForeignKey("jobs.id"))
     
     # Matching
@@ -68,17 +109,21 @@ class Application(Base):
     
     # Relationships
     job = relationship("Job", back_populates="applications")
+    user = relationship("User", back_populates="applications")
 
 class Resume(Base):
     __tablename__ = "resumes"
     
     id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     original_content = Column(Text, nullable=False)
     skills = Column(Text)  # JSON string
     experience_years = Column(Float)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     is_active = Column(Boolean, default=True)
+
+    user = relationship("User", back_populates="resumes")
 
 class Contact(Base):
     __tablename__ = "contacts"

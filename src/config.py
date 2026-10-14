@@ -119,6 +119,23 @@ class Settings(BaseSettings):
     tsenta_mode: str = "review_required"  # "review_required" | "full_auto"
     tsenta_auto_submit: bool = False
     tsenta_min_fit_score: int = 75
+
+    # Multi-Tenant SaaS & Auth (Production Commercialization)
+    multi_tenant_enabled: bool = True
+    jwt_secret_key: str = "job-finder-super-secret-production-key-2026-change-in-env"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
+    default_signup_credits: int = 50
+
+    # Stripe Billing & Subscriptions
+    stripe_secret_key: Optional[str] = None
+    stripe_webhook_secret: Optional[str] = None
+    stripe_price_starter: str = "price_starter_mock"
+    stripe_price_pro: str = "price_pro_mock"
+    stripe_price_unlimited: str = "price_unlimited_mock"
+    stripe_price_pack_100: str = "price_pack_100_mock"
+    stripe_price_pack_300: str = "price_pack_300_mock"
+    frontend_url: str = "http://localhost:5173"
     
     # Note: Pydantic v2 uses `model_config` above; the old inner `Config` is ignored.
 
