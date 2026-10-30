@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import model_validator
 from typing import Optional
 
 class Settings(BaseSettings):
@@ -48,7 +49,7 @@ class Settings(BaseSettings):
     
     # Google
     google_credentials_path: str = "config/google-service-account.json"
-    gmail_address: str = "kushall.jain07@gmail.com"
+    gmail_address: Optional[str] = "outreach@jobfinder.ai"
     gmail_password: Optional[str] = None
     
     # Email Discovery APIs
@@ -136,8 +137,17 @@ class Settings(BaseSettings):
     stripe_price_pack_100: str = "price_pack_100_mock"
     stripe_price_pack_300: str = "price_pack_300_mock"
     frontend_url: str = "http://localhost:5173"
-    
-    # Note: Pydantic v2 uses `model_config` above; the old inner `Config` is ignored.
+    cors_origins: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173"
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        if self.env.lower() == "production":
+            default_placeholder = "job-finder-super-secret-production-key-2026-change-in-env"
+            if not self.jwt_secret_key or self.jwt_secret_key == default_placeholder:
+                raise ValueError(
+                    "FATAL: Running with ENV=production requires setting a secure, unique JWT_SECRET_KEY in environment variables."
+                )
+        return self
 
 settings = Settings()
 

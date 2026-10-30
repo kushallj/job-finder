@@ -848,23 +848,36 @@ try:
 except Exception as e:
     log.warning(f"Could not load billing_router: {e}")
 
+try:
+    from src.vc_intelligence.api import router as vc_router
+    app.include_router(vc_router, prefix="/api/vc", tags=["VC Intelligence"])
+    log.info("Loaded vc_router successfully")
+except Exception as e:
+    log.warning(f"Could not load vc_router: {e}")
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=r"https?://.*",
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+cors_origins_list = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+if settings.frontend_url and settings.frontend_url not in cors_origins_list:
+    cors_origins_list.append(settings.frontend_url)
+cors_origins_list.extend([
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+])
+cors_kwargs = {
+    "allow_origins": list(dict.fromkeys(cors_origins_list)),
+    "allow_credentials": True,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+}
+if settings.env.lower() != "production":
+    cors_kwargs["allow_origin_regex"] = r"https?://.*"
+
+app.add_middleware(CORSMiddleware, **cors_kwargs)
 
 
 @app.middleware("http")

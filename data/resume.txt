@@ -1,6 +1,6 @@
-Kushall Jain
+Alex Morgan
 Software Development Engineer · Full Stack Web Development · RESTful APIs · Cloud Architecture
-kushall.jain07@gmail.com | linkedin.com/in/kushall-jain-263009261 | github.com/kushallj | kushall.in | 9990079764
+alex.morgan@example.com | linkedin.com/in/alex-morgan-engineer | github.com/alexmorgan-dev | alexmorgan.dev | +1-555-0199
 PROFESSIONAL SUMMARY
 Software Development Engineer with 3+ years designing, developing, and deploying enterprise-grade web applications and RESTful APIs. Proven
 expertise in full-stack development with React (TypeScript), Python (Django/FastAPI), Node.js, and PostgreSQL. Delivered mission-critical systems

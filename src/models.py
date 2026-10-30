@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, relationship
 from datetime import datetime
 
@@ -345,6 +345,76 @@ class OutreachFunnelEvent(Base):
     match_score = Column(Float, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class VCFirm(Base):
+    """Venture Capital Firm entity (e.g. Y Combinator, Accel, Blume, Tiger Global, India Accelerator)."""
+    __tablename__ = "vc_firms"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(100), unique=True, nullable=False, index=True)
+    website = Column(String(500), nullable=True)
+    portfolio_url = Column(String(500), nullable=True)
+    country_focus = Column(String(100), default="Global")
+    last_synced_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    companies = relationship("PortfolioCompany", back_populates="vc_firm", cascade="all, delete-orphan")
+
+
+class PortfolioCompany(Base):
+    """Funded Portfolio Company under a specific VC firm."""
+    __tablename__ = "portfolio_companies"
+
+    id = Column(Integer, primary_key=True)
+    vc_firm_id = Column(Integer, ForeignKey("vc_firms.id"), nullable=False, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    slug = Column(String(255), nullable=False, index=True)
+    domain = Column(String(255), nullable=True, index=True)
+    website = Column(String(500), nullable=True)
+    description = Column(Text, nullable=True)
+    batch_or_year = Column(String(100), nullable=True)  # e.g. "W24", "Series A 2023"
+    funding_stage = Column(String(100), nullable=True)  # Seed, Early Stage, Series A, Growth
+    industry_tags = Column(Text, default="[]")  # JSON array string
+    careers_url = Column(String(500), nullable=True)
+    last_scraped_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    vc_firm = relationship("VCFirm", back_populates="companies")
+    founders = relationship("CompanyFounder", back_populates="company", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("vc_firm_id", "slug", name="uq_vc_company_slug"),
+    )
+
+
+class CompanyFounder(Base):
+    """Founder / Co-Founder of a portfolio company with enriched contact details."""
+    __tablename__ = "company_founders"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("portfolio_companies.id"), nullable=False, index=True)
+    full_name = Column(String(255), nullable=False, index=True)
+    title = Column(String(255), nullable=True)  # Co-Founder & CEO, Founder & CTO, etc.
+    email = Column(String(255), nullable=True, index=True)
+    email_confidence = Column(Float, default=0.0)  # 0.0 to 1.0 confidence
+    linkedin_url = Column(String(500), nullable=True)
+    twitter_handle = Column(String(100), nullable=True)
+    bio = Column(Text, nullable=True)
+    source = Column(String(50), default="firecrawl")  # firecrawl, playwright, heuristic
+    last_verified_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    company = relationship("PortfolioCompany", back_populates="founders")
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "full_name", name="uq_company_founder_name"),
+    )
+
 
 
 

@@ -20,8 +20,8 @@ All components have been verified and are working correctly.
 - Fallback to Gemini disabled (quota exhausted)
 
 ### 3. Email System ✅
-- Gmail configured: canaby007@gmail.com
-- Sender name: Kushall Jain
+- Gmail configured: outreach@jobfinder.ai
+- Sender name: Job Finder Outreach
 - Resume PDF ready for attachment
 - Only sends to contacts with real names
 
@@ -128,7 +128,7 @@ python test_local_ai.py
 
 ### Personalized Outreach
 - Different templates for HR vs Engineering contacts
-- Includes sender name: "Kushall Jain"
+- Includes sender name: "Job Finder Candidate"
 - Attaches resume PDF automatically
 - Only sends to contacts with real names (not "Unknown")
 

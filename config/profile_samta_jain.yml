@@ -1,16 +1,16 @@
-# NEXUS Candidate Profile — Samta Jain
-# Age: 54 Years | Background: Homemaker entering the workforce | First-Time Job Seeker
+# NEXUS Candidate Profile — Sample Transitioning Professional
+# Background: Homemaker entering the workforce | First-Time Job Seeker
 # Location: Delhi, India (Delhi NCR)
 
 candidate:
-  full_name: "Samta Jain"
-  age: 54
-  background: "Homemaker transitioning into professional accounting"
-  email: "samta.jain.accounts@gmail.com"
-  phone: "+91-9811234567"
+  full_name: "Sample Candidate"
+  age: 45
+  background: "Professional transitioning into professional accounting"
+  email: "candidate.sample@example.com"
+  phone: "+91-9800000000"
   location: "Delhi, India"
   timezone: "Asia/Kolkata"
-  linkedin: "https://linkedin.com/in/samta-jain-accounting"
+  linkedin: "https://linkedin.com/in/sample-accounting-demo"
   visa_status: "Indian citizen — based in Delhi NCR"
 
 target_roles:

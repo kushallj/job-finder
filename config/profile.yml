@@ -2,15 +2,15 @@
 # All evaluations read this file. Edit here, not in scattered .env or config files.
 
 candidate:
-  full_name: "Kushall Jain"
-  email: "Kushall.jain07@gmail.com"
-  phone: "9990079764"
-  location: "Delhi, India"
-  timezone: "Asia/Kolkata"
-  linkedin: "https://linkedin.com/in/kushall-jain-263009261"
-  github: "https://github.com/kushallj"
-  portfolio: "https://kushall.in"
-  visa_status: "Indian citizen — open to remote-first roles worldwide"
+  full_name: "Alex Morgan"
+  email: "alex.morgan@example.com"
+  phone: "+1-555-0199"
+  location: "Remote / Worldwide"
+  timezone: "UTC"
+  linkedin: "https://linkedin.com/in/alex-morgan-engineer"
+  github: "https://github.com/alexmorgan-dev"
+  portfolio: "https://alexmorgan.dev"
+  visa_status: "Open to remote-first roles worldwide"
 
 target_roles:
   primary:
