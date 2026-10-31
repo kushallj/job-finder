@@ -78,8 +78,13 @@ class IVCRepository(ABC):
         pass
 
     @abstractmethod
-    def list_firms(self) -> List[Any]:
-        """List all tracked VC firms with summary metrics."""
+    def list_firms(self, region: Optional[str] = None) -> List[Any]:
+        """List all tracked VC firms with summary metrics, optionally filtered by region."""
+        pass
+
+    @abstractmethod
+    def seed_100_firms(self) -> int:
+        """Seed or update all 100 global VC firms into database. Returns count of firms seeded."""
         pass
 
     @abstractmethod

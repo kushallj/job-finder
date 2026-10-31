@@ -92,6 +92,7 @@ class VCFirmDTO(BaseModel):
     website: Optional[str] = None
     portfolio_url: Optional[str] = None
     country_focus: str = "Global"
+    region: str = "US & Global"
     companies_count: int = 0
     founders_count: int = 0
     last_synced_at: Optional[datetime] = None
@@ -104,6 +105,14 @@ class VCSyncRequest(BaseModel):
     enrich_contacts: bool = Field(True, description="Whether to also trigger founder email & contact enrichment")
 
 
+class BatchVCSyncRequest(BaseModel):
+    """Request payload to initiate batch synchronization across multiple firms."""
+    region: Optional[str] = Field(None, description="Optional regional filter (e.g. 'India', 'Europe', 'US & Global')")
+    slugs: Optional[List[str]] = Field(None, description="Specific VC slugs to synchronize")
+    max_companies_per_firm: int = Field(15, ge=1, le=100, description="Max companies per firm in batch")
+    enrich_contacts: bool = Field(True, description="Whether to discover founders and emails")
+
+
 class VCSyncResponse(BaseModel):
     """Response payload following a VC synchronization run."""
     vc_slug: str
@@ -113,3 +122,11 @@ class VCSyncResponse(BaseModel):
     founders_discovered: int
     status: str = "success"
     message: str
+
+
+class BatchVCSyncResponse(BaseModel):
+    """Response payload following a batch VC synchronization run."""
+    total_firms_processed: int
+    total_companies_synced: int
+    total_founders_discovered: int
+    results: List[VCSyncResponse]

@@ -23,6 +23,8 @@ from src.vc_intelligence.models import (
     CompanyFounderDTO,
     VCSyncRequest,
     VCSyncResponse,
+    BatchVCSyncRequest,
+    BatchVCSyncResponse,
 )
 from src.vc_intelligence.repository import VCIntelligenceRepository
 from src.vc_intelligence.service import VCIntelligenceService
@@ -42,13 +44,58 @@ def get_vc_service(db: Session = Depends(get_db)) -> VCIntelligenceService:
     "/firms",
     response_model=List[VCFirmDTO],
     summary="List all tracked VC firms",
-    description="Retrieve all supported VC firms (Y Combinator, Accel, Blume, Tiger Global, India Accelerator) and metrics.",
+    description="Retrieve supported VC firms across global regions with summary metrics.",
 )
 def list_vc_firms(
+    region: Optional[str] = Query(None, description="Filter by region (e.g. India, Europe, US & Global)"),
     service: VCIntelligenceService = Depends(get_vc_service),
     current_user: Optional[User] = Depends(get_optional_current_user),
 ):
-    return service.list_firms()
+    return service.list_firms(region=region)
+
+
+@router.get(
+    "/regions",
+    summary="List VC regions and counts",
+    description="Retrieve available regions and the count of firms in each.",
+)
+def get_vc_regions(
+    service: VCIntelligenceService = Depends(get_vc_service),
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
+    firms = service.list_firms()
+    counts: dict[str, int] = {}
+    for f in firms:
+        r = f.region or "US & Global"
+        counts[r] = counts.get(r, 0) + 1
+    return {"total_firms": len(firms), "regions": counts}
+
+
+@router.post(
+    "/seed-100",
+    summary="Seed 100 Global VC firms",
+    description="Seed all 100 leading global VC firms across 6 regions into the database.",
+)
+def seed_100_vc_firms(
+    service: VCIntelligenceService = Depends(get_vc_service),
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
+    count = service.seed_100_firms()
+    return {"status": "success", "firms_seeded": count}
+
+
+@router.post(
+    "/batch/sync",
+    response_model=BatchVCSyncResponse,
+    summary="Batch synchronize VC firms",
+    description="Synchronize multiple VC firms across a region or slug list.",
+)
+async def batch_sync_vcs(
+    payload: BatchVCSyncRequest,
+    service: VCIntelligenceService = Depends(get_vc_service),
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
+    return await service.batch_sync(payload)
 
 
 @router.post(

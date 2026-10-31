@@ -18,6 +18,8 @@ from src.vc_intelligence.models import (
     PortfolioCompanyDTO,
     CompanyFounderDTO,
     VCSyncResponse,
+    BatchVCSyncRequest,
+    BatchVCSyncResponse,
 )
 from src.vc_intelligence.repository import VCIntelligenceRepository
 from src.vc_intelligence.scrapers.registry import VCScraperRegistry
@@ -153,9 +155,9 @@ class VCIntelligenceService:
 
         return [self._founder_to_dto(f, company) for f in self.repo.get_founders_by_company(company_id)]
 
-    def list_firms(self) -> List[VCFirmDTO]:
-        """List all tracked VC firms with aggregate metrics."""
-        firms = self.repo.list_firms()
+    def list_firms(self, region: Optional[str] = None) -> List[VCFirmDTO]:
+        """List all tracked VC firms with aggregate metrics, optionally filtered by region."""
+        firms = self.repo.list_firms(region=region)
         dtos: List[VCFirmDTO] = []
         for firm in firms:
             c_count = len(firm.companies) if firm.companies else 0
@@ -168,6 +170,7 @@ class VCIntelligenceService:
                     website=firm.website,
                     portfolio_url=firm.portfolio_url,
                     country_focus=firm.country_focus or "Global",
+                    region=firm.region or "US & Global",
                     companies_count=c_count,
                     founders_count=f_count,
                     last_synced_at=firm.last_synced_at,
@@ -175,6 +178,57 @@ class VCIntelligenceService:
                 )
             )
         return dtos
+
+    def seed_100_firms(self) -> int:
+        """Seed all 100 global VC firms into database."""
+        return self.repo.seed_100_firms()
+
+    async def batch_sync(self, req: BatchVCSyncRequest) -> BatchVCSyncResponse:
+        """
+        Synchronize multiple VC firms in batch by region or slug list.
+        """
+        firms_to_sync: List[str] = []
+
+        if req.slugs:
+            firms_to_sync = req.slugs
+        else:
+            db_firms = self.repo.list_firms(region=req.region)
+            firms_to_sync = [f.slug for f in db_firms]
+
+        results: List[VCSyncResponse] = []
+        total_companies = 0
+        total_founders = 0
+
+        for slug in firms_to_sync:
+            try:
+                res = await self.sync_vc_firm(
+                    slug=slug,
+                    max_companies=req.max_companies_per_firm,
+                    enrich_contacts=req.enrich_contacts,
+                )
+                results.append(res)
+                total_companies += res.companies_synced
+                total_founders += res.founders_discovered
+            except Exception as e:
+                log.error(f"Batch sync failed for {slug}: {e}")
+                results.append(
+                    VCSyncResponse(
+                        vc_slug=slug,
+                        vc_name=slug,
+                        companies_synced=0,
+                        companies_updated=0,
+                        founders_discovered=0,
+                        status="error",
+                        message=str(e),
+                    )
+                )
+
+        return BatchVCSyncResponse(
+            total_firms_processed=len(firms_to_sync),
+            total_companies_synced=total_companies,
+            total_founders_discovered=total_founders,
+            results=results,
+        )
 
     def list_companies(
         self,

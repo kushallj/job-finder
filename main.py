@@ -851,6 +851,7 @@ except Exception as e:
 try:
     from src.vc_intelligence.api import router as vc_router
     app.include_router(vc_router, prefix="/api/vc", tags=["VC Intelligence"])
+    app.include_router(vc_router, prefix="/api/v1/vc", tags=["VC Intelligence"])
     log.info("Loaded vc_router successfully")
 except Exception as e:
     log.warning(f"Could not load vc_router: {e}")

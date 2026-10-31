@@ -30,14 +30,59 @@ class VCIntelligenceRepository(IVCRepository):
         """Fetch VC firm by unique slug."""
         return self.db.query(VCFirm).filter(VCFirm.slug == slug).first()
 
-    def list_firms(self) -> List[VCFirm]:
-        """List all tracked VC firms with eager loaded relationships to avoid N+1 queries."""
-        return (
+    def list_firms(self, region: Optional[str] = None) -> List[VCFirm]:
+        """List all tracked VC firms with eager loaded relationships to avoid N+1 queries, optionally filtered by region."""
+        query = (
             self.db.query(VCFirm)
             .options(selectinload(VCFirm.companies).selectinload(PortfolioCompany.founders))
-            .order_by(VCFirm.name.asc())
-            .all()
         )
+        if region and region.lower() != "all":
+            query = query.filter(VCFirm.region.ilike(f"%{region}%"))
+        return query.order_by(VCFirm.name.asc()).all()
+
+    def seed_100_firms(self) -> int:
+        """
+        Seed or update all 100 global VC firms from canonical JSON dataset.
+        Returns the count of firms seeded or updated.
+        """
+        import os
+        from pathlib import Path
+
+        json_path = Path(__file__).parent / "data" / "vc_100_firms.json"
+        if not json_path.exists():
+            log.error(f"100 VC firms JSON file not found at {json_path}")
+            return 0
+
+        with open(json_path, "r", encoding="utf-8") as f:
+            firms_data = json.load(f)
+
+        seeded_count = 0
+        now = datetime.utcnow()
+
+        for item in firms_data:
+            existing = self.db.query(VCFirm).filter(VCFirm.slug == item["slug"]).first()
+            if existing:
+                existing.name = item["name"]
+                existing.region = item.get("region", "US & Global")
+                existing.website = item.get("website") or existing.website
+                existing.portfolio_url = item.get("portfolio_url") or existing.portfolio_url
+                existing.country_focus = item.get("country_focus") or existing.country_focus
+            else:
+                new_firm = VCFirm(
+                    name=item["name"],
+                    slug=item["slug"],
+                    region=item.get("region", "US & Global"),
+                    website=item.get("website"),
+                    portfolio_url=item.get("portfolio_url"),
+                    country_focus=item.get("country_focus", "Global"),
+                    created_at=now,
+                )
+                self.db.add(new_firm)
+            seeded_count += 1
+
+        self.db.commit()
+        log.info(f"Successfully seeded/updated {seeded_count} VC firms into database.")
+        return seeded_count
 
     def save_companies(
         self, vc_firm_id: int, companies: List[RawPortfolioCompany]

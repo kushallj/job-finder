@@ -678,6 +678,70 @@ def cmd_digest(_args):
 
 
 # ---------------------------------------------------------------------------
+# VC Intelligence (100 Global VC Firms)
+# ---------------------------------------------------------------------------
+
+def cmd_vc_seed_100(args):
+    """Seed all 100 global VC firms into the database."""
+    from src.database import SessionLocal
+    from src.vc_intelligence.repository import VCIntelligenceRepository
+    db = SessionLocal()
+    try:
+        repo = VCIntelligenceRepository(db)
+        count = repo.seed_100_firms()
+        print(f"Successfully seeded {count} global VC firms across 6 regions into the database.")
+    finally:
+        db.close()
+
+
+def cmd_vc_scrape_single(args):
+    """Scrape portfolio companies and discover founders for a single VC."""
+    import asyncio
+    from src.database import SessionLocal
+    from src.vc_intelligence.repository import VCIntelligenceRepository
+    from src.vc_intelligence.service import VCIntelligenceService
+
+    db = SessionLocal()
+    try:
+        repo = VCIntelligenceRepository(db)
+        service = VCIntelligenceService(repository=repo)
+        print(f"Extracting portfolio & founders for VC: {args.slug}...")
+        res = asyncio.run(service.sync_vc_firm(
+            slug=args.slug,
+            max_companies=args.max_companies,
+            enrich_contacts=not args.no_enrich,
+        ))
+        print(f"Status: {res.status} | Synced: {res.companies_synced} | Updated: {res.companies_updated} | Founders: {res.founders_discovered}")
+        print(res.message)
+    finally:
+        db.close()
+
+
+def cmd_vc_scrape_batch(args):
+    """Batch scrape portfolio companies and discover founders across a region."""
+    import asyncio
+    from src.database import SessionLocal
+    from src.vc_intelligence.repository import VCIntelligenceRepository
+    from src.vc_intelligence.service import VCIntelligenceService
+    from src.vc_intelligence.models import BatchVCSyncRequest
+
+    db = SessionLocal()
+    try:
+        repo = VCIntelligenceRepository(db)
+        service = VCIntelligenceService(repository=repo)
+        print(f"Starting batch VC scrape for region: {args.region}...")
+        req = BatchVCSyncRequest(
+            region=args.region,
+            max_companies_per_firm=args.max_companies,
+            enrich_contacts=not args.no_enrich,
+        )
+        res = asyncio.run(service.batch_sync(req))
+        print(f"Batch completed: {res.total_firms_processed} firms processed, {res.total_companies_synced} companies synced, {res.total_founders_discovered} founders discovered.")
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
 # help
 # ---------------------------------------------------------------------------
 
@@ -700,6 +764,9 @@ COMMANDS = {
     "normalize": cmd_normalize,
     "digest":    cmd_digest,
     "firecrawl-scan": cmd_firecrawl_scan,
+    "vc-seed-100": cmd_vc_seed_100,
+    "vc-scrape-single": cmd_vc_scrape_single,
+    "vc-scrape-batch": cmd_vc_scrape_batch,
     "drafts":    cmd_drafts,
     "send":      cmd_send,
     "skip":      cmd_skip,
@@ -778,6 +845,19 @@ def main():
     p_process_async.add_argument("--log-level", 
                                  choices=["DEBUG", "INFO", "WARNING", "ERROR"],
                                  help="Log level (default: INFO)")
+
+    # VC Intelligence subparsers
+    subparsers.add_parser("vc-seed-100", help="Seed 100 global VC firms into DB across 6 regions")
+
+    p_vc_single = subparsers.add_parser("vc-scrape-single", help="Scrape portfolio companies and founders for a specific VC")
+    p_vc_single.add_argument("--slug", required=True, help="VC slug (e.g. peak-xv-partners, a16z, accel)")
+    p_vc_single.add_argument("--max-companies", type=int, default=20, help="Max companies to fetch (default: 20)")
+    p_vc_single.add_argument("--no-enrich", action="store_true", help="Skip founder contact discovery")
+
+    p_vc_batch = subparsers.add_parser("vc-scrape-batch", help="Batch scrape VC firms across a region")
+    p_vc_batch.add_argument("--region", default="India", choices=["US & Global", "Asia", "India", "Europe", "Latin America", "Middle East & Africa"], help="Regional group")
+    p_vc_batch.add_argument("--max-companies", type=int, default=10, help="Max companies per firm (default: 10)")
+    p_vc_batch.add_argument("--no-enrich", action="store_true", help="Skip founder contact discovery")
 
     args = parser.parse_args()
 

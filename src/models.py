@@ -357,6 +357,7 @@ class VCFirm(Base):
     website = Column(String(500), nullable=True)
     portfolio_url = Column(String(500), nullable=True)
     country_focus = Column(String(100), default="Global")
+    region = Column(String(100), default="US & Global", index=True)
     last_synced_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

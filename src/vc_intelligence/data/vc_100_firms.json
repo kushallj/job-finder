@@ -1,0 +1,902 @@
+[
+  {
+    "id": 1,
+    "name": "Accel",
+    "slug": "accel",
+    "region": "US & Global",
+    "website": "https://www.accel.com",
+    "portfolio_url": "https://www.accel.com/companies",
+    "country_focus": "Global"
+  },
+  {
+    "id": 2,
+    "name": "Sequoia Capital",
+    "slug": "sequoia-capital",
+    "region": "US & Global",
+    "website": "https://www.sequoiacap.com",
+    "portfolio_url": "https://www.sequoiacap.com/companies/",
+    "country_focus": "Global"
+  },
+  {
+    "id": 3,
+    "name": "Andreessen Horowitz (a16z)",
+    "slug": "a16z",
+    "region": "US & Global",
+    "website": "https://a16z.com",
+    "portfolio_url": "https://a16z.com/portfolio/",
+    "country_focus": "Global"
+  },
+  {
+    "id": 4,
+    "name": "Index Ventures",
+    "slug": "index-ventures",
+    "region": "US & Global",
+    "website": "https://www.indexventures.com",
+    "portfolio_url": "https://www.indexventures.com/companies/",
+    "country_focus": "Global"
+  },
+  {
+    "id": 5,
+    "name": "Benchmark",
+    "slug": "benchmark",
+    "region": "US & Global",
+    "website": "https://www.benchmark.com",
+    "portfolio_url": "https://www.benchmark.com/portfolio/",
+    "country_focus": "US"
+  },
+  {
+    "id": 6,
+    "name": "General Catalyst",
+    "slug": "general-catalyst",
+    "region": "US & Global",
+    "website": "https://www.generalcatalyst.com",
+    "portfolio_url": "https://www.generalcatalyst.com/portfolio",
+    "country_focus": "Global"
+  },
+  {
+    "id": 7,
+    "name": "Lightspeed Venture Partners",
+    "slug": "lightspeed-venture-partners",
+    "region": "US & Global",
+    "website": "https://lsvp.com",
+    "portfolio_url": "https://lsvp.com/portfolio/",
+    "country_focus": "Global"
+  },
+  {
+    "id": 8,
+    "name": "Bessemer Venture Partners",
+    "slug": "bessemer-venture-partners",
+    "region": "US & Global",
+    "website": "https://www.bvp.com",
+    "portfolio_url": "https://www.bvp.com/portfolio",
+    "country_focus": "Global"
+  },
+  {
+    "id": 9,
+    "name": "Khosla Ventures",
+    "slug": "khosla-ventures",
+    "region": "US & Global",
+    "website": "https://www.khoslaventures.com",
+    "portfolio_url": "https://www.khoslaventures.com/portfolio/",
+    "country_focus": "US"
+  },
+  {
+    "id": 10,
+    "name": "Founders Fund",
+    "slug": "founders-fund",
+    "region": "US & Global",
+    "website": "https://foundersfund.com",
+    "portfolio_url": "https://foundersfund.com/portfolio/",
+    "country_focus": "US"
+  },
+  {
+    "id": 11,
+    "name": "New Enterprise Associates (NEA)",
+    "slug": "nea",
+    "region": "US & Global",
+    "website": "https://www.nea.com",
+    "portfolio_url": "https://www.nea.com/portfolio",
+    "country_focus": "Global"
+  },
+  {
+    "id": 12,
+    "name": "Greylock Partners",
+    "slug": "greylock-partners",
+    "region": "US & Global",
+    "website": "https://greylock.com",
+    "portfolio_url": "https://greylock.com/portfolio/",
+    "country_focus": "US"
+  },
+  {
+    "id": 13,
+    "name": "Kleiner Perkins",
+    "slug": "kleiner-perkins",
+    "region": "US & Global",
+    "website": "https://www.kleinerperkins.com",
+    "portfolio_url": "https://www.kleinerperkins.com/portfolio/",
+    "country_focus": "US"
+  },
+  {
+    "id": 14,
+    "name": "Battery Ventures",
+    "slug": "battery-ventures",
+    "region": "US & Global",
+    "website": "https://www.battery.com",
+    "portfolio_url": "https://www.battery.com/companies/",
+    "country_focus": "Global"
+  },
+  {
+    "id": 15,
+    "name": "First Round Capital",
+    "slug": "first-round-capital",
+    "region": "US & Global",
+    "website": "https://firstround.com",
+    "portfolio_url": "https://firstround.com/companies/",
+    "country_focus": "US"
+  },
+  {
+    "id": 16,
+    "name": "Thrive Capital",
+    "slug": "thrive-capital",
+    "region": "US & Global",
+    "website": "https://thrivecap.com",
+    "portfolio_url": "https://thrivecap.com/companies",
+    "country_focus": "US"
+  },
+  {
+    "id": 17,
+    "name": "Menlo Ventures",
+    "slug": "menlo-ventures",
+    "region": "US & Global",
+    "website": "https://menlovc.com",
+    "portfolio_url": "https://menlovc.com/portfolio/",
+    "country_focus": "US"
+  },
+  {
+    "id": 18,
+    "name": "Institutional Venture Partners (IVP)",
+    "slug": "ivp",
+    "region": "US & Global",
+    "website": "https://www.ivp.com",
+    "portfolio_url": "https://www.ivp.com/portfolio/",
+    "country_focus": "US"
+  },
+  {
+    "id": 19,
+    "name": "Redpoint Ventures",
+    "slug": "redpoint-ventures",
+    "region": "US & Global",
+    "website": "https://www.redpoint.com",
+    "portfolio_url": "https://www.redpoint.com/companies/",
+    "country_focus": "US"
+  },
+  {
+    "id": 20,
+    "name": "Spark Capital",
+    "slug": "spark-capital",
+    "region": "US & Global",
+    "website": "https://www.sparkcapital.com",
+    "portfolio_url": "https://www.sparkcapital.com/portfolio",
+    "country_focus": "US"
+  },
+  {
+    "id": 21,
+    "name": "Felicis",
+    "slug": "felicis",
+    "region": "US & Global",
+    "website": "https://www.felicis.com",
+    "portfolio_url": "https://www.felicis.com/companies",
+    "country_focus": "US"
+  },
+  {
+    "id": 22,
+    "name": "Bain Capital Ventures",
+    "slug": "bain-capital-ventures",
+    "region": "US & Global",
+    "website": "https://www.baincapitalventures.com",
+    "portfolio_url": "https://www.baincapitalventures.com/portfolio/",
+    "country_focus": "Global"
+  },
+  {
+    "id": 23,
+    "name": "GV (Google Ventures)",
+    "slug": "gv",
+    "region": "US & Global",
+    "website": "https://www.gv.com",
+    "portfolio_url": "https://www.gv.com/portfolio/",
+    "country_focus": "Global"
+  },
+  {
+    "id": 24,
+    "name": "Insight Partners",
+    "slug": "insight-partners",
+    "region": "US & Global",
+    "website": "https://www.insightpartners.com",
+    "portfolio_url": "https://www.insightpartners.com/portfolio/",
+    "country_focus": "Global"
+  },
+  {
+    "id": 25,
+    "name": "Coatue",
+    "slug": "coatue",
+    "region": "US & Global",
+    "website": "https://www.coatue.com",
+    "portfolio_url": "https://www.coatue.com/portfolio",
+    "country_focus": "Global"
+  },
+  {
+    "id": 26,
+    "name": "Tiger Global Management",
+    "slug": "tiger-global",
+    "region": "US & Global",
+    "website": "https://www.tigerglobal.com",
+    "portfolio_url": "https://www.tigerglobal.com/portfolio/",
+    "country_focus": "Global"
+  },
+  {
+    "id": 27,
+    "name": "DST Global",
+    "slug": "dst-global",
+    "region": "US & Global",
+    "website": "https://dst-global.com",
+    "portfolio_url": "https://dst-global.com",
+    "country_focus": "Global"
+  },
+  {
+    "id": 28,
+    "name": "SoftBank Investment Advisers",
+    "slug": "softbank-vision-fund",
+    "region": "US & Global",
+    "website": "https://visionfund.com",
+    "portfolio_url": "https://visionfund.com/portfolio",
+    "country_focus": "Global"
+  },
+  {
+    "id": 29,
+    "name": "ARCH Venture Partners",
+    "slug": "arch-venture-partners",
+    "region": "US & Global",
+    "website": "https://www.archventure.com",
+    "portfolio_url": "https://www.archventure.com/portfolio/",
+    "country_focus": "US"
+  },
+  {
+    "id": 30,
+    "name": "Flagship Pioneering",
+    "slug": "flagship-pioneering",
+    "region": "US & Global",
+    "website": "https://www.flagshippioneering.com",
+    "portfolio_url": "https://www.flagshippioneering.com/companies",
+    "country_focus": "US"
+  },
+  {
+    "id": 31,
+    "name": "OrbiMed Advisors",
+    "slug": "orbimed-advisors",
+    "region": "US & Global",
+    "website": "https://www.orbimed.com",
+    "portfolio_url": "https://www.orbimed.com/portfolio/",
+    "country_focus": "Global"
+  },
+  {
+    "id": 32,
+    "name": "B Capital Group",
+    "slug": "b-capital-group",
+    "region": "US & Global",
+    "website": "https://www.bcapgroup.com",
+    "portfolio_url": "https://www.bcapgroup.com/companies/",
+    "country_focus": "Global"
+  },
+  {
+    "id": 33,
+    "name": "8VC",
+    "slug": "8vc",
+    "region": "US & Global",
+    "website": "https://8vc.com",
+    "portfolio_url": "https://8vc.com/portfolio",
+    "country_focus": "US"
+  },
+  {
+    "id": 34,
+    "name": "Lux Capital",
+    "slug": "lux-capital",
+    "region": "US & Global",
+    "website": "https://www.luxcapital.com",
+    "portfolio_url": "https://www.luxcapital.com/portfolio",
+    "country_focus": "US"
+  },
+  {
+    "id": 35,
+    "name": "Oak HC/FT",
+    "slug": "oak-hc-ft",
+    "region": "US & Global",
+    "website": "https://www.oakhcft.com",
+    "portfolio_url": "https://www.oakhcft.com/portfolio",
+    "country_focus": "US"
+  },
+  {
+    "id": 36,
+    "name": "Eclipse Ventures",
+    "slug": "eclipse-ventures",
+    "region": "US & Global",
+    "website": "https://eclipse.vc",
+    "portfolio_url": "https://eclipse.vc/portfolio",
+    "country_focus": "US"
+  },
+  {
+    "id": 37,
+    "name": "FJ Labs",
+    "slug": "fj-labs",
+    "region": "US & Global",
+    "website": "https://fjlabs.com",
+    "portfolio_url": "https://fjlabs.com/portfolio/",
+    "country_focus": "Global"
+  },
+  {
+    "id": 38,
+    "name": "HongShan",
+    "slug": "hongshan",
+    "region": "Asia",
+    "website": "https://www.hongshan.com",
+    "portfolio_url": "https://www.hongshan.com/portfolio",
+    "country_focus": "China"
+  },
+  {
+    "id": 39,
+    "name": "Qiming Venture Partners",
+    "slug": "qiming-venture-partners",
+    "region": "Asia",
+    "website": "https://www.qimingvc.com",
+    "portfolio_url": "https://www.qimingvc.com/portfolio",
+    "country_focus": "China"
+  },
+  {
+    "id": 40,
+    "name": "IDG Capital",
+    "slug": "idg-capital",
+    "region": "Asia",
+    "website": "https://www.idgcapital.com",
+    "portfolio_url": "https://www.idgcapital.com/portfolio",
+    "country_focus": "China"
+  },
+  {
+    "id": 41,
+    "name": "Hillhouse Capital / GL Ventures",
+    "slug": "hillhouse-gl-ventures",
+    "region": "Asia",
+    "website": "https://www.glventures.com",
+    "portfolio_url": "https://www.glventures.com/portfolio",
+    "country_focus": "China"
+  },
+  {
+    "id": 42,
+    "name": "5Y Capital",
+    "slug": "5y-capital",
+    "region": "Asia",
+    "website": "https://www.5ycap.com",
+    "portfolio_url": "https://www.5ycap.com/portfolio",
+    "country_focus": "China"
+  },
+  {
+    "id": 43,
+    "name": "Source Code Capital",
+    "slug": "source-code-capital",
+    "region": "Asia",
+    "website": "https://www.sourcecodecap.com",
+    "portfolio_url": "https://www.sourcecodecap.com/portfolio",
+    "country_focus": "China"
+  },
+  {
+    "id": 44,
+    "name": "ZhenFund",
+    "slug": "zhenfund",
+    "region": "Asia",
+    "website": "https://www.zhenfund.com",
+    "portfolio_url": "https://www.zhenfund.com/portfolio",
+    "country_focus": "China"
+  },
+  {
+    "id": 45,
+    "name": "Shunwei Capital",
+    "slug": "shunwei-capital",
+    "region": "Asia",
+    "website": "https://shunwei.com",
+    "portfolio_url": "https://shunwei.com/portfolio",
+    "country_focus": "China"
+  },
+  {
+    "id": 46,
+    "name": "Legend Capital",
+    "slug": "legend-capital",
+    "region": "Asia",
+    "website": "https://www.legendcapital.com.cn",
+    "portfolio_url": "https://www.legendcapital.com.cn/portfolio",
+    "country_focus": "China"
+  },
+  {
+    "id": 47,
+    "name": "Sinovation Ventures",
+    "slug": "sinovation-ventures",
+    "region": "Asia",
+    "website": "https://www.sinovationventures.com",
+    "portfolio_url": "https://www.sinovationventures.com/portfolio",
+    "country_focus": "China"
+  },
+  {
+    "id": 48,
+    "name": "Matrix Partners China (MPCi)",
+    "slug": "matrix-partners-china",
+    "region": "Asia",
+    "website": "https://www.matrixpartners.com.cn",
+    "portfolio_url": "https://www.matrixpartners.com.cn/portfolio",
+    "country_focus": "China"
+  },
+  {
+    "id": 49,
+    "name": "JAFCO",
+    "slug": "jafco",
+    "region": "Asia",
+    "website": "https://www.jafco.co.jp",
+    "portfolio_url": "https://www.jafco.co.jp/portfolio",
+    "country_focus": "Japan"
+  },
+  {
+    "id": 50,
+    "name": "Global Brain",
+    "slug": "global-brain",
+    "region": "Asia",
+    "website": "https://globalbrains.com",
+    "portfolio_url": "https://globalbrains.com/portfolio",
+    "country_focus": "Japan"
+  },
+  {
+    "id": 51,
+    "name": "SBI Investment",
+    "slug": "sbi-investment",
+    "region": "Asia",
+    "website": "https://www.sbinvestment.co.jp",
+    "portfolio_url": "https://www.sbinvestment.co.jp/portfolio",
+    "country_focus": "Japan"
+  },
+  {
+    "id": 52,
+    "name": "East Ventures",
+    "slug": "east-ventures",
+    "region": "Asia",
+    "website": "https://east.vc",
+    "portfolio_url": "https://east.vc/portfolio/",
+    "country_focus": "Southeast Asia"
+  },
+  {
+    "id": 53,
+    "name": "Vertex Ventures",
+    "slug": "vertex-ventures",
+    "region": "Asia",
+    "website": "https://www.vertexventures.com",
+    "portfolio_url": "https://www.vertexventures.com/portfolio",
+    "country_focus": "Singapore / Asia"
+  },
+  {
+    "id": 54,
+    "name": "Jungle Ventures",
+    "slug": "jungle-ventures",
+    "region": "Asia",
+    "website": "https://www.jungle.vc",
+    "portfolio_url": "https://www.jungle.vc/portfolio/",
+    "country_focus": "Singapore / Asia"
+  },
+  {
+    "id": 55,
+    "name": "Insignia Ventures Partners",
+    "slug": "insignia-ventures-partners",
+    "region": "Asia",
+    "website": "https://www.insignia.vc",
+    "portfolio_url": "https://www.insignia.vc/portfolio/",
+    "country_focus": "Southeast Asia"
+  },
+  {
+    "id": 56,
+    "name": "Openspace Ventures",
+    "slug": "openspace-ventures",
+    "region": "Asia",
+    "website": "https://www.openspace.vc",
+    "portfolio_url": "https://www.openspace.vc/portfolio",
+    "country_focus": "Southeast Asia"
+  },
+  {
+    "id": 57,
+    "name": "Monk's Hill Ventures",
+    "slug": "monks-hill-ventures",
+    "region": "Asia",
+    "website": "https://www.monkshill.com",
+    "portfolio_url": "https://www.monkshill.com/portfolio",
+    "country_focus": "Southeast Asia"
+  },
+  {
+    "id": 58,
+    "name": "Peak XV Partners",
+    "slug": "peak-xv-partners",
+    "region": "India",
+    "website": "https://www.peakxv.com",
+    "portfolio_url": "https://www.peakxv.com/companies/",
+    "country_focus": "India"
+  },
+  {
+    "id": 59,
+    "name": "Nexus Venture Partners",
+    "slug": "nexus-venture-partners",
+    "region": "India",
+    "website": "https://nexusvp.com",
+    "portfolio_url": "https://nexusvp.com/portfolio/",
+    "country_focus": "India"
+  },
+  {
+    "id": 60,
+    "name": "Elevation Capital",
+    "slug": "elevation-capital",
+    "region": "India",
+    "website": "https://elevationcapital.com",
+    "portfolio_url": "https://elevationcapital.com/portfolio",
+    "country_focus": "India"
+  },
+  {
+    "id": 61,
+    "name": "Blume Ventures",
+    "slug": "blume-ventures",
+    "region": "India",
+    "website": "https://blume.vc",
+    "portfolio_url": "https://blume.vc/portfolio",
+    "country_focus": "India"
+  },
+  {
+    "id": 62,
+    "name": "Kalaari Capital",
+    "slug": "kalaari-capital",
+    "region": "India",
+    "website": "https://www.kalaari.com",
+    "portfolio_url": "https://www.kalaari.com/portfolio/",
+    "country_focus": "India"
+  },
+  {
+    "id": 63,
+    "name": "3one4 Capital",
+    "slug": "3one4-capital",
+    "region": "India",
+    "website": "https://www.3one4capital.com",
+    "portfolio_url": "https://www.3one4capital.com/portfolio",
+    "country_focus": "India"
+  },
+  {
+    "id": 64,
+    "name": "Chiratae Ventures",
+    "slug": "chiratae-ventures",
+    "region": "India",
+    "website": "https://www.chiratae.com",
+    "portfolio_url": "https://www.chiratae.com/portfolio/",
+    "country_focus": "India"
+  },
+  {
+    "id": 65,
+    "name": "Stellaris Venture Partners",
+    "slug": "stellaris-venture-partners",
+    "region": "India",
+    "website": "https://www.stellarisvp.com",
+    "portfolio_url": "https://www.stellarisvp.com/portfolio/",
+    "country_focus": "India"
+  },
+  {
+    "id": 66,
+    "name": "Z47",
+    "slug": "z47",
+    "region": "India",
+    "website": "https://z47.com",
+    "portfolio_url": "https://z47.com/portfolio",
+    "country_focus": "India"
+  },
+  {
+    "id": 67,
+    "name": "Fireside Ventures",
+    "slug": "fireside-ventures",
+    "region": "India",
+    "website": "https://firesideventures.com",
+    "portfolio_url": "https://firesideventures.com/portfolio/",
+    "country_focus": "India"
+  },
+  {
+    "id": 68,
+    "name": "A91 Partners",
+    "slug": "a91-partners",
+    "region": "India",
+    "website": "https://a91partners.com",
+    "portfolio_url": "https://a91partners.com/portfolio/",
+    "country_focus": "India"
+  },
+  {
+    "id": 69,
+    "name": "India Quotient",
+    "slug": "india-quotient",
+    "region": "India",
+    "website": "https://indiaquotient.in",
+    "portfolio_url": "https://indiaquotient.in/portfolio",
+    "country_focus": "India"
+  },
+  {
+    "id": 70,
+    "name": "Omnivore",
+    "slug": "omnivore",
+    "region": "India",
+    "website": "https://www.omnivore.vc",
+    "portfolio_url": "https://www.omnivore.vc/portfolio/",
+    "country_focus": "India"
+  },
+  {
+    "id": 71,
+    "name": "Premji Invest",
+    "slug": "premji-invest",
+    "region": "India",
+    "website": "https://premjiinvest.com",
+    "portfolio_url": "https://premjiinvest.com/portfolio/",
+    "country_focus": "India"
+  },
+  {
+    "id": 72,
+    "name": "Titan Capital",
+    "slug": "titan-capital",
+    "region": "India",
+    "website": "https://www.titancapital.vc",
+    "portfolio_url": "https://www.titancapital.vc/portfolio/",
+    "country_focus": "India"
+  },
+  {
+    "id": 73,
+    "name": "Atomico",
+    "slug": "atomico",
+    "region": "Europe",
+    "website": "https://atomico.com",
+    "portfolio_url": "https://atomico.com/portfolio",
+    "country_focus": "UK"
+  },
+  {
+    "id": 74,
+    "name": "Balderton Capital",
+    "slug": "balderton-capital",
+    "region": "Europe",
+    "website": "https://www.balderton.com",
+    "portfolio_url": "https://www.balderton.com/portfolio/",
+    "country_focus": "UK"
+  },
+  {
+    "id": 75,
+    "name": "Northzone",
+    "slug": "northzone",
+    "region": "Europe",
+    "website": "https://northzone.com",
+    "portfolio_url": "https://northzone.com/companies/",
+    "country_focus": "Europe"
+  },
+  {
+    "id": 76,
+    "name": "HV Capital",
+    "slug": "hv-capital",
+    "region": "Europe",
+    "website": "https://www.hvcapital.com",
+    "portfolio_url": "https://www.hvcapital.com/portfolio",
+    "country_focus": "Germany"
+  },
+  {
+    "id": 77,
+    "name": "Earlybird Venture Capital",
+    "slug": "earlybird-venture-capital",
+    "region": "Europe",
+    "website": "https://earlybird.com",
+    "portfolio_url": "https://earlybird.com/portfolio/",
+    "country_focus": "Germany"
+  },
+  {
+    "id": 78,
+    "name": "Creandum",
+    "slug": "creandum",
+    "region": "Europe",
+    "website": "https://www.creandum.com",
+    "portfolio_url": "https://www.creandum.com/portfolio",
+    "country_focus": "Sweden"
+  },
+  {
+    "id": 79,
+    "name": "EQT Ventures",
+    "slug": "eqt-ventures",
+    "region": "Europe",
+    "website": "https://eqtventures.com",
+    "portfolio_url": "https://eqtventures.com/companies/",
+    "country_focus": "Sweden"
+  },
+  {
+    "id": 80,
+    "name": "Lakestar",
+    "slug": "lakestar",
+    "region": "Europe",
+    "website": "https://www.lakestar.com",
+    "portfolio_url": "https://www.lakestar.com/portfolio",
+    "country_focus": "Switzerland"
+  },
+  {
+    "id": 81,
+    "name": "Speedinvest",
+    "slug": "speedinvest",
+    "region": "Europe",
+    "website": "https://www.speedinvest.com",
+    "portfolio_url": "https://www.speedinvest.com/portfolio",
+    "country_focus": "Austria"
+  },
+  {
+    "id": 82,
+    "name": "Seedcamp",
+    "slug": "seedcamp",
+    "region": "Europe",
+    "website": "https://seedcamp.com",
+    "portfolio_url": "https://seedcamp.com/portfolio/",
+    "country_focus": "UK"
+  },
+  {
+    "id": 83,
+    "name": "LocalGlobe",
+    "slug": "localglobe",
+    "region": "Europe",
+    "website": "https://localglobe.vc",
+    "portfolio_url": "https://localglobe.vc/portfolio/",
+    "country_focus": "UK"
+  },
+  {
+    "id": 84,
+    "name": "Partech",
+    "slug": "partech",
+    "region": "Europe",
+    "website": "https://partechpartners.com",
+    "portfolio_url": "https://partechpartners.com/companies",
+    "country_focus": "France"
+  },
+  {
+    "id": 85,
+    "name": "Eurazeo",
+    "slug": "eurazeo",
+    "region": "Europe",
+    "website": "https://www.eurazeo.com",
+    "portfolio_url": "https://www.eurazeo.com/portfolio",
+    "country_focus": "France"
+  },
+  {
+    "id": 86,
+    "name": "Point Nine",
+    "slug": "point-nine",
+    "region": "Europe",
+    "website": "https://www.pointnine.com",
+    "portfolio_url": "https://www.pointnine.com/portfolio",
+    "country_focus": "Germany"
+  },
+  {
+    "id": 87,
+    "name": "Project A Ventures",
+    "slug": "project-a-ventures",
+    "region": "Europe",
+    "website": "https://www.project-a.com",
+    "portfolio_url": "https://www.project-a.com/portfolio/",
+    "country_focus": "Germany"
+  },
+  {
+    "id": 88,
+    "name": "Highland Europe",
+    "slug": "highland-europe",
+    "region": "Europe",
+    "website": "https://www.highlandeurope.com",
+    "portfolio_url": "https://www.highlandeurope.com/portfolio/",
+    "country_focus": "Europe"
+  },
+  {
+    "id": 89,
+    "name": "Kaszek",
+    "slug": "kaszek",
+    "region": "Latin America",
+    "website": "https://www.kaszek.com",
+    "portfolio_url": "https://www.kaszek.com/portfolio",
+    "country_focus": "Brazil / LatAm"
+  },
+  {
+    "id": 90,
+    "name": "Monashees",
+    "slug": "monashees",
+    "region": "Latin America",
+    "website": "https://monashees.com",
+    "portfolio_url": "https://monashees.com/portfolio",
+    "country_focus": "Brazil"
+  },
+  {
+    "id": 91,
+    "name": "Canary",
+    "slug": "canary",
+    "region": "Latin America",
+    "website": "https://canary.com.br",
+    "portfolio_url": "https://canary.com.br/portfolio",
+    "country_focus": "Brazil"
+  },
+  {
+    "id": 92,
+    "name": "QED Investors",
+    "slug": "qed-investors",
+    "region": "Latin America",
+    "website": "https://www.qedinvestors.com",
+    "portfolio_url": "https://www.qedinvestors.com/companies",
+    "country_focus": "US / LatAm"
+  },
+  {
+    "id": 93,
+    "name": "Valor Capital Group",
+    "slug": "valor-capital-group",
+    "region": "Latin America",
+    "website": "https://valorcapitalgroup.com",
+    "portfolio_url": "https://valorcapitalgroup.com/portfolio/",
+    "country_focus": "Brazil / US"
+  },
+  {
+    "id": 94,
+    "name": "NXTP Ventures",
+    "slug": "nxtp-ventures",
+    "region": "Latin America",
+    "website": "https://www.nxtp.co",
+    "portfolio_url": "https://www.nxtp.co/portfolio",
+    "country_focus": "LatAm"
+  },
+  {
+    "id": 95,
+    "name": "STV",
+    "slug": "stv",
+    "region": "Middle East & Africa",
+    "website": "https://stv.vc",
+    "portfolio_url": "https://stv.vc/portfolio/",
+    "country_focus": "Saudi Arabia"
+  },
+  {
+    "id": 96,
+    "name": "Shorooq Partners",
+    "slug": "shorooq-partners",
+    "region": "Middle East & Africa",
+    "website": "https://shorooq.com",
+    "portfolio_url": "https://shorooq.com/portfolio/",
+    "country_focus": "UAE"
+  },
+  {
+    "id": 97,
+    "name": "BECO Capital",
+    "slug": "beco-capital",
+    "region": "Middle East & Africa",
+    "website": "https://becocapital.com",
+    "portfolio_url": "https://becocapital.com/portfolio/",
+    "country_focus": "UAE"
+  },
+  {
+    "id": 98,
+    "name": "Wamda Capital",
+    "slug": "wamda-capital",
+    "region": "Middle East & Africa",
+    "website": "https://www.wamdacapital.com",
+    "portfolio_url": "https://www.wamdacapital.com/portfolio",
+    "country_focus": "UAE / MENA"
+  },
+  {
+    "id": 99,
+    "name": "TLcom Capital",
+    "slug": "tlcom-capital",
+    "region": "Middle East & Africa",
+    "website": "https://tlcomcapital.com",
+    "portfolio_url": "https://tlcomcapital.com/portfolio/",
+    "country_focus": "Africa"
+  },
+  {
+    "id": 100,
+    "name": "Norrsken22",
+    "slug": "norrsken22",
+    "region": "Middle East & Africa",
+    "website": "https://www.norrsken22.com",
+    "portfolio_url": "https://www.norrsken22.com/portfolio",
+    "country_focus": "Africa"
+  }
+]
