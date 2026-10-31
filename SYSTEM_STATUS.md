@@ -148,7 +148,7 @@ python test_local_ai.py
    python comprehensive_job_search.py
    ```
 
-2. **Monitor your email** (canaby007@gmail.com) for replies
+2. **Monitor your email** (outreach@jobfinder.ai) for replies
 
 3. **Track responses** in the database or export to Google Sheets
 

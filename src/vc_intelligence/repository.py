@@ -9,7 +9,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from src.models import VCFirm, PortfolioCompany, CompanyFounder
 from src.vc_intelligence.interfaces import IVCRepository
@@ -31,8 +31,13 @@ class VCIntelligenceRepository(IVCRepository):
         return self.db.query(VCFirm).filter(VCFirm.slug == slug).first()
 
     def list_firms(self) -> List[VCFirm]:
-        """List all tracked VC firms."""
-        return self.db.query(VCFirm).order_by(VCFirm.name.asc()).all()
+        """List all tracked VC firms with eager loaded relationships to avoid N+1 queries."""
+        return (
+            self.db.query(VCFirm)
+            .options(selectinload(VCFirm.companies).selectinload(PortfolioCompany.founders))
+            .order_by(VCFirm.name.asc())
+            .all()
+        )
 
     def save_companies(
         self, vc_firm_id: int, companies: List[RawPortfolioCompany]
@@ -118,8 +123,11 @@ class VCIntelligenceRepository(IVCRepository):
         limit: int = 50,
         offset: int = 0,
     ) -> List[PortfolioCompany]:
-        """Query portfolio companies with optional filters."""
-        query = self.db.query(PortfolioCompany)
+        """Query portfolio companies with eager loaded VC firm and founders to eliminate N+1 queries."""
+        query = self.db.query(PortfolioCompany).options(
+            joinedload(PortfolioCompany.vc_firm),
+            selectinload(PortfolioCompany.founders),
+        )
 
         if vc_slug:
             firm = self.get_firm_by_slug(vc_slug)

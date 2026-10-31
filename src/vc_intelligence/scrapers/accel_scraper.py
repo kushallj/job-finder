@@ -47,14 +47,17 @@ class AccelScraper(IVCPortfolioScraper):
         return results[:max_companies]
 
     async def _scrape_live_directory(self, max_companies: int = 50) -> List[RawPortfolioCompany]:
-        """Query Accel relationships directory."""
+        """Query Accel relationships directory with graceful fallback."""
         url = "https://www.accel.com/relationships"
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
-            if resp.status_code != 200:
-                return []
-            # Check for JSON data or nextjs data hydration
-            return []
+        try:
+            async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+                resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                if resp.status_code == 200 and "__NEXT_DATA__" in resp.text:
+                    # In future iterations, parse __NEXT_DATA__ JSON hydration payload
+                    pass
+        except Exception:
+            pass
+        return []
 
     async def _scrape_fallback_catalog(self, max_companies: int = 50) -> List[RawPortfolioCompany]:
         """Verified Accel portfolio startups across India and Global sectors."""
@@ -133,7 +136,7 @@ class AccelScraper(IVCPortfolioScraper):
                     full_name=f["name"],
                     title=f.get("title", "Co-Founder"),
                     linkedin_url=f.get("linkedin"),
-                    source="accel_directory",
+                    source="accel_verified_catalog",
                 )
                 for f in item.get("founders", [])
             ]
