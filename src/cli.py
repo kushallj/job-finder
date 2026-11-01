@@ -768,8 +768,29 @@ def cmd_vc_scrape_continuous(args):
             print("\nStopped continuous harvester gracefully.")
 
 
+def cmd_vc_cron(args):
+    """Run local cron job harvesting batches of 50 founders periodically."""
+    from src.vc_intelligence.continuous_runner import ContinuousVCBatchRunner
+
+    runner = ContinuousVCBatchRunner.get_instance()
+    if args.once:
+        print(f"Executing single founder batch harvesting (size: {args.batch_size})...")
+        res = runner.run_batch_synchronous(target_founders_per_batch=args.batch_size)
+        print(f"Batch #{res['batch_number']} finished: {res['founders_added']} founders added across {res['companies_added']} companies.")
+        print(f"Total session harvested: {res['total_session_harvested']}.")
+    else:
+        print(f"Starting VC Cron Daemon (batch_size={args.batch_size}, interval={args.interval}s, max_batches={args.max_batches})...")
+        print("Logs streaming to logs/vc_cron.log. Press Ctrl+C to stop.")
+        runner.run_cron_sync(
+            interval_seconds=args.interval,
+            batch_size=args.batch_size,
+            max_batches=args.max_batches,
+        )
+
+
 # ---------------------------------------------------------------------------
 # help
+
 # ---------------------------------------------------------------------------
 
 
@@ -796,6 +817,7 @@ COMMANDS = {
     "vc-scrape-single": cmd_vc_scrape_single,
     "vc-scrape-batch": cmd_vc_scrape_batch,
     "vc-scrape-continuous": cmd_vc_scrape_continuous,
+    "vc-cron":   cmd_vc_cron,
     "drafts":    cmd_drafts,
     "send":      cmd_send,
     "skip":      cmd_skip,
@@ -893,6 +915,12 @@ def main():
     p_vc_cont.add_argument("--max-batches", type=int, default=None, help="Maximum number of batches to execute before halting")
     p_vc_cont.add_argument("--delay", type=float, default=2.0, help="Delay in seconds between successive batches (default: 2.0)")
     p_vc_cont.add_argument("--once", action="store_true", help="Harvest exactly one batch of 50 founders and exit")
+
+    p_vc_cron = subparsers.add_parser("vc-cron", help="Run local cron job harvesting batches of 50 founders periodically")
+    p_vc_cron.add_argument("--interval", type=float, default=60.0, help="Interval in seconds between periodic cron ticks (default: 60.0s)")
+    p_vc_cron.add_argument("--batch-size", type=int, default=50, help="Target founders per batch (default: 50)")
+    p_vc_cron.add_argument("--max-batches", type=int, default=None, help="Stop after N batches (default: None, infinite daemon)")
+    p_vc_cron.add_argument("--once", action="store_true", help="Harvest exactly one batch of 50 founders and exit")
 
     args = parser.parse_args()
 

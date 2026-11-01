@@ -43,10 +43,19 @@ class ContinuousVCBatchRunner:
 
     def _log(self, message: str) -> None:
         log.info(message)
-        timestamp = datetime.utcnow().strftime("%H:%M:%S")
-        self.recent_logs.append(f"[{timestamp}] {message}")
-        if len(self.recent_logs) > 50:
+        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        log_line = f"[{timestamp}] {message}"
+        self.recent_logs.append(log_line)
+        if len(self.recent_logs) > 100:
             self.recent_logs.pop(0)
+        try:
+            from pathlib import Path
+            log_dir = Path("logs")
+            log_dir.mkdir(parents=True, exist_ok=True)
+            with open(log_dir / "vc_cron.log", "a", encoding="utf-8") as f:
+                f.write(log_line + "\n")
+        except Exception:
+            pass
 
     def get_status(self) -> Dict[str, Any]:
         """Returns the real-time telemetry of the continuous batch runner."""
@@ -76,15 +85,19 @@ class ContinuousVCBatchRunner:
             "recent_logs": self.recent_logs[-15:],
         }
 
-    def run_batch_synchronous(self, batch_data: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    def run_batch_synchronous(
+        self,
+        batch_data: Optional[List[Dict[str, Any]]] = None,
+        target_founders_per_batch: int = 50,
+    ) -> Dict[str, Any]:
         """
-        Executes a single batch ingestion (up to 50+ founders) synchronously.
+        Executes a single batch ingestion (up to target_founders_per_batch founders, default: 50) synchronously.
         Automatically selects pending un-ingested companies across catalogs.
         """
         if batch_data is not None:
             data_to_ingest = batch_data
         else:
-            from src.vc_intelligence.batch_data_catalog import ALL_AVAILABLE_BATCHES, BATCH_3_FOUNDERS
+            from src.vc_intelligence.batch_data_catalog import ALL_AVAILABLE_BATCHES
             db_check = SessionLocal()
             try:
                 existing_company_slugs = set(r[0] for r in db_check.query(PortfolioCompany.slug).all())
@@ -92,12 +105,28 @@ class ContinuousVCBatchRunner:
                 db_check.close()
 
             unprocessed = []
+            founders_counted = 0
             for b in ALL_AVAILABLE_BATCHES:
                 for comp in b:
                     if comp["slug"] not in existing_company_slugs:
                         unprocessed.append(comp)
+                        founders_counted += len(comp.get("founders", []))
+                        if founders_counted >= target_founders_per_batch:
+                            break
+                if founders_counted >= target_founders_per_batch:
+                    break
 
-            data_to_ingest = unprocessed if unprocessed else BATCH_3_FOUNDERS
+            data_to_ingest = unprocessed
+
+        if not data_to_ingest:
+            self._log("No new pending companies found in queue. All configured founder catalogs have been processed.")
+            return {
+                "batch_number": self.current_batch,
+                "founders_added": 0,
+                "companies_added": 0,
+                "total_session_harvested": self.total_harvested_in_session,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
 
         db = SessionLocal()
         repo = VCIntelligenceRepository(db)
@@ -108,6 +137,7 @@ class ContinuousVCBatchRunner:
         try:
             self.last_run_timestamp = datetime.utcnow().isoformat()
             self._log(f"Starting batch #{self.current_batch} processing ({len(data_to_ingest)} companies queued)...")
+
 
             for item in data_to_ingest:
                 if self._stop_requested:
@@ -207,7 +237,7 @@ class ContinuousVCBatchRunner:
             db.close()
 
     async def start_continuous_loop(
-        self, batch_size: int = 50, max_batches: Optional[int] = None, delay_seconds: float = 2.0
+        self, batch_size: int = 50, max_batches: Optional[int] = None, delay_seconds: float = 60.0
     ) -> None:
         """Starts asynchronous continuous batch harvesting loop."""
         if self.is_running:
@@ -222,9 +252,12 @@ class ContinuousVCBatchRunner:
         try:
             while not self._stop_requested:
                 # Execute next batch
-                res = self.run_batch_synchronous()
-                batches_run += 1
-                self._log(f"Completed batch #{res['batch_number']}. Total harvested this session: {self.total_harvested_in_session}")
+                res = self.run_batch_synchronous(target_founders_per_batch=batch_size)
+                if res["founders_added"] > 0:
+                    batches_run += 1
+                    self._log(f"Completed batch #{res['batch_number']}. Total harvested this session: {self.total_harvested_in_session}")
+                else:
+                    self._log(f"Queue empty. Waiting {delay_seconds}s before next check...")
 
                 if max_batches and batches_run >= max_batches:
                     self._log(f"Reached configured limit of {max_batches} batches. Stopping.")
@@ -241,6 +274,43 @@ class ContinuousVCBatchRunner:
             self.is_running = False
             self.current_firm_name = None
             self._log("Continuous batch harvester loop stopped.")
+
+    def run_cron_sync(
+        self, interval_seconds: float = 60.0, batch_size: int = 50, max_batches: Optional[int] = None
+    ) -> None:
+        """Runs the continuous batch harvester synchronously in a cron-like daemon loop."""
+        import time
+        self.is_running = True
+        self._stop_requested = False
+        self._log(f"VC Cron Daemon active: harvesting batches of {batch_size} founders every {interval_seconds}s.")
+        batches_run = 0
+        try:
+            while not self._stop_requested:
+                res = self.run_batch_synchronous(target_founders_per_batch=batch_size)
+                if res["founders_added"] > 0:
+                    batches_run += 1
+                    self._log(f"Cron tick #{batches_run} complete: +{res['founders_added']} founders. Session total: {self.total_harvested_in_session}")
+                else:
+                    self._log(f"Cron standby: queue empty, waiting {interval_seconds}s for new catalog entries or live scrapers...")
+
+                if max_batches and batches_run >= max_batches:
+                    self._log(f"Reached configured limit of {max_batches} cron batches. Terminating.")
+                    break
+
+                self._log(f"Cron sleeping for {interval_seconds}s until next tick...")
+                for _ in range(int(interval_seconds)):
+                    if self._stop_requested:
+                        break
+                    time.sleep(1)
+        except KeyboardInterrupt:
+            self._log("VC Cron Daemon received keyboard interrupt. Halting.")
+        except Exception as e:
+            self._log(f"VC Cron Daemon encountered error: {e}")
+        finally:
+            self.is_running = False
+            self.current_firm_name = None
+            self._log("VC Cron Daemon stopped.")
+
 
     def stop(self) -> None:
         """Requests graceful termination of the continuous batch runner."""
