@@ -109,4 +109,40 @@ export const vcApi = {
     const base = '/api/vc/export?format=csv';
     return vcSlug ? `${base}&vc_slug=${encodeURIComponent(vcSlug)}` : base;
   },
+
+  getContinuousStatus: async (): Promise<ContinuousRunnerStatus> => {
+    const response = await api.get<ContinuousRunnerStatus>('/api/vc/continuous/status');
+    return response.data;
+  },
+
+  startContinuous: async (batchSize: number = 50, maxBatches?: number, intervalSeconds: number = 2.0): Promise<{ status: string }> => {
+    const response = await api.post('/api/vc/continuous/start', null, {
+      params: { batch_size: batchSize, max_batches: maxBatches, interval_seconds: intervalSeconds },
+    });
+    return response.data;
+  },
+
+  stopContinuous: async (): Promise<{ status: string }> => {
+    const response = await api.post('/api/vc/continuous/stop');
+    return response.data;
+  },
+
+  runBatchNow: async (): Promise<{ batch_number: number; founders_added: number; companies_added: number }> => {
+    const response = await api.post('/api/vc/continuous/run-batch-now');
+    return response.data;
+  },
 };
+
+export interface ContinuousRunnerStatus {
+  is_running: boolean;
+  current_batch: number;
+  total_harvested_in_session: number;
+  last_run_timestamp?: string;
+  current_firm_name?: string;
+  total_founders_in_db: number;
+  founders_with_verified_email: number;
+  total_companies_in_db: number;
+  total_firms_in_db: number;
+  recent_logs: string[];
+}
+

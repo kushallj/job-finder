@@ -741,9 +741,37 @@ def cmd_vc_scrape_batch(args):
         db.close()
 
 
+def cmd_vc_scrape_continuous(args):
+    """Run continuous scraping and batch harvesting of founders (50 per batch)."""
+    import asyncio
+    from src.vc_intelligence.continuous_runner import ContinuousVCBatchRunner
+
+    runner = ContinuousVCBatchRunner.get_instance()
+    if args.once:
+        print(f"Executing single founder batch harvesting (size: {args.batch_size})...")
+        res = runner.run_batch_synchronous()
+        print(f"Batch #{res['batch_number']} finished: {res['founders_added']} founders added across {res['companies_added']} companies.")
+        print(f"Total session harvested: {res['total_session_harvested']}.")
+    else:
+        print(f"Starting continuous batch harvester (batch_size={args.batch_size}, max_batches={args.max_batches}, delay={args.delay}s)...")
+        print("Press Ctrl+C to stop gracefully.")
+        try:
+            asyncio.run(
+                runner.start_continuous_loop(
+                    batch_size=args.batch_size,
+                    max_batches=args.max_batches,
+                    delay_seconds=args.delay,
+                )
+            )
+        except KeyboardInterrupt:
+            runner.stop()
+            print("\nStopped continuous harvester gracefully.")
+
+
 # ---------------------------------------------------------------------------
 # help
 # ---------------------------------------------------------------------------
+
 
 def cmd_help(_args):
     print(__doc__)
@@ -767,6 +795,7 @@ COMMANDS = {
     "vc-seed-100": cmd_vc_seed_100,
     "vc-scrape-single": cmd_vc_scrape_single,
     "vc-scrape-batch": cmd_vc_scrape_batch,
+    "vc-scrape-continuous": cmd_vc_scrape_continuous,
     "drafts":    cmd_drafts,
     "send":      cmd_send,
     "skip":      cmd_skip,
@@ -858,6 +887,12 @@ def main():
     p_vc_batch.add_argument("--region", default="India", choices=["US & Global", "Asia", "India", "Europe", "Latin America", "Middle East & Africa"], help="Regional group")
     p_vc_batch.add_argument("--max-companies", type=int, default=10, help="Max companies per firm (default: 10)")
     p_vc_batch.add_argument("--no-enrich", action="store_true", help="Skip founder contact discovery")
+
+    p_vc_cont = subparsers.add_parser("vc-scrape-continuous", help="Continuous batch scraping and founder harvesting (50 per batch)")
+    p_vc_cont.add_argument("--batch-size", type=int, default=50, help="Number of founders to harvest per batch (default: 50)")
+    p_vc_cont.add_argument("--max-batches", type=int, default=None, help="Maximum number of batches to execute before halting")
+    p_vc_cont.add_argument("--delay", type=float, default=2.0, help="Delay in seconds between successive batches (default: 2.0)")
+    p_vc_cont.add_argument("--once", action="store_true", help="Harvest exactly one batch of 50 founders and exit")
 
     args = parser.parse_args()
 

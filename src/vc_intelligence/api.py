@@ -212,3 +212,69 @@ def export_contacts(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+# --- CONTINUOUS 50-FOUNDER BATCH HARVESTER ENDPOINTS ---
+
+@router.get(
+    "/continuous/status",
+    summary="Get continuous batch runner status",
+    description="Telemetry for continuous scraping and founder batch harvesting.",
+)
+def get_continuous_status():
+    from src.vc_intelligence.continuous_runner import ContinuousVCBatchRunner
+    runner = ContinuousVCBatchRunner.get_instance()
+    return runner.get_status()
+
+
+@router.post(
+    "/continuous/run-batch-now",
+    summary="Trigger immediate 50-founder batch harvesting",
+    description="Harvests a single batch of up to 50 verified founders immediately.",
+)
+def run_batch_now():
+    from src.vc_intelligence.continuous_runner import ContinuousVCBatchRunner
+    runner = ContinuousVCBatchRunner.get_instance()
+    res = runner.run_batch_synchronous()
+    return res
+
+
+@router.post(
+    "/continuous/start",
+    summary="Start continuous background batch harvester",
+    description="Starts autonomous loop harvesting 50-founder batches.",
+)
+async def start_continuous(
+    batch_size: int = Query(50, ge=5, le=100),
+    max_batches: Optional[int] = Query(None, ge=1),
+    interval_seconds: float = Query(2.0, ge=0.5, le=60.0),
+):
+    import asyncio
+    from src.vc_intelligence.continuous_runner import ContinuousVCBatchRunner
+
+    runner = ContinuousVCBatchRunner.get_instance()
+    if runner.is_running:
+        return {"status": "already_running", "message": "Continuous batch harvester is already running."}
+
+    # Start loop in background task
+    asyncio.create_task(
+        runner.start_continuous_loop(
+            batch_size=batch_size,
+            max_batches=max_batches,
+            delay_seconds=interval_seconds,
+        )
+    )
+    return {"status": "started", "batch_size": batch_size, "interval_seconds": interval_seconds}
+
+
+@router.post(
+    "/continuous/stop",
+    summary="Stop continuous batch harvester",
+    description="Sends graceful stop signal to the background batch harvester.",
+)
+def stop_continuous():
+    from src.vc_intelligence.continuous_runner import ContinuousVCBatchRunner
+    runner = ContinuousVCBatchRunner.get_instance()
+    runner.stop()
+    return {"status": "stopping", "message": "Stop signal dispatched to continuous batch harvester."}
+
