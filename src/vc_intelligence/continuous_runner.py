@@ -79,9 +79,26 @@ class ContinuousVCBatchRunner:
     def run_batch_synchronous(self, batch_data: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """
         Executes a single batch ingestion (up to 50+ founders) synchronously.
-        Defaults to BATCH_2_FOUNDERS if no external batch is provided.
+        Automatically selects pending un-ingested companies across catalogs.
         """
-        data_to_ingest = batch_data or BATCH_2_FOUNDERS
+        if batch_data is not None:
+            data_to_ingest = batch_data
+        else:
+            from src.vc_intelligence.batch_data_catalog import ALL_AVAILABLE_BATCHES, BATCH_3_FOUNDERS
+            db_check = SessionLocal()
+            try:
+                existing_company_slugs = set(r[0] for r in db_check.query(PortfolioCompany.slug).all())
+            finally:
+                db_check.close()
+
+            unprocessed = []
+            for b in ALL_AVAILABLE_BATCHES:
+                for comp in b:
+                    if comp["slug"] not in existing_company_slugs:
+                        unprocessed.append(comp)
+
+            data_to_ingest = unprocessed if unprocessed else BATCH_3_FOUNDERS
+
         db = SessionLocal()
         repo = VCIntelligenceRepository(db)
 
@@ -109,7 +126,6 @@ class ContinuousVCBatchRunner:
                         name=vc_name,
                         website=f"https://{vc_slug}.com",
                         region="US & Global",
-                        is_active=True,
                     )
                     db.add(vc_firm)
                     db.commit()
