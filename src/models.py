@@ -96,6 +96,23 @@ class Application(Base):
     status = Column(String(50), default="pending")  # saved, ready, applied, interview, offer, negotiation, accepted, rejected
     applied_at = Column(DateTime)
 
+    # Kanban Board & Priority Positioning
+    kanban_stage = Column(String(50), default="applied", index=True)
+    kanban_order = Column(Integer, default=0)
+
+    # Next Action & Countdown Timers (Amber, Blue, Red alerts)
+    next_action_type = Column(String(50), nullable=True)
+    next_action_title = Column(String(255), nullable=True)
+    next_action_due_at = Column(DateTime, nullable=True)
+
+    # Recruiter Email Thread Provenance
+    recruiter_name = Column(String(255), nullable=True)
+    recruiter_email = Column(String(255), nullable=True)
+    recruiter_company = Column(String(255), nullable=True)
+    email_subject = Column(String(500), nullable=True)
+    email_thread_id = Column(String(255), nullable=True)
+    last_email_received_at = Column(DateTime, nullable=True)
+
     # Submission packet & proof
     ats_detected = Column(String(100))
     customized_resume_path = Column(Text)

@@ -856,6 +856,13 @@ try:
 except Exception as e:
     log.warning(f"Could not load vc_router: {e}")
 
+try:
+    from src.api.routers.kanban_router import router as kanban_router
+    app.include_router(kanban_router)
+    log.info("Loaded kanban_router successfully")
+except Exception as e:
+    log.warning(f"Could not load kanban_router: {e}")
+
 
 
 cors_origins_list = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]

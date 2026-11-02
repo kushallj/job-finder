@@ -1692,6 +1692,83 @@ class MarketRadarResponseSchema(BaseModel):
     timestamp: str = Field(...)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Kanban Application Tracker with Countdown Timers & Email Provenance
+# ═══════════════════════════════════════════════════════════════════════════
+
+class KanbanNextActionRequest(BaseModel):
+    """Set or reschedule time-sensitive next action countdown deadline."""
+    next_action_type: str = Field(..., description="Action type: technical_interview, take_home, recruiter_screen, follow_up, offer_decision")
+    next_action_title: str = Field(..., description="Human-readable title e.g. Technical Interview, Take-home assessment")
+    next_action_due_at: datetime = Field(..., description="Target due date & time")
+
+
+class KanbanEmailProvenanceRequest(BaseModel):
+    """Attach recruiter email thread provenance directly to application card."""
+    recruiter_email: str = Field(..., description="Recruiter or hiring manager email e.g. recruiter@tessellate.io")
+    email_subject: str = Field(..., description="Email thread subject e.g. Re: Interview invitation — Senior Frontend Engineer")
+    recruiter_name: Optional[str] = Field(None, description="Recruiter full name")
+    recruiter_company: Optional[str] = Field(None, description="Recruiter company name")
+    email_thread_id: Optional[str] = Field(None, description="External email message/thread ID")
+    last_email_received_at: Optional[datetime] = Field(default_factory=datetime.utcnow, description="Timestamp of received email")
+
+
+class KanbanStageTransitionRequest(BaseModel):
+    """Update Kanban column stage and optional reorder index."""
+    stage: str = Field(..., description="Target stage: saved, applied, recruiter_screen, technical_interview, take_home, offer, rejected")
+    order: Optional[int] = Field(default=0, description="Column index order for drag-and-drop")
+
+
+class KanbanCardResponse(BaseModel):
+    """Card item in the Kanban Application Tracker with countdown & provenance badges."""
+    id: int = Field(..., description="Application ID")
+    job_id: int = Field(..., description="Associated Job ID")
+    job_title: str = Field(..., description="Job role title")
+    company: str = Field(..., description="Company name")
+    location: Optional[str] = Field(None, description="Role location")
+    work_mode: Optional[str] = Field(None, description="Remote / Hybrid / Onsite")
+    salary_min: Optional[float] = None
+    salary_max: Optional[float] = None
+    salary_currency: Optional[str] = None
+    match_score: Optional[float] = None
+    status: str = Field(..., description="Underlying application status")
+    kanban_stage: str = Field(..., description="Current column stage in Kanban")
+    kanban_order: int = Field(default=0, description="Column ordering sequence")
+    
+    # Countdown timer & Next Action Alert Badges
+    next_action_type: Optional[str] = None
+    next_action_title: Optional[str] = None
+    next_action_due_at: Optional[datetime] = None
+    days_remaining: Optional[float] = Field(None, description="Days remaining until due date (negative if overdue)")
+    countdown_label: Optional[str] = Field(None, description="Dynamic label e.g. 'Next: Technical Interview in 3 days'")
+    alert_severity: Optional[str] = Field(None, description="amber (1-3d), blue (4-7d), red (overdue/follow-up), neutral")
+    
+    # Email Provenance Badge
+    recruiter_name: Optional[str] = None
+    recruiter_email: Optional[str] = None
+    recruiter_company: Optional[str] = None
+    email_subject: Optional[str] = None
+    email_thread_id: Optional[str] = None
+    last_email_received_at: Optional[datetime] = None
+    provenance_badge: Optional[str] = Field(None, description="Exact badge text e.g. '\"Re: Interview invitation...\" from recruiter@tessellate.io'")
+    
+    applied_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class KanbanBoardResponse(BaseModel):
+    """Envelope containing all Kanban columns with summary counters."""
+    status: str = Field(default="success")
+    total_applications: int
+    active_countdown_alerts: int
+    amber_count: int = Field(..., description="Cards with amber alert (Next action in 1-3 days)")
+    blue_count: int = Field(..., description="Cards with blue alert (Next action in 4-7 days)")
+    red_count: int = Field(..., description="Cards with red alert (Overdue / follow-up required)")
+    columns: Dict[str, List[KanbanCardResponse]] = Field(default_factory=dict)
+    column_metadata: List[Dict[str, Any]] = Field(default_factory=list)
+
+
 
 
 
