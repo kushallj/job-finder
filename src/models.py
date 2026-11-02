@@ -434,5 +434,62 @@ class CompanyFounder(Base):
     )
 
 
+class MailboxAccount(Base):
+    """Connected user mailbox (Gmail / Outlook) for incoming recruiter message synchronization."""
+    __tablename__ = "mailbox_accounts"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    provider = Column(String(50), default="gmail")  # gmail, outlook, custom
+    email_address = Column(String(255), nullable=False, unique=True, index=True)
+    imap_host = Column(String(255), default="imap.gmail.com")
+    imap_port = Column(Integer, default=993)
+    use_ssl = Column(Boolean, default=True)
+    is_connected = Column(Boolean, default=True)
+    auto_advance_pipeline = Column(Boolean, default=True)
+    last_sync_at = Column(DateTime, nullable=True)
+    total_messages_scanned = Column(Integer, default=0)
+    total_advancements = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    messages = relationship("InboundRecruiterMessage", back_populates="mailbox", cascade="all, delete-orphan")
+
+
+class InboundRecruiterMessage(Base):
+    """Audit log of incoming recruiter messages classified and auto-advanced through the pipeline."""
+    __tablename__ = "inbound_recruiter_messages"
+
+    id = Column(Integer, primary_key=True)
+    mailbox_id = Column(Integer, ForeignKey("mailbox_accounts.id"), nullable=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=True, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=True, index=True)
+    
+    sender_email = Column(String(255), nullable=False, index=True)
+    sender_name = Column(String(255), nullable=True)
+    recipient_email = Column(String(255), nullable=True)
+    subject = Column(String(500), nullable=False)
+    snippet = Column(Text, nullable=True)
+    body_text = Column(Text, nullable=True)
+    
+    # Classification & Auto-Advancement
+    classified_intent = Column(String(50), nullable=False)  # INTERVIEW_INVITATION, ASSESSMENT, OFFER, REJECTION, FOLLOW_UP_REQUIRED
+    confidence_score = Column(Float, default=0.90)
+    previous_kanban_stage = Column(String(50), nullable=True)
+    new_kanban_stage = Column(String(50), nullable=True)
+    auto_advanced = Column(Boolean, default=True)
+    
+    message_id = Column(String(255), nullable=True)
+    thread_id = Column(String(255), nullable=True)
+    received_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    mailbox = relationship("MailboxAccount", back_populates="messages")
+    application = relationship("Application")
+    job = relationship("Job")
+
+
 
 

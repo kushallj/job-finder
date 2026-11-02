@@ -863,6 +863,13 @@ try:
 except Exception as e:
     log.warning(f"Could not load kanban_router: {e}")
 
+try:
+    from src.api.routers.mailbox_router import router as mailbox_router
+    app.include_router(mailbox_router)
+    log.info("Loaded mailbox_router successfully")
+except Exception as e:
+    log.warning(f"Could not load mailbox_router: {e}")
+
 
 
 cors_origins_list = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]

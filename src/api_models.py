@@ -1769,14 +1769,89 @@ class KanbanBoardResponse(BaseModel):
     column_metadata: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Mailbox & Inbound Recruiter Email Sync Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class MailboxConnectRequest(BaseModel):
+    """Payload to connect a user's Gmail / Outlook / Custom IMAP account."""
+    provider: str = Field(default="gmail", description="Mailbox provider: gmail, outlook, custom")
+    email_address: str = Field(..., description="User's mailbox email address")
+    password: Optional[str] = Field(None, description="App password / auth token")
+    imap_host: Optional[str] = Field(None, description="IMAP server host (defaults to provider host)")
+    imap_port: Optional[int] = Field(993, description="IMAP server port")
+    use_ssl: bool = Field(True, description="Whether to use SSL")
+    auto_advance_pipeline: bool = Field(True, description="Whether to automatically advance Kanban cards")
 
 
+class MailboxAccountResponse(BaseModel):
+    """Connection details and sync statistics for a connected mailbox."""
+    id: int
+    provider: str
+    email_address: str
+    imap_host: str
+    imap_port: int
+    use_ssl: bool
+    is_connected: bool
+    auto_advance_pipeline: bool
+    last_sync_at: Optional[datetime] = None
+    total_messages_scanned: int = 0
+    total_advancements: int = 0
+    created_at: datetime
+    updated_at: datetime
 
 
+class InboundSimulationRequest(BaseModel):
+    """Simulate an inbound recruiter email for testing pipeline auto-advancement."""
+    sender_email: str = Field(..., description="Recruiter sender email, e.g. recruiter@tessellate.io")
+    sender_name: Optional[str] = Field(None, description="Recruiter name, e.g. Sarah Connor")
+    subject: str = Field(..., description="Email subject, e.g. Re: Interview invitation — Senior Frontend Engineer")
+    body_text: str = Field(..., description="Email body content with context or scheduling instructions")
+    company: Optional[str] = Field(None, description="Optional company name hint to match application")
+    application_id: Optional[int] = Field(None, description="Optional target application ID directly")
 
 
+class InboundAdvancementResult(BaseModel):
+    """Outcome of processing an inbound recruiter email."""
+    matched: bool
+    application_id: Optional[int] = None
+    company: Optional[str] = None
+    job_title: Optional[str] = None
+    classified_intent: str
+    confidence_score: float
+    previous_stage: Optional[str] = None
+    new_stage: Optional[str] = None
+    provenance_badge: Optional[str] = None
+    alert_severity: Optional[str] = None
+    countdown_label: Optional[str] = None
+    next_action_due_at: Optional[datetime] = None
+    message: str
 
 
+class MailboxSyncResponse(BaseModel):
+    """Summary of mailbox sync run with all auto-advancements recorded."""
+    status: str = "success"
+    mailbox_id: int
+    email_address: str
+    messages_scanned: int
+    advancements_count: int
+    advancements: List[InboundAdvancementResult] = Field(default_factory=list)
 
 
-
+class InboundMessageResponse(BaseModel):
+    """Audit record of a received & processed recruiter message."""
+    id: int
+    mailbox_id: Optional[int] = None
+    application_id: Optional[int] = None
+    job_id: Optional[int] = None
+    sender_email: str
+    sender_name: Optional[str] = None
+    subject: str
+    snippet: Optional[str] = None
+    classified_intent: str
+    confidence_score: float
+    previous_kanban_stage: Optional[str] = None
+    new_kanban_stage: Optional[str] = None
+    auto_advanced: bool
+    received_at: datetime
+    created_at: datetime
