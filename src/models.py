@@ -578,3 +578,67 @@ class PortfolioChatLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     profile = relationship("CandidateProfile", back_populates="chat_logs")
+
+
+class TelegramConnector(Base):
+    """Stores Telegram bot pairing, chat IDs, preferences, and alert statistics for candidate."""
+    __tablename__ = "telegram_connectors"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    user_identifier = Column(String(255), default="default_user", index=True)
+    
+    # Telegram Auth & Connection
+    telegram_chat_id = Column(String(100), nullable=True, index=True)
+    telegram_username = Column(String(100), nullable=True)
+    first_name = Column(String(100), nullable=True)
+    pairing_code = Column(String(64), unique=True, index=True, nullable=True)
+    pairing_expires_at = Column(DateTime, nullable=True)
+    is_connected = Column(Boolean, default=False)
+    paired_at = Column(DateTime, nullable=True)
+    
+    # Push Alert Preferences
+    min_match_score = Column(Float, default=90.0)  # High-match alert threshold (>= 90%)
+    notify_high_match_jobs = Column(Boolean, default=True)
+    notify_interview_requests = Column(Boolean, default=True)
+    notify_status_changes = Column(Boolean, default=True)
+    
+    # Metrics
+    alerts_sent_count = Column(Integer, default=0)
+    actions_taken_count = Column(Integer, default=0)
+    last_alert_sent_at = Column(DateTime, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User")
+    alert_logs = relationship("TelegramPushAlertLog", back_populates="connector", cascade="all, delete-orphan")
+
+
+class TelegramPushAlertLog(Base):
+    """Audit log of dispatched push alerts and 1-click button actions."""
+    __tablename__ = "telegram_push_alert_logs"
+
+    id = Column(Integer, primary_key=True)
+    connector_id = Column(Integer, ForeignKey("telegram_connectors.id"), nullable=False, index=True)
+    alert_type = Column(String(50), nullable=False)  # high_match_job, interview_request, assessment, offer
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=True, index=True)
+    
+    title = Column(String(255), nullable=False)
+    message_text = Column(Text, nullable=False)
+    telegram_message_id = Column(String(100), nullable=True)
+    
+    # 1-Click Action callbacks
+    action_taken = Column(String(50), nullable=True)  # apply_now, draft_pitch, draft_reply, view_posting, none
+    action_taken_at = Column(DateTime, nullable=True)
+    action_result_summary = Column(Text, nullable=True)
+    
+    status = Column(String(50), default="sent")  # sent, delivered, failed, simulated
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    connector = relationship("TelegramConnector", back_populates="alert_logs")
+    job = relationship("Job")
+    application = relationship("Application")
+

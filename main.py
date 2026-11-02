@@ -877,6 +877,14 @@ try:
 except Exception as e:
     log.warning(f"Could not load portfolio_router: {e}")
 
+try:
+    from src.api.routers.telegram_connector_router import router as telegram_connector_router
+    app.include_router(telegram_connector_router)
+    log.info("Loaded telegram_connector_router successfully")
+except Exception as e:
+    log.warning(f"Could not load telegram_connector_router: {e}")
+
+
 
 
 

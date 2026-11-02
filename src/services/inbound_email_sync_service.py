@@ -431,6 +431,15 @@ class InboundEmailSyncService:
         company_name = app.job.company if app.job else (company or "Target Company")
         job_title = app.job.title if app.job else "Role"
 
+        # Dispatch real-time Telegram Push Alert if candidate has connected Telegram
+        if classification.intent in ("INTERVIEW_INVITATION", "ASSESSMENT"):
+            try:
+                from src.services.telegram_push_service import TelegramPushService
+                tg_svc = TelegramPushService(self.db)
+                tg_svc.push_interview_alert(application=app, recruiter_msg=inbound_msg)
+            except Exception as tg_err:
+                logger.debug("Telegram push notification trigger note: %s", tg_err)
+
         advance_msg = (
             f"Auto-advanced {company_name} ({job_title}) from '{prev_stage}' to '{new_stage}'."
             if new_stage != prev_stage
