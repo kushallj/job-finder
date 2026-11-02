@@ -870,6 +870,14 @@ try:
 except Exception as e:
     log.warning(f"Could not load mailbox_router: {e}")
 
+try:
+    from src.api.routers.portfolio_router import router as portfolio_router
+    app.include_router(portfolio_router)
+    log.info("Loaded portfolio_router successfully")
+except Exception as e:
+    log.warning(f"Could not load portfolio_router: {e}")
+
+
 
 
 cors_origins_list = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]

@@ -309,13 +309,19 @@ class CandidateProfile(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_identifier = Column(String(255), default="default_user", unique=True, index=True)
+    username = Column(String(100), unique=True, index=True, nullable=True)  # Public slug e.g. "kushal"
     full_name = Column(String(255), nullable=False)
+    headline = Column(String(500), nullable=True)  # e.g. "Staff AI / Frontend Engineer — Distributed Systems & LLM Tooling"
     email = Column(String(255), nullable=False)
     phone = Column(String(100), nullable=True)
     location = Column(String(255), default="Remote")
     linkedin_url = Column(String(500), nullable=True)
     github_url = Column(String(500), nullable=True)
+    github_username = Column(String(100), nullable=True)  # e.g. "kushalljain"
     portfolio_url = Column(String(500), nullable=True)
+    avatar_url = Column(String(500), nullable=True)
+    custom_domain = Column(String(255), nullable=True)
+    is_public = Column(Boolean, default=True)
     years_of_experience = Column(Float, default=3.0)
     current_title = Column(String(255), nullable=True)
     bio_summary = Column(Text, nullable=True)
@@ -326,6 +332,12 @@ class CandidateProfile(Base):
     resume_raw_text = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships for Public Portfolio & RAG
+    experiences = relationship("CandidateExperience", back_populates="profile", cascade="all, delete-orphan")
+    projects = relationship("CandidateProject", back_populates="profile", cascade="all, delete-orphan")
+    knowledge_chunks = relationship("CandidateKnowledgeChunk", back_populates="profile", cascade="all, delete-orphan")
+    chat_logs = relationship("PortfolioChatLog", back_populates="profile", cascade="all, delete-orphan")
 
 
 class TargetCompanyRecord(Base):
@@ -491,5 +503,78 @@ class InboundRecruiterMessage(Base):
     job = relationship("Job")
 
 
+class CandidateExperience(Base):
+    """Work experience history item for public candidate portfolio."""
+    __tablename__ = "candidate_experiences"
+
+    id = Column(Integer, primary_key=True)
+    profile_id = Column(Integer, ForeignKey("candidate_profiles.id"), nullable=False, index=True)
+    company = Column(String(255), nullable=False)
+    title = Column(String(255), nullable=False)
+    location = Column(String(255), default="Remote")
+    employment_type = Column(String(50), default="Full-time")  # Full-time, Contract, Founding
+    start_date = Column(String(50), nullable=False)  # e.g. "Jan 2022"
+    end_date = Column(String(50), default="Present")  # e.g. "Present" or "Nov 2024"
+    is_current = Column(Boolean, default=False)
+    description = Column(Text, nullable=True)
+    technologies = Column(Text, default="[]")  # JSON array of tech chips e.g. ["React", "FastAPI", "TypeScript"]
+    achievements = Column(Text, default="[]")  # JSON array of verified bullet accomplishments
+    display_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    profile = relationship("CandidateProfile", back_populates="experiences")
 
 
+class CandidateProject(Base):
+    """Verified project showcase for public candidate portfolio."""
+    __tablename__ = "candidate_projects"
+
+    id = Column(Integer, primary_key=True)
+    profile_id = Column(Integer, ForeignKey("candidate_profiles.id"), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    tagline = Column(String(500), nullable=True)
+    description = Column(Text, nullable=True)
+    github_repo_url = Column(String(500), nullable=True)
+    demo_url = Column(String(500), nullable=True)
+    tech_stack = Column(Text, default="[]")  # JSON array of chips e.g. ["Python", "HNSW", "Vector DB"]
+    stars_count = Column(Integer, default=0)
+    is_verified = Column(Boolean, default=True)
+    readme_content = Column(Text, nullable=True)  # Full markdown README content for RAG indexing
+    display_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    profile = relationship("CandidateProfile", back_populates="projects")
+
+
+class CandidateKnowledgeChunk(Base):
+    """Chunked and embedded semantic knowledge from resumes, GitHub READMEs, and projects for RAG."""
+    __tablename__ = "candidate_knowledge_chunks"
+
+    id = Column(Integer, primary_key=True)
+    profile_id = Column(Integer, ForeignKey("candidate_profiles.id"), nullable=False, index=True)
+    chunk_text = Column(Text, nullable=False)
+    source_type = Column(String(50), nullable=False)  # resume, github_readme, project, experience
+    source_title = Column(String(255), nullable=False)  # e.g. "Resume: Senior Frontend Engineer", "GitHub: vector-indexer README"
+    source_url = Column(String(500), nullable=True)
+    embedding = Column(Text, nullable=False)  # JSON-serialized float array (128-dim)
+    metadata_json = Column(Text, default="{}")  # JSON extra metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    profile = relationship("CandidateProfile", back_populates="knowledge_chunks")
+
+
+class PortfolioChatLog(Base):
+    """Audit log of recruiter Q&A sessions with the candidate's interactive RAG chatbot."""
+    __tablename__ = "portfolio_chat_logs"
+
+    id = Column(Integer, primary_key=True)
+    profile_id = Column(Integer, ForeignKey("candidate_profiles.id"), nullable=False, index=True)
+    session_id = Column(String(100), nullable=False, index=True)
+    recruiter_question = Column(Text, nullable=False)
+    ai_answer = Column(Text, nullable=False)
+    citations_json = Column(Text, default="[]")  # JSON list of cited source chunks
+    confidence_score = Column(Float, default=0.95)
+    recruiter_ip_hash = Column(String(64), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    profile = relationship("CandidateProfile", back_populates="chat_logs")

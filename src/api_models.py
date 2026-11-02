@@ -1855,3 +1855,112 @@ class InboundMessageResponse(BaseModel):
     auto_advanced: bool
     received_at: datetime
     created_at: datetime
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Public Hosted Candidate Portfolio & Recruiter RAG Chatbot Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CandidateExperienceDTO(BaseModel):
+    """Experience item for portfolio timeline."""
+    id: int
+    company: str
+    title: str
+    location: str = "Remote"
+    employment_type: str = "Full-time"
+    start_date: str
+    end_date: str = "Present"
+    is_current: bool = False
+    description: Optional[str] = None
+    technologies: List[str] = Field(default_factory=list)
+    achievements: List[str] = Field(default_factory=list)
+    display_order: int = 0
+
+
+class CandidateProjectDTO(BaseModel):
+    """Verified project showcase item."""
+    id: int
+    title: str
+    tagline: Optional[str] = None
+    description: Optional[str] = None
+    github_repo_url: Optional[str] = None
+    demo_url: Optional[str] = None
+    tech_stack: List[str] = Field(default_factory=list)
+    stars_count: int = 0
+    is_verified: bool = True
+    display_order: int = 0
+
+
+class GitHubActivityHeatmapDay(BaseModel):
+    """Single calendar day contribution point for kibo-ui heatmap."""
+    date: str = Field(..., description="Date formatted as YYYY-MM-DD")
+    count: int = Field(..., description="Number of commits/contributions")
+    level: int = Field(..., description="Heatmap color intensity level 0 (none) to 4 (maximum)")
+
+
+class GitHubActivityResponse(BaseModel):
+    """Full GitHub contribution metrics and calendar matrix for kibo-ui."""
+    username: str
+    total_contributions: int
+    streak_days: int
+    longest_streak: int
+    total_repositories: int
+    total_stars: int
+    top_languages: List[Dict[str, Any]] = Field(default_factory=list)
+    days: List[GitHubActivityHeatmapDay] = Field(default_factory=list)
+
+
+class CandidateProfileOverviewDTO(BaseModel):
+    """Public profile header and summary info."""
+    username: str
+    full_name: str
+    headline: Optional[str] = None
+    email: Optional[str] = None
+    location: str = "Remote"
+    years_of_experience: float
+    bio_summary: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    github_url: Optional[str] = None
+    github_username: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    avatar_url: Optional[str] = None
+    skills: List[str] = Field(default_factory=list)
+    is_public: bool = True
+
+
+class PublicPortfolioResponse(BaseModel):
+    """Complete public portfolio payload for /portfolio/:username."""
+    status: str = "success"
+    profile: CandidateProfileOverviewDTO
+    experiences: List[CandidateExperienceDTO] = Field(default_factory=list)
+    projects: List[CandidateProjectDTO] = Field(default_factory=list)
+    github_activity: Optional[GitHubActivityResponse] = None
+    portfolio_url: str
+    indexed_chunks_count: int = 0
+
+
+class PortfolioCitationDTO(BaseModel):
+    """Grounded source citation for recruiter chatbot RAG responses."""
+    source_type: str  # resume, github_readme, project, experience
+    source_title: str
+    source_url: Optional[str] = None
+    similarity_score: float
+    excerpt: str
+
+
+class PortfolioChatRequest(BaseModel):
+    """Recruiter inquiry to candidate's interactive RAG chatbot."""
+    message: str = Field(..., description="Recruiter question about candidate experience or projects")
+    session_id: Optional[str] = Field(None, description="Conversational session ID")
+    stream: bool = Field(False, description="Whether to stream response tokens via Server-Sent Events (SSE)")
+
+
+class PortfolioChatResponse(BaseModel):
+    """AI RAG response with verified citations from candidate resume & GitHub READMEs."""
+    session_id: str
+    question: str
+    answer: str
+    citations: List[PortfolioCitationDTO] = Field(default_factory=list)
+    confidence_score: float = 0.95
+    created_at: datetime
+
