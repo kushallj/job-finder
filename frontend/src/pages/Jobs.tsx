@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -31,8 +30,6 @@ import {
 import {
   Search as SearchIcon,
   OpenInNew as OpenInNewIcon,
-  LocationOn as LocationIcon,
-  Business as CompanyIcon,
   Refresh as RefreshIcon,
   ViewModule as GridViewIcon,
   ViewList as TableViewIcon,
@@ -43,7 +40,8 @@ import {
 import { jobsApi } from '../api';
 import { useFilterStore } from '../stores/useFilterStore';
 import { formatSource, formatRelativeTime } from '../utils/formatters';
-import { GhostBadge } from '../components/ghost_hunter/GhostBadge';
+import { JobCard } from '../components/jobs/JobCard';
+import { JobDetailModal } from '../components/jobs/JobDetailModal';
 import { TsentaAutoApplyButton } from '../components/tsenta/TsentaAutoApplyButton';
 import { TsentaReviewGateModal } from '../components/tsenta/TsentaReviewGateModal';
 import { NextRaiseApplyButton } from '../components/nextraise/NextRaiseApplyButton';
@@ -69,11 +67,12 @@ const POPULAR_TECH_STACKS = [
 const CACHE_TTL_MS = 60 * 1000;
 
 export const Jobs: React.FC = () => {
-  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [isCacheHit, setIsCacheHit] = useState<boolean>(false);
   const [selectedSubmission, setSelectedSubmission] = useState<TsentaSubmissionData | null>(null);
   const [reviewModalOpen, setReviewModalOpen] = useState<boolean>(false);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState<boolean>(false);
 
 
   const {
@@ -208,7 +207,8 @@ export const Jobs: React.FC = () => {
   };
 
   const handleJobClick = (job: Job) => {
-    navigate(`/opportunities/${job.id}`);
+    setSelectedJob(job);
+    setDetailModalOpen(true);
   };
 
   const handleManualRefresh = () => {
@@ -501,125 +501,14 @@ export const Jobs: React.FC = () => {
         <Grid container spacing={2.5}>
           {displayedJobs.map((job) => (
             <Grid key={job.id} size={{ xs: 12, md: 6, lg: 4 }}>
-              <Card
-                sx={{
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  bgcolor: '#0D131F',
-                  border: '1.5px solid rgba(0, 240, 255, 0.18)',
-                  borderRadius: '20px',
-                  boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.65)',
-                  transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    borderColor: '#00F0FF',
-                    boxShadow: '0 0 30px rgba(0, 240, 255, 0.3), 0 0 60px rgba(0, 255, 163, 0.15)',
-                  },
+              <JobCard
+                job={job}
+                onSelectJob={handleJobClick}
+                onRequestReview={(sub) => {
+                  setSelectedSubmission(sub);
+                  setReviewModalOpen(true);
                 }}
-              >
-                <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-                    <Box sx={{ flexGrow: 1, pr: 1 }}>
-                      {/* Vibrant Chromatic Gradient Job Title */}
-                      <Typography
-                        variant="h6"
-                        sx={{
-                          fontWeight: 900,
-                          background: 'linear-gradient(90deg, #00FFA3 0%, #00F0FF 60%, #FFE600 100%)',
-                          WebkitBackgroundClip: 'text',
-                          WebkitTextFillColor: 'transparent',
-                          cursor: 'pointer',
-                          lineHeight: 1.3,
-                          letterSpacing: '-0.02em',
-                          '&:hover': { filter: 'brightness(1.2)' },
-                        }}
-                        onClick={() => handleJobClick(job)}
-                      >
-                        {job.title}
-                      </Typography>
-                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.75 }}>
-                        <CompanyIcon fontSize="inherit" sx={{ color: '#00F0FF' }} />
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: '#FFE600' }}>
-                          {job.company || 'Unknown Company'}
-                        </Typography>
-                      </Stack>
-                    </Box>
-                    <GhostBadge jobId={job.id} />
-                  </Box>
-
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5, color: '#94A3B8' }}>
-                    <LocationIcon fontSize="inherit" sx={{ color: '#00F0FF' }} />
-                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#E2E8F0' }}>
-                      {job.location || 'Remote'}
-                    </Typography>
-                    {job.has_remote && (
-                      <Chip label="REMOTE" size="small" sx={{ height: 20, fontSize: '0.65rem', bgcolor: 'rgba(0, 255, 163, 0.15)', color: '#00FFA3', border: '1px solid rgba(0, 255, 163, 0.4)' }} />
-                    )}
-                  </Stack>
-
-                  {/* Level & Salary */}
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2, flexWrap: 'wrap', gap: 0.5 }}>
-                    {job.experience_level && (
-                      <Chip
-                        label={job.experience_level}
-                        size="small"
-                        sx={{ height: 22, fontSize: '0.7rem', bgcolor: 'rgba(0, 240, 255, 0.15)', color: '#00F0FF', fontWeight: 800 }}
-                      />
-                    )}
-                    {job.salary_min && (
-                      <Chip
-                        label={`$${job.salary_min.toLocaleString()} ${job.salary_max ? `- $${job.salary_max.toLocaleString()}` : ''}`}
-                        size="small"
-                        sx={{ height: 22, fontSize: '0.7rem', bgcolor: 'rgba(255, 230, 0, 0.15)', color: '#FFE600', fontWeight: 800, border: '1px solid rgba(255, 230, 0, 0.4)' }}
-                      />
-                    )}
-                    <Chip
-                      label={formatSource(job.source)}
-                      size="small"
-                      sx={{ height: 22, fontSize: '0.65rem', bgcolor: 'rgba(121, 40, 202, 0.15)', color: '#A855F7', border: '1px solid rgba(121, 40, 202, 0.3)' }}
-                    />
-                  </Stack>
-
-                  <Box sx={{ mt: 'auto', pt: 1.5, borderTop: '1px solid rgba(0, 240, 255, 0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600 }}>
-                      {formatRelativeTime(job.posted_date || job.fetched_at)}
-                    </Typography>
-                    <Stack direction="row" spacing={0.8} alignItems="center">
-                      <WorkdayApplyButton
-                        jobId={job.id}
-                        initialApplied={job.application_status === 'applied'}
-                      />
-                      <NextRaiseApplyButton
-                        jobId={job.id}
-                        company={job.company || undefined}
-                        applicationStatus={job.application_status}
-                      />
-                      <TsentaAutoApplyButton
-                        jobId={job.id}
-                        company={job.company || undefined}
-                        applicationStatus={job.application_status}
-                        onReviewRequested={(sub) => {
-                          setSelectedSubmission(sub);
-                          setReviewModalOpen(true);
-                        }}
-                        onSubmitted={(sub) => {
-                          setSelectedSubmission(sub);
-                          setReviewModalOpen(true);
-                        }}
-                      />
-                      <Button size="small" variant="contained" onClick={() => handleJobClick(job)} sx={{ fontWeight: 900 }}>
-                        Evaluate
-                      </Button>
-                      {job.url && (
-                        <IconButton size="small" href={job.url} target="_blank" rel="noopener noreferrer" sx={{ color: '#00F0FF', border: '1px solid rgba(0, 240, 255, 0.3)', borderRadius: '8px' }}>
-                          <OpenInNewIcon fontSize="small" />
-                        </IconButton>
-                      )}
-                    </Stack>
-                  </Box>
-                </CardContent>
-              </Card>
+              />
             </Grid>
           ))}
         </Grid>
@@ -736,6 +625,17 @@ export const Jobs: React.FC = () => {
         onClose={() => setReviewModalOpen(false)}
         submission={selectedSubmission}
         onSubmitted={(updated) => setSelectedSubmission(updated)}
+      />
+
+      {/* Explainable Match Job Detail Modal */}
+      <JobDetailModal
+        open={detailModalOpen}
+        job={selectedJob}
+        onClose={() => setDetailModalOpen(false)}
+        onRequestReview={(sub) => {
+          setSelectedSubmission(sub);
+          setReviewModalOpen(true);
+        }}
       />
     </Box>
   );

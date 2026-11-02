@@ -450,6 +450,9 @@ class JobData(BaseModel):
     experience_level: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
     provider_sources: List[str] = Field(default_factory=list)
+    matched_skills: List[str] = Field(default_factory=list, description="Candidate skills matching job requirements")
+    missing_skills: List[str] = Field(default_factory=list, description="Missing job skills for candidate")
+    reasons: List[str] = Field(default_factory=list, description="3 natural-language validation reasons")
 
 
 class PaginationData(BaseModel):

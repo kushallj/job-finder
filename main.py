@@ -2058,6 +2058,32 @@ def _to_job_data(j: Job, match_score: Optional[float] = None, application_status
     elif j.source:
         provider_sources = [j.source]
 
+    # Explainable match calculation
+    matched_skills = []
+    missing_skills = []
+    reasons = []
+    computed_score = match_score
+
+    try:
+        from src.services.explainable_matcher import get_explainable_matcher
+        matcher = get_explainable_matcher()
+        match_info = matcher.compute_match(
+            title=j.title or "",
+            description=j.description or "",
+            tags=tags,
+            location=j.location,
+            work_mode=j.work_mode,
+            has_remote=j.has_remote,
+            experience_level=j.experience_level,
+        )
+        if computed_score is None:
+            computed_score = match_info["score"]
+        matched_skills = match_info["matched_skills"]
+        missing_skills = match_info["missing_skills"]
+        reasons = match_info["reasons"]
+    except Exception as exc:
+        log.warning("Explainable match scoring fallback: %s", exc)
+
     return JobData(
         id=j.id,
         job_id=j.job_id,
@@ -2069,7 +2095,7 @@ def _to_job_data(j: Job, match_score: Optional[float] = None, application_status
         source=j.source or "other",
         posted_date=j.posted_date,
         fetched_at=j.fetched_at,
-        match_score=match_score,
+        match_score=computed_score,
         application_status=application_status,
         provider_id=j.provider_id,
         company_website=j.company_website,
@@ -2081,6 +2107,9 @@ def _to_job_data(j: Job, match_score: Optional[float] = None, application_status
         experience_level=j.experience_level,
         tags=tags,
         provider_sources=provider_sources,
+        matched_skills=matched_skills,
+        missing_skills=missing_skills,
+        reasons=reasons,
     )
 
 
