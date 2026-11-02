@@ -97,7 +97,10 @@ class ContinuousVCBatchRunner:
         if batch_data is not None:
             data_to_ingest = batch_data
         else:
-            from src.vc_intelligence.batch_data_catalog import ALL_AVAILABLE_BATCHES
+            import importlib
+            import src.vc_intelligence.batch_data_catalog as b_mod
+            importlib.reload(b_mod)
+            ALL_AVAILABLE_BATCHES = b_mod.ALL_AVAILABLE_BATCHES
             db_check = SessionLocal()
             try:
                 existing_company_slugs = set(r[0] for r in db_check.query(PortfolioCompany.slug).all())
