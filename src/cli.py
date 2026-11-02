@@ -678,8 +678,121 @@ def cmd_digest(_args):
 
 
 # ---------------------------------------------------------------------------
-# help
+# VC Intelligence (100 Global VC Firms)
 # ---------------------------------------------------------------------------
+
+def cmd_vc_seed_100(args):
+    """Seed all 100 global VC firms into the database."""
+    from src.database import SessionLocal
+    from src.vc_intelligence.repository import VCIntelligenceRepository
+    db = SessionLocal()
+    try:
+        repo = VCIntelligenceRepository(db)
+        count = repo.seed_100_firms()
+        print(f"Successfully seeded {count} global VC firms across 6 regions into the database.")
+    finally:
+        db.close()
+
+
+def cmd_vc_scrape_single(args):
+    """Scrape portfolio companies and discover founders for a single VC."""
+    import asyncio
+    from src.database import SessionLocal
+    from src.vc_intelligence.repository import VCIntelligenceRepository
+    from src.vc_intelligence.service import VCIntelligenceService
+
+    db = SessionLocal()
+    try:
+        repo = VCIntelligenceRepository(db)
+        service = VCIntelligenceService(repository=repo)
+        print(f"Extracting portfolio & founders for VC: {args.slug}...")
+        res = asyncio.run(service.sync_vc_firm(
+            slug=args.slug,
+            max_companies=args.max_companies,
+            enrich_contacts=not args.no_enrich,
+        ))
+        print(f"Status: {res.status} | Synced: {res.companies_synced} | Updated: {res.companies_updated} | Founders: {res.founders_discovered}")
+        print(res.message)
+    finally:
+        db.close()
+
+
+def cmd_vc_scrape_batch(args):
+    """Batch scrape portfolio companies and discover founders across a region."""
+    import asyncio
+    from src.database import SessionLocal
+    from src.vc_intelligence.repository import VCIntelligenceRepository
+    from src.vc_intelligence.service import VCIntelligenceService
+    from src.vc_intelligence.models import BatchVCSyncRequest
+
+    db = SessionLocal()
+    try:
+        repo = VCIntelligenceRepository(db)
+        service = VCIntelligenceService(repository=repo)
+        print(f"Starting batch VC scrape for region: {args.region}...")
+        req = BatchVCSyncRequest(
+            region=args.region,
+            max_companies_per_firm=args.max_companies,
+            enrich_contacts=not args.no_enrich,
+        )
+        res = asyncio.run(service.batch_sync(req))
+        print(f"Batch completed: {res.total_firms_processed} firms processed, {res.total_companies_synced} companies synced, {res.total_founders_discovered} founders discovered.")
+    finally:
+        db.close()
+
+
+def cmd_vc_scrape_continuous(args):
+    """Run continuous scraping and batch harvesting of founders (50 per batch)."""
+    import asyncio
+    from src.vc_intelligence.continuous_runner import ContinuousVCBatchRunner
+
+    runner = ContinuousVCBatchRunner.get_instance()
+    if args.once:
+        print(f"Executing single founder batch harvesting (size: {args.batch_size})...")
+        res = runner.run_batch_synchronous()
+        print(f"Batch #{res['batch_number']} finished: {res['founders_added']} founders added across {res['companies_added']} companies.")
+        print(f"Total session harvested: {res['total_session_harvested']}.")
+    else:
+        print(f"Starting continuous batch harvester (batch_size={args.batch_size}, max_batches={args.max_batches}, delay={args.delay}s)...")
+        print("Press Ctrl+C to stop gracefully.")
+        try:
+            asyncio.run(
+                runner.start_continuous_loop(
+                    batch_size=args.batch_size,
+                    max_batches=args.max_batches,
+                    delay_seconds=args.delay,
+                )
+            )
+        except KeyboardInterrupt:
+            runner.stop()
+            print("\nStopped continuous harvester gracefully.")
+
+
+def cmd_vc_cron(args):
+    """Run local cron job harvesting batches of 50 founders periodically."""
+    from src.vc_intelligence.continuous_runner import ContinuousVCBatchRunner
+
+    runner = ContinuousVCBatchRunner.get_instance()
+    if args.once:
+        print(f"Executing single founder batch harvesting (size: {args.batch_size})...")
+        res = runner.run_batch_synchronous(target_founders_per_batch=args.batch_size)
+        print(f"Batch #{res['batch_number']} finished: {res['founders_added']} founders added across {res['companies_added']} companies.")
+        print(f"Total session harvested: {res['total_session_harvested']}.")
+    else:
+        print(f"Starting VC Cron Daemon (batch_size={args.batch_size}, interval={args.interval}s, max_batches={args.max_batches})...")
+        print("Logs streaming to logs/vc_cron.log. Press Ctrl+C to stop.")
+        runner.run_cron_sync(
+            interval_seconds=args.interval,
+            batch_size=args.batch_size,
+            max_batches=args.max_batches,
+        )
+
+
+# ---------------------------------------------------------------------------
+# help
+
+# ---------------------------------------------------------------------------
+
 
 def cmd_help(_args):
     print(__doc__)
@@ -700,6 +813,11 @@ COMMANDS = {
     "normalize": cmd_normalize,
     "digest":    cmd_digest,
     "firecrawl-scan": cmd_firecrawl_scan,
+    "vc-seed-100": cmd_vc_seed_100,
+    "vc-scrape-single": cmd_vc_scrape_single,
+    "vc-scrape-batch": cmd_vc_scrape_batch,
+    "vc-scrape-continuous": cmd_vc_scrape_continuous,
+    "vc-cron":   cmd_vc_cron,
     "drafts":    cmd_drafts,
     "send":      cmd_send,
     "skip":      cmd_skip,
@@ -778,6 +896,31 @@ def main():
     p_process_async.add_argument("--log-level", 
                                  choices=["DEBUG", "INFO", "WARNING", "ERROR"],
                                  help="Log level (default: INFO)")
+
+    # VC Intelligence subparsers
+    subparsers.add_parser("vc-seed-100", help="Seed 100 global VC firms into DB across 6 regions")
+
+    p_vc_single = subparsers.add_parser("vc-scrape-single", help="Scrape portfolio companies and founders for a specific VC")
+    p_vc_single.add_argument("--slug", required=True, help="VC slug (e.g. peak-xv-partners, a16z, accel)")
+    p_vc_single.add_argument("--max-companies", type=int, default=20, help="Max companies to fetch (default: 20)")
+    p_vc_single.add_argument("--no-enrich", action="store_true", help="Skip founder contact discovery")
+
+    p_vc_batch = subparsers.add_parser("vc-scrape-batch", help="Batch scrape VC firms across a region")
+    p_vc_batch.add_argument("--region", default="India", choices=["US & Global", "Asia", "India", "Europe", "Latin America", "Middle East & Africa"], help="Regional group")
+    p_vc_batch.add_argument("--max-companies", type=int, default=10, help="Max companies per firm (default: 10)")
+    p_vc_batch.add_argument("--no-enrich", action="store_true", help="Skip founder contact discovery")
+
+    p_vc_cont = subparsers.add_parser("vc-scrape-continuous", help="Continuous batch scraping and founder harvesting (50 per batch)")
+    p_vc_cont.add_argument("--batch-size", type=int, default=50, help="Number of founders to harvest per batch (default: 50)")
+    p_vc_cont.add_argument("--max-batches", type=int, default=None, help="Maximum number of batches to execute before halting")
+    p_vc_cont.add_argument("--delay", type=float, default=2.0, help="Delay in seconds between successive batches (default: 2.0)")
+    p_vc_cont.add_argument("--once", action="store_true", help="Harvest exactly one batch of 50 founders and exit")
+
+    p_vc_cron = subparsers.add_parser("vc-cron", help="Run local cron job harvesting batches of 50 founders periodically")
+    p_vc_cron.add_argument("--interval", type=float, default=60.0, help="Interval in seconds between periodic cron ticks (default: 60.0s)")
+    p_vc_cron.add_argument("--batch-size", type=int, default=50, help="Target founders per batch (default: 50)")
+    p_vc_cron.add_argument("--max-batches", type=int, default=None, help="Stop after N batches (default: None, infinite daemon)")
+    p_vc_cron.add_argument("--once", action="store_true", help="Harvest exactly one batch of 50 founders and exit")
 
     args = parser.parse_args()
 

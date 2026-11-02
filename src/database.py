@@ -141,6 +141,56 @@ def init_db():
     except Exception as exc:
         print(f"⚠️ Notice on default user seed: {exc}")
 
+    # Seed premier VC firms for VC Intelligence Engine
+    try:
+        from src.models import VCFirm
+        initial_vcs = [
+            {
+                "name": "Y Combinator",
+                "slug": "y-combinator",
+                "website": "https://www.ycombinator.com",
+                "portfolio_url": "https://www.ycombinator.com/companies",
+                "country_focus": "Global",
+            },
+            {
+                "name": "Accel",
+                "slug": "accel",
+                "website": "https://www.accel.com",
+                "portfolio_url": "https://www.accel.com/relationships",
+                "country_focus": "Global",
+            },
+            {
+                "name": "Blume Ventures",
+                "slug": "blume-ventures",
+                "website": "https://blume.vc",
+                "portfolio_url": "https://blume.vc/portfolio",
+                "country_focus": "India",
+            },
+            {
+                "name": "Tiger Global",
+                "slug": "tiger-global",
+                "website": "https://www.tigerglobal.com",
+                "portfolio_url": "https://www.tigerglobal.com",
+                "country_focus": "Global",
+            },
+            {
+                "name": "India Accelerator",
+                "slug": "india-accelerator",
+                "website": "https://www.indiaaccelerator.com",
+                "portfolio_url": "https://www.indiaaccelerator.com/portfolio/",
+                "country_focus": "India",
+            },
+        ]
+        with SessionLocal() as session:
+            for vc_data in initial_vcs:
+                existing_vc = session.query(VCFirm).filter(VCFirm.slug == vc_data["slug"]).first()
+                if not existing_vc:
+                    vc = VCFirm(**vc_data)
+                    session.add(vc)
+            session.commit()
+    except Exception as exc:
+        print(f"⚠️ Notice on VC firms seed: {exc}")
+
     print("✅ Database tables created")
 
 def get_db():

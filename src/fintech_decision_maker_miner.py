@@ -37,6 +37,13 @@ from src.database import SessionLocal
 from src.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, FinTechFestivalCompany
 from src.models import Contact, OutreachRecord
 
+from src.services.base_company_miner import (
+    MAX_OUTREACH_PER_COMPANY,
+    ROLE_PATTERNS,
+    BaseCompanyMiner,
+    get_role_priority,
+)
+
 logger = logging.getLogger("fintech_miner")
 logger.setLevel(logging.INFO)
 
@@ -44,28 +51,6 @@ PHONE_REGEX = re.compile(
     r"(?:\+91[\-\s]?)?[6789]\d{9}|(?:\+1[\-\s]?)?\(?\d{3}\)?[\-\s]?\d{3}[\-\s]?\d{4}|\b080[\-\s]?\d{7,8}\b"
 )
 EMAIL_REGEX = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
-
-MAX_OUTREACH_PER_COMPANY = 2
-
-
-import re
-
-ROLE_PATTERNS = [
-    (re.compile(r"\b(cto|chief\s+technology\s+officer|founder|co-founder|ceo)\b", re.I), 1),
-    (re.compile(r"\b(vp\s+of\s+engineering|vp\s+engineering|vice\s+president|head\s+of\s+engineering)\b", re.I), 2),
-    (re.compile(r"\b(director\s+of\s+engineering|engineering\s+director)\b", re.I), 3),
-    (re.compile(r"\b(engineering\s+manager|lead\s+engineer|tech\s+lead|principal\s+engineer)\b", re.I), 4),
-    (re.compile(r"\b(head\s+of\s+talent|talent\s+acquisition|recruiter|recruitment)\b", re.I), 5),
-]
-
-
-def get_role_priority(title: str) -> int:
-    """Rank decision maker titles by executive impact (1 = highest priority)."""
-    t = title or ""
-    for pattern, priority in ROLE_PATTERNS:
-        if pattern.search(t):
-            return priority
-    return 6
 
 
 
@@ -102,24 +87,17 @@ class DecisionMakerContact:
         }
 
 
-class FinTechDecisionMakerMiner:
+class FinTechDecisionMakerMiner(BaseCompanyMiner):
     """
     Autonomous engine for discovering leadership contacts across all 150+ FinTech Fest companies
     and orchestrating personalized cold outreach on behalf of candidate.
     """
 
     def __init__(self):
-        self.serpapi_key = os.getenv("SERPAPI_API_KEY") or os.getenv("SERP_API_KEY")
+        super().__init__()
         self.hunter_key = os.getenv("HUNTER_API_KEY")
-        self.gmail_user = os.getenv("GMAIL_ADDRESS")
-        self.gmail_pass = os.getenv("GMAIL_PASSWORD")
-        self.sender_name = os.getenv("SENDER_NAME", "Job Applicant")
-        self.sender_linkedin = os.getenv("LINKEDIN_URL")
-
         self.is_running = False
         self._bg_task: Optional[asyncio.Task] = None
-        self.total_mined = 0
-        self.total_emailed = 0
         self.recent_events: List[Dict[str, Any]] = []
 
     def _log_event(self, level: str, message: str, details: Optional[Dict[str, Any]] = None):
@@ -136,14 +114,7 @@ class FinTechDecisionMakerMiner:
 
     def synthesize_candidate_email(self, full_name: str, domain: str) -> str:
         """Derive standard corporate email format for person."""
-        parts = [p.lower() for p in re.sub(r"[^a-zA-Z\s]", "", full_name).split() if p]
-        if not parts or not domain:
-            return f"careers@{domain}" if domain else "careers@company.com"
-        first = parts[0]
-        last = parts[-1] if len(parts) > 1 else ""
-        if last:
-            return f"{first}.{last}@{domain}"
-        return f"{first}@{domain}"
+        return self.synthesize_email(full_name, domain, default_domain="company.com")
 
     def extract_phone(self, text: str) -> Optional[str]:
         """Scan text for telephone or mobile numbers."""
@@ -278,33 +249,6 @@ Software Engineer
 </html>"""
 
         return subject, body_text, body_html
-
-    def send_smtp_email(self, recipient_email: str, subject: str, body_text: str, body_html: str) -> bool:
-        """Dispatch email securely via Gmail SMTP transport."""
-        if not self.gmail_user or not self.gmail_pass:
-            logger.warning("SMTP credentials not configured — skipping email send")
-            return False
-
-        msg = MIMEMultipart("alternative")
-        msg["From"] = email.utils.formataddr((self.sender_name, self.gmail_user))
-        msg["To"] = recipient_email
-        msg["Subject"] = subject
-        msg["Date"] = email.utils.formatdate(localtime=True)
-        msg["Message-ID"] = email.utils.make_msgid(domain="gmail.com")
-
-        msg.attach(MIMEText(body_text, "plain", "utf-8"))
-        msg.attach(MIMEText(body_html, "html", "utf-8"))
-
-        try:
-            context = ssl.create_default_context()
-            with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
-                server.starttls(context=context)
-                server.login(self.gmail_user, self.gmail_pass)
-                server.sendmail(self.gmail_user, [recipient_email], msg.as_string())
-            return True
-        except Exception as exc:
-            logger.error(f"Failed to send email to {recipient_email}: {exc}")
-            return False
 
     async def mine_and_store_company(
         self, company: FinTechFestivalCompany, auto_send: bool = False

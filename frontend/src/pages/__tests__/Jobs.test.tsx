@@ -5,9 +5,12 @@ import { renderWithProviders } from '../../test/test-utils';
 import { Jobs } from '../Jobs';
 import { jobsApi, ghostHunterApi } from '../../api';
 
+import { useFilterStore } from '../../stores/useFilterStore';
+
 describe('Jobs Page Component', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    useFilterStore.getState().resetJobFilters();
     vi.spyOn(ghostHunterApi, 'getJobGhostScore').mockResolvedValue({
       status: 'success',
       ghost_score: 10,
@@ -87,7 +90,17 @@ describe('Jobs Page Component', () => {
       limit: 30,
     };
 
-    vi.spyOn(jobsApi, 'getAllJobs').mockResolvedValue(mockJobsResponse);
+    vi.spyOn(jobsApi, 'getAllJobs').mockImplementation(async (params) => {
+      const q = typeof params === 'object' ? (params as any) : undefined;
+      const filtered = q?.search
+        ? mockJobsResponse.jobs.filter((j) => j.company.toLowerCase().includes(q.search.toLowerCase()))
+        : mockJobsResponse.jobs;
+      return {
+        ...mockJobsResponse,
+        jobs: filtered,
+        total: filtered.length,
+      };
+    });
     vi.spyOn(jobsApi, 'getPendingOutreach').mockResolvedValue([]);
 
     renderWithProviders(<Jobs />);
@@ -99,7 +112,9 @@ describe('Jobs Page Component', () => {
     const searchInput = screen.getByPlaceholderText(/Search by title, company, skills\.\.\./i);
     fireEvent.change(searchInput, { target: { value: 'Cockroach' } });
 
-    expect(screen.queryByText(/Frontend React Architect/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/Database Reliability Engineer/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText(/Frontend React Architect/i)).not.toBeInTheDocument();
+      expect(screen.getByText(/Database Reliability Engineer/i)).toBeInTheDocument();
+    }, { timeout: 3500 });
   });
 });

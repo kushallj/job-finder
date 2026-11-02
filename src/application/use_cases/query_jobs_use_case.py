@@ -44,31 +44,49 @@ class QueryJobsUseCase:
 
         total_pages = math.ceil(total_count / params.limit) if params.limit > 0 else 0
 
-        dtos = [
-            JobResponseDTO(
-                id=j.id or 0,
-                job_id=j.job_id or "",
-                title=j.title,
-                company=j.company,
+        from src.services.explainable_matcher import get_explainable_matcher
+        matcher = get_explainable_matcher()
+
+        dtos = []
+        for j in jobs_slice:
+            tags_list = j.tech_stack.to_list() if j.tech_stack else []
+            match_info = matcher.compute_match(
+                title=j.title or "",
+                description=j.description or "",
+                tags=tags_list,
                 location=j.location,
-                description=j.description,
-                url=j.url,
-                source=j.source,
-                posted_date=j.posted_date.isoformat() if j.posted_date else None,
-                fetched_at=j.fetched_at.isoformat() if j.fetched_at else "",
-                salary_min=j.compensation.min_salary if j.compensation else None,
-                salary_max=j.compensation.max_salary if j.compensation else None,
-                salary_currency=j.compensation.currency if j.compensation else None,
-                has_remote=j.has_remote,
                 work_mode=j.work_mode,
+                has_remote=j.has_remote,
                 experience_level=j.experience_level.tier.value if j.experience_level else None,
-                tags=j.tech_stack.to_list() if j.tech_stack else [],
-                ghost_probability=j.ghost_probability,
-                ghost_risk_level=j.ghost_risk_level,
-                ghost_verified_active=j.ghost_verified_active,
             )
-            for j in jobs_slice
-        ]
+            dtos.append(
+                JobResponseDTO(
+                    id=j.id or 0,
+                    job_id=j.job_id or "",
+                    title=j.title,
+                    company=j.company,
+                    location=j.location,
+                    description=j.description,
+                    url=j.url,
+                    source=j.source,
+                    posted_date=j.posted_date.isoformat() if j.posted_date else None,
+                    fetched_at=j.fetched_at.isoformat() if j.fetched_at else "",
+                    match_score=match_info["score"],
+                    salary_min=j.compensation.min_salary if j.compensation else None,
+                    salary_max=j.compensation.max_salary if j.compensation else None,
+                    salary_currency=j.compensation.currency if j.compensation else None,
+                    has_remote=j.has_remote,
+                    work_mode=j.work_mode,
+                    experience_level=j.experience_level.tier.value if j.experience_level else None,
+                    tags=tags_list,
+                    ghost_probability=j.ghost_probability,
+                    ghost_risk_level=j.ghost_risk_level,
+                    ghost_verified_active=j.ghost_verified_active,
+                    matched_skills=match_info["matched_skills"],
+                    missing_skills=match_info["missing_skills"],
+                    reasons=match_info["reasons"],
+                )
+            )
 
         return PaginatedJobsResultDTO(
             status="success",

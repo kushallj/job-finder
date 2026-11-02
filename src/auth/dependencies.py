@@ -77,18 +77,23 @@ def get_optional_current_user(
 ) -> Optional[User]:
     """
     Optional dependency: If a valid Bearer token is present, returns that user.
-    If no token is provided, returns the default administrator/system user
-    so local dev, background workers, and legacy scripts continue to function.
+    In multi-tenant or production environments, returns None when unauthenticated (never fails open).
+    Only in local single-tenant dev mode without multi-tenant enabled does it return local default admin.
     """
+    from src.config import settings
+
     if credentials and credentials.credentials:
         try:
             return get_current_user(credentials=credentials, db=db)
         except HTTPException:
-            pass  # Fallback to default user
+            pass  # Invalid credentials, return None below
     
-    # Fallback to default user
+    # In multi-tenant or production environments, unauthenticated users MUST NOT receive admin privileges.
+    if settings.multi_tenant_enabled or settings.env.lower() == "production":
+        return None
+
+    # Fallback to default user ONLY in local single-tenant dev environments
     default_user = db.query(User).filter(User.email == "admin@jobfinder.ai").first()
     if not default_user:
-        # Fallback to first user in system
         default_user = db.query(User).order_by(User.id.asc()).first()
     return default_user

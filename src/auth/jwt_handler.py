@@ -78,7 +78,17 @@ def decode_access_token(
         raise ValueError("Invalid JWT token format: must consist of 3 dot-separated segments")
     
     header_b64, payload_b64, sig_b64 = parts
-    
+
+    # Verify header algorithm
+    try:
+        header_bytes = _b64_url_decode(header_b64)
+        header = json.loads(header_bytes.decode("utf-8"))
+    except Exception as exc:
+        raise ValueError(f"Malformed JWT header: {exc}") from exc
+
+    if header.get("alg") != "HS256":
+        raise ValueError(f"Unsupported JWT algorithm: {header.get('alg')}, expected HS256")
+
     # Verify signature
     signing_input = f"{header_b64}.{payload_b64}".encode("utf-8")
     expected_sig = hmac.new(secret.encode("utf-8"), signing_input, hashlib.sha256).digest()
@@ -93,8 +103,12 @@ def decode_access_token(
     except Exception as exc:
         raise ValueError(f"Malformed JWT payload: {exc}") from exc
     
-    # Verify expiration
+    # Verify expiration and not-before claims
     now_ts = int(time.time())
+    nbf = payload.get("nbf")
+    if nbf is not None and now_ts < nbf:
+        raise ValueError("Token is not valid yet (nbf claim in future)")
+
     exp = payload.get("exp")
     if exp is not None and now_ts > exp:
         raise ValueError("Token has expired")

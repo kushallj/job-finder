@@ -23,6 +23,9 @@ export interface Job {
   experience_level?: string | null;
   tags?: string[];
   provider_sources?: string[];
+  matched_skills?: string[];
+  missing_skills?: string[];
+  reasons?: string[];
 }
 
 export type LifecycleStatus = 'saved' | 'ready' | 'applied' | 'interview' | 'offer' | 'negotiation' | 'accepted' | 'rejected';

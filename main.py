@@ -848,23 +848,67 @@ try:
 except Exception as e:
     log.warning(f"Could not load billing_router: {e}")
 
+try:
+    from src.vc_intelligence.api import router as vc_router
+    app.include_router(vc_router, prefix="/api/vc", tags=["VC Intelligence"])
+    app.include_router(vc_router, prefix="/api/v1/vc", tags=["VC Intelligence"])
+    log.info("Loaded vc_router successfully")
+except Exception as e:
+    log.warning(f"Could not load vc_router: {e}")
+
+try:
+    from src.api.routers.kanban_router import router as kanban_router
+    app.include_router(kanban_router)
+    log.info("Loaded kanban_router successfully")
+except Exception as e:
+    log.warning(f"Could not load kanban_router: {e}")
+
+try:
+    from src.api.routers.mailbox_router import router as mailbox_router
+    app.include_router(mailbox_router)
+    log.info("Loaded mailbox_router successfully")
+except Exception as e:
+    log.warning(f"Could not load mailbox_router: {e}")
+
+try:
+    from src.api.routers.portfolio_router import router as portfolio_router
+    app.include_router(portfolio_router)
+    log.info("Loaded portfolio_router successfully")
+except Exception as e:
+    log.warning(f"Could not load portfolio_router: {e}")
+
+try:
+    from src.api.routers.telegram_connector_router import router as telegram_connector_router
+    app.include_router(telegram_connector_router)
+    log.info("Loaded telegram_connector_router successfully")
+except Exception as e:
+    log.warning(f"Could not load telegram_connector_router: {e}")
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=r"https?://.*",
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+
+
+cors_origins_list = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+if settings.frontend_url and settings.frontend_url not in cors_origins_list:
+    cors_origins_list.append(settings.frontend_url)
+cors_origins_list.extend([
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+])
+cors_kwargs = {
+    "allow_origins": list(dict.fromkeys(cors_origins_list)),
+    "allow_credentials": True,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+}
+if settings.env.lower() != "production":
+    cors_kwargs["allow_origin_regex"] = r"https?://.*"
+
+app.add_middleware(CORSMiddleware, **cors_kwargs)
 
 
 @app.middleware("http")
@@ -2044,6 +2088,32 @@ def _to_job_data(j: Job, match_score: Optional[float] = None, application_status
     elif j.source:
         provider_sources = [j.source]
 
+    # Explainable match calculation
+    matched_skills = []
+    missing_skills = []
+    reasons = []
+    computed_score = match_score
+
+    try:
+        from src.services.explainable_matcher import get_explainable_matcher
+        matcher = get_explainable_matcher()
+        match_info = matcher.compute_match(
+            title=j.title or "",
+            description=j.description or "",
+            tags=tags,
+            location=j.location,
+            work_mode=j.work_mode,
+            has_remote=j.has_remote,
+            experience_level=j.experience_level,
+        )
+        if computed_score is None:
+            computed_score = match_info["score"]
+        matched_skills = match_info["matched_skills"]
+        missing_skills = match_info["missing_skills"]
+        reasons = match_info["reasons"]
+    except Exception as exc:
+        log.warning("Explainable match scoring fallback: %s", exc)
+
     return JobData(
         id=j.id,
         job_id=j.job_id,
@@ -2055,7 +2125,7 @@ def _to_job_data(j: Job, match_score: Optional[float] = None, application_status
         source=j.source or "other",
         posted_date=j.posted_date,
         fetched_at=j.fetched_at,
-        match_score=match_score,
+        match_score=computed_score,
         application_status=application_status,
         provider_id=j.provider_id,
         company_website=j.company_website,
@@ -2067,6 +2137,9 @@ def _to_job_data(j: Job, match_score: Optional[float] = None, application_status
         experience_level=j.experience_level,
         tags=tags,
         provider_sources=provider_sources,
+        matched_skills=matched_skills,
+        missing_skills=missing_skills,
+        reasons=reasons,
     )
 
 

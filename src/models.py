@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, relationship
 from datetime import datetime
 
@@ -95,6 +95,23 @@ class Application(Base):
     # Status & Lifecycle
     status = Column(String(50), default="pending")  # saved, ready, applied, interview, offer, negotiation, accepted, rejected
     applied_at = Column(DateTime)
+
+    # Kanban Board & Priority Positioning
+    kanban_stage = Column(String(50), default="applied", index=True)
+    kanban_order = Column(Integer, default=0)
+
+    # Next Action & Countdown Timers (Amber, Blue, Red alerts)
+    next_action_type = Column(String(50), nullable=True)
+    next_action_title = Column(String(255), nullable=True)
+    next_action_due_at = Column(DateTime, nullable=True)
+
+    # Recruiter Email Thread Provenance
+    recruiter_name = Column(String(255), nullable=True)
+    recruiter_email = Column(String(255), nullable=True)
+    recruiter_company = Column(String(255), nullable=True)
+    email_subject = Column(String(500), nullable=True)
+    email_thread_id = Column(String(255), nullable=True)
+    last_email_received_at = Column(DateTime, nullable=True)
 
     # Submission packet & proof
     ats_detected = Column(String(100))
@@ -292,13 +309,19 @@ class CandidateProfile(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_identifier = Column(String(255), default="default_user", unique=True, index=True)
+    username = Column(String(100), unique=True, index=True, nullable=True)  # Public slug e.g. "kushal"
     full_name = Column(String(255), nullable=False)
+    headline = Column(String(500), nullable=True)  # e.g. "Staff AI / Frontend Engineer — Distributed Systems & LLM Tooling"
     email = Column(String(255), nullable=False)
     phone = Column(String(100), nullable=True)
     location = Column(String(255), default="Remote")
     linkedin_url = Column(String(500), nullable=True)
     github_url = Column(String(500), nullable=True)
+    github_username = Column(String(100), nullable=True)  # e.g. "kushalljain"
     portfolio_url = Column(String(500), nullable=True)
+    avatar_url = Column(String(500), nullable=True)
+    custom_domain = Column(String(255), nullable=True)
+    is_public = Column(Boolean, default=True)
     years_of_experience = Column(Float, default=3.0)
     current_title = Column(String(255), nullable=True)
     bio_summary = Column(Text, nullable=True)
@@ -309,6 +332,12 @@ class CandidateProfile(Base):
     resume_raw_text = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships for Public Portfolio & RAG
+    experiences = relationship("CandidateExperience", back_populates="profile", cascade="all, delete-orphan")
+    projects = relationship("CandidateProject", back_populates="profile", cascade="all, delete-orphan")
+    knowledge_chunks = relationship("CandidateKnowledgeChunk", back_populates="profile", cascade="all, delete-orphan")
+    chat_logs = relationship("PortfolioChatLog", back_populates="profile", cascade="all, delete-orphan")
 
 
 class TargetCompanyRecord(Base):
@@ -347,4 +376,269 @@ class OutreachFunnelEvent(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class VCFirm(Base):
+    """Venture Capital Firm entity (e.g. Y Combinator, Accel, Blume, Tiger Global, India Accelerator)."""
+    __tablename__ = "vc_firms"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(100), unique=True, nullable=False, index=True)
+    website = Column(String(500), nullable=True)
+    portfolio_url = Column(String(500), nullable=True)
+    country_focus = Column(String(100), default="Global")
+    region = Column(String(100), default="US & Global", index=True)
+    last_synced_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    companies = relationship("PortfolioCompany", back_populates="vc_firm", cascade="all, delete-orphan")
+
+
+class PortfolioCompany(Base):
+    """Funded Portfolio Company under a specific VC firm."""
+    __tablename__ = "portfolio_companies"
+
+    id = Column(Integer, primary_key=True)
+    vc_firm_id = Column(Integer, ForeignKey("vc_firms.id"), nullable=False, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    slug = Column(String(255), nullable=False, index=True)
+    domain = Column(String(255), nullable=True, index=True)
+    website = Column(String(500), nullable=True)
+    description = Column(Text, nullable=True)
+    batch_or_year = Column(String(100), nullable=True)  # e.g. "W24", "Series A 2023"
+    funding_stage = Column(String(100), nullable=True)  # Seed, Early Stage, Series A, Growth
+    industry_tags = Column(Text, default="[]")  # JSON array string
+    careers_url = Column(String(500), nullable=True)
+    last_scraped_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    vc_firm = relationship("VCFirm", back_populates="companies")
+    founders = relationship("CompanyFounder", back_populates="company", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("vc_firm_id", "slug", name="uq_vc_company_slug"),
+    )
+
+
+class CompanyFounder(Base):
+    """Founder / Co-Founder of a portfolio company with enriched contact details."""
+    __tablename__ = "company_founders"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("portfolio_companies.id"), nullable=False, index=True)
+    full_name = Column(String(255), nullable=False, index=True)
+    title = Column(String(255), nullable=True)  # Co-Founder & CEO, Founder & CTO, etc.
+    email = Column(String(255), nullable=True, index=True)
+    email_confidence = Column(Float, default=0.0)  # 0.0 to 1.0 confidence
+    linkedin_url = Column(String(500), nullable=True)
+    twitter_handle = Column(String(100), nullable=True)
+    bio = Column(Text, nullable=True)
+    source = Column(String(50), default="firecrawl")  # firecrawl, playwright, heuristic
+    last_verified_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    company = relationship("PortfolioCompany", back_populates="founders")
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "full_name", name="uq_company_founder_name"),
+    )
+
+
+class MailboxAccount(Base):
+    """Connected user mailbox (Gmail / Outlook) for incoming recruiter message synchronization."""
+    __tablename__ = "mailbox_accounts"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    provider = Column(String(50), default="gmail")  # gmail, outlook, custom
+    email_address = Column(String(255), nullable=False, unique=True, index=True)
+    imap_host = Column(String(255), default="imap.gmail.com")
+    imap_port = Column(Integer, default=993)
+    use_ssl = Column(Boolean, default=True)
+    is_connected = Column(Boolean, default=True)
+    auto_advance_pipeline = Column(Boolean, default=True)
+    last_sync_at = Column(DateTime, nullable=True)
+    total_messages_scanned = Column(Integer, default=0)
+    total_advancements = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    messages = relationship("InboundRecruiterMessage", back_populates="mailbox", cascade="all, delete-orphan")
+
+
+class InboundRecruiterMessage(Base):
+    """Audit log of incoming recruiter messages classified and auto-advanced through the pipeline."""
+    __tablename__ = "inbound_recruiter_messages"
+
+    id = Column(Integer, primary_key=True)
+    mailbox_id = Column(Integer, ForeignKey("mailbox_accounts.id"), nullable=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=True, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=True, index=True)
+    
+    sender_email = Column(String(255), nullable=False, index=True)
+    sender_name = Column(String(255), nullable=True)
+    recipient_email = Column(String(255), nullable=True)
+    subject = Column(String(500), nullable=False)
+    snippet = Column(Text, nullable=True)
+    body_text = Column(Text, nullable=True)
+    
+    # Classification & Auto-Advancement
+    classified_intent = Column(String(50), nullable=False)  # INTERVIEW_INVITATION, ASSESSMENT, OFFER, REJECTION, FOLLOW_UP_REQUIRED
+    confidence_score = Column(Float, default=0.90)
+    previous_kanban_stage = Column(String(50), nullable=True)
+    new_kanban_stage = Column(String(50), nullable=True)
+    auto_advanced = Column(Boolean, default=True)
+    
+    message_id = Column(String(255), nullable=True)
+    thread_id = Column(String(255), nullable=True)
+    received_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    mailbox = relationship("MailboxAccount", back_populates="messages")
+    application = relationship("Application")
+    job = relationship("Job")
+
+
+class CandidateExperience(Base):
+    """Work experience history item for public candidate portfolio."""
+    __tablename__ = "candidate_experiences"
+
+    id = Column(Integer, primary_key=True)
+    profile_id = Column(Integer, ForeignKey("candidate_profiles.id"), nullable=False, index=True)
+    company = Column(String(255), nullable=False)
+    title = Column(String(255), nullable=False)
+    location = Column(String(255), default="Remote")
+    employment_type = Column(String(50), default="Full-time")  # Full-time, Contract, Founding
+    start_date = Column(String(50), nullable=False)  # e.g. "Jan 2022"
+    end_date = Column(String(50), default="Present")  # e.g. "Present" or "Nov 2024"
+    is_current = Column(Boolean, default=False)
+    description = Column(Text, nullable=True)
+    technologies = Column(Text, default="[]")  # JSON array of tech chips e.g. ["React", "FastAPI", "TypeScript"]
+    achievements = Column(Text, default="[]")  # JSON array of verified bullet accomplishments
+    display_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    profile = relationship("CandidateProfile", back_populates="experiences")
+
+
+class CandidateProject(Base):
+    """Verified project showcase for public candidate portfolio."""
+    __tablename__ = "candidate_projects"
+
+    id = Column(Integer, primary_key=True)
+    profile_id = Column(Integer, ForeignKey("candidate_profiles.id"), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    tagline = Column(String(500), nullable=True)
+    description = Column(Text, nullable=True)
+    github_repo_url = Column(String(500), nullable=True)
+    demo_url = Column(String(500), nullable=True)
+    tech_stack = Column(Text, default="[]")  # JSON array of chips e.g. ["Python", "HNSW", "Vector DB"]
+    stars_count = Column(Integer, default=0)
+    is_verified = Column(Boolean, default=True)
+    readme_content = Column(Text, nullable=True)  # Full markdown README content for RAG indexing
+    display_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    profile = relationship("CandidateProfile", back_populates="projects")
+
+
+class CandidateKnowledgeChunk(Base):
+    """Chunked and embedded semantic knowledge from resumes, GitHub READMEs, and projects for RAG."""
+    __tablename__ = "candidate_knowledge_chunks"
+
+    id = Column(Integer, primary_key=True)
+    profile_id = Column(Integer, ForeignKey("candidate_profiles.id"), nullable=False, index=True)
+    chunk_text = Column(Text, nullable=False)
+    source_type = Column(String(50), nullable=False)  # resume, github_readme, project, experience
+    source_title = Column(String(255), nullable=False)  # e.g. "Resume: Senior Frontend Engineer", "GitHub: vector-indexer README"
+    source_url = Column(String(500), nullable=True)
+    embedding = Column(Text, nullable=False)  # JSON-serialized float array (128-dim)
+    metadata_json = Column(Text, default="{}")  # JSON extra metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    profile = relationship("CandidateProfile", back_populates="knowledge_chunks")
+
+
+class PortfolioChatLog(Base):
+    """Audit log of recruiter Q&A sessions with the candidate's interactive RAG chatbot."""
+    __tablename__ = "portfolio_chat_logs"
+
+    id = Column(Integer, primary_key=True)
+    profile_id = Column(Integer, ForeignKey("candidate_profiles.id"), nullable=False, index=True)
+    session_id = Column(String(100), nullable=False, index=True)
+    recruiter_question = Column(Text, nullable=False)
+    ai_answer = Column(Text, nullable=False)
+    citations_json = Column(Text, default="[]")  # JSON list of cited source chunks
+    confidence_score = Column(Float, default=0.95)
+    recruiter_ip_hash = Column(String(64), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    profile = relationship("CandidateProfile", back_populates="chat_logs")
+
+
+class TelegramConnector(Base):
+    """Stores Telegram bot pairing, chat IDs, preferences, and alert statistics for candidate."""
+    __tablename__ = "telegram_connectors"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    user_identifier = Column(String(255), default="default_user", index=True)
+    
+    # Telegram Auth & Connection
+    telegram_chat_id = Column(String(100), nullable=True, index=True)
+    telegram_username = Column(String(100), nullable=True)
+    first_name = Column(String(100), nullable=True)
+    pairing_code = Column(String(64), unique=True, index=True, nullable=True)
+    pairing_expires_at = Column(DateTime, nullable=True)
+    is_connected = Column(Boolean, default=False)
+    paired_at = Column(DateTime, nullable=True)
+    
+    # Push Alert Preferences
+    min_match_score = Column(Float, default=90.0)  # High-match alert threshold (>= 90%)
+    notify_high_match_jobs = Column(Boolean, default=True)
+    notify_interview_requests = Column(Boolean, default=True)
+    notify_status_changes = Column(Boolean, default=True)
+    
+    # Metrics
+    alerts_sent_count = Column(Integer, default=0)
+    actions_taken_count = Column(Integer, default=0)
+    last_alert_sent_at = Column(DateTime, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User")
+    alert_logs = relationship("TelegramPushAlertLog", back_populates="connector", cascade="all, delete-orphan")
+
+
+class TelegramPushAlertLog(Base):
+    """Audit log of dispatched push alerts and 1-click button actions."""
+    __tablename__ = "telegram_push_alert_logs"
+
+    id = Column(Integer, primary_key=True)
+    connector_id = Column(Integer, ForeignKey("telegram_connectors.id"), nullable=False, index=True)
+    alert_type = Column(String(50), nullable=False)  # high_match_job, interview_request, assessment, offer
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=True, index=True)
+    
+    title = Column(String(255), nullable=False)
+    message_text = Column(Text, nullable=False)
+    telegram_message_id = Column(String(100), nullable=True)
+    
+    # 1-Click Action callbacks
+    action_taken = Column(String(50), nullable=True)  # apply_now, draft_pitch, draft_reply, view_posting, none
+    action_taken_at = Column(DateTime, nullable=True)
+    action_result_summary = Column(Text, nullable=True)
+    
+    status = Column(String(50), default="sent")  # sent, delivered, failed, simulated
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    connector = relationship("TelegramConnector", back_populates="alert_logs")
+    job = relationship("Job")
+    application = relationship("Application")
 
