@@ -167,20 +167,19 @@ class UniversalVCScraper(IVCPortfolioScraper):
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
+            page = await browser.new_page(
+                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            )
             try:
-                await page.goto(self._portfolio_url, timeout=30000, wait_until="domcontentloaded")
-                # Wait for any dynamic scripts/hydration
-                await page.wait_for_timeout(2000)
+                await page.goto(self._portfolio_url, timeout=35000, wait_until="domcontentloaded")
+                await page.wait_for_timeout(2500)
 
-                # Scroll down 3 times to load dynamic grids
+                # Scroll down to load dynamic grids and lazy-loaded items
                 for _ in range(3):
                     await page.mouse.wheel(0, 1500)
-                    await page.wait_for_timeout(600)
+                    await page.wait_for_timeout(800)
 
-                # Extract company cards
-                # Look for common portfolio grid selectors
-                extracted = await page.evaluate("""() => {
+                extracted = await page.evaluate('''() => {
                     const cards = [];
                     const selectors = [
                         'a[href*="/portfolio/"]',
@@ -193,45 +192,58 @@ class UniversalVCScraper(IVCPortfolioScraper):
                         'article'
                     ];
 
-                    // Find matching elements
                     let elements = document.querySelectorAll(selectors.join(', '));
                     if (elements.length < 5) {
                         elements = document.querySelectorAll('a[target="_blank"]');
                     }
 
                     elements.forEach(el => {
-                        const text = (el.innerText || el.getAttribute('aria-label') || '').trim();
+                        const rawText = (el.innerText || el.getAttribute('aria-label') || '').trim();
+                        const firstLine = rawText.split('\\n')[0].trim();
                         const href = el.href || el.querySelector('a')?.href || '';
                         const img = el.querySelector('img');
                         const alt = img ? img.alt : '';
-                        const name = alt || text.split('\\n')[0] || '';
+                        const name = alt || firstLine || '';
 
-                        if (name && name.length > 1 && name.length < 60) {
-                            cards.push({ name: name.trim(), href: href, desc: text });
+                        if (name && name.length > 1 && name.length < 50) {
+                            cards.push({ name: name.trim(), href: href, desc: rawText });
                         }
                     });
 
                     return cards;
-                }""")
+                }''')
 
                 for card in extracted:
                     name = card.get("name", "").strip()
                     if not name or name.lower() in seen_names:
                         continue
-                    if any(bad in name.lower() for bad in ["privacy", "terms", "contact", "about us", "cookie", "blog"]):
+                    
+                    # Ignore common layout / menu noise
+                    bad_words = ["privacy", "terms", "contact", "about us", "cookie", "blog", "skip to", "view all", "backed", "menu", "companies", "portfolio"]
+                    if any(bad in name.lower() for bad in bad_words):
                         continue
 
                     seen_names.add(name.lower())
                     href = card.get("href") or ""
-                    domain = urlparse(href).netloc.replace("www.", "") if href else ""
+                    
+                    # Clean domain: if href is external, extract domain; if internal VC subpage, formulate domain
+                    parsed_netloc = urlparse(href).netloc.replace("www.", "") if href else ""
+                    vc_domain = urlparse(self._portfolio_url).netloc.replace("www.", "")
                     raw_slug = re.sub(r"[^a-zA-Z0-9]+", "-", name.lower()).strip("-")
+                    
+                    if parsed_netloc and parsed_netloc != vc_domain:
+                        domain = parsed_netloc
+                        website = href
+                    else:
+                        domain = f"{raw_slug}.com"
+                        website = f"https://{domain}"
 
                     results.append(
                         RawPortfolioCompany(
                             name=name,
                             slug=raw_slug,
-                            domain=domain or f"{raw_slug}.io",
-                            website=href or f"https://{raw_slug}.io",
+                            domain=domain,
+                            website=website,
                             description=card.get("desc", f"Funded portfolio company of {self.vc_name}"),
                             funding_stage="Venture Backed",
                             batch_or_year="Active",

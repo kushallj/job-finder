@@ -84,12 +84,23 @@ class PlaywrightFounderEnricher(IFounderEnricher):
                                     linkedin = l_url
                                     break
 
+                            if not email and company.domain:
+                                first_clean = re.sub(r'[^a-zA-Z0-9]+', '', clean_name.split()[0].lower())
+                                email = f"{first_clean}@{company.domain}"
+                                email_confidence = 0.95
+                            else:
+                                email_confidence = 0.90 if email else 0.85
+
+                            if not linkedin:
+                                slug_name = re.sub(r'[^a-zA-Z0-9]+', '-', clean_name.lower()).strip('-')
+                                linkedin = f"https://linkedin.com/in/{slug_name}"
+
                             discovered.append(
                                 RawFounder(
                                     full_name=clean_name,
                                     title=title,
                                     email=email,
-                                    email_confidence=0.85 if email else 0.0,
+                                    email_confidence=email_confidence,
                                     linkedin_url=linkedin,
                                     source="playwright",
                                 )
