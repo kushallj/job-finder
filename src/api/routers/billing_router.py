@@ -176,3 +176,64 @@ async def stripe_webhook(
     
     result = process_webhook_event(db=db, event=event_data)
     return {"received": True, "result": result}
+
+
+@router.post("/webhook/dodo")
+async def dodo_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Public webhook receiver for asynchronous Dodo Payments events (UPI & Cards).
+    Activates user Pro subscription (1,000 credits) or adds credit top-ups on successful payments.
+    """
+    payload_bytes = await request.body()
+    try:
+        event_data = json.loads(payload_bytes.decode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Malformed JSON payload: {exc}",
+        ) from exc
+
+    data = event_data.get("data", event_data)
+    metadata = data.get("metadata", {})
+    user_id_str = metadata.get("user_id")
+
+    if user_id_str:
+        try:
+            uid = int(user_id_str)
+            target = metadata.get("target", "pro")
+            target_type = metadata.get("type", "subscription")
+            user = db.query(User).filter(User.id == uid).first()
+            if user:
+                if target_type == "subscription" or target in ("pro", "starter", "basic"):
+                    user.subscription_tier = "pro"
+                    user.subscription_status = "active"
+                    from src.services.credit_service import add_credits
+                    add_credits(
+                        db=db,
+                        user_id=user.id,
+                        amount=1000,
+                        action="subscription_renewal",
+                        notes="Dodo Payments Pro subscription activation (1,000 credits)",
+                    )
+                    db.commit()
+                    log.info(f"Dodo webhook: Activated Pro subscription for user {user.id}")
+                elif target == "pack_100":
+                    from src.services.credit_service import add_credits
+                    add_credits(
+                        db=db,
+                        user_id=user.id,
+                        amount=100,
+                        action="credit_purchase",
+                        notes="Dodo Payments 100 Credits Top-Up pack",
+                    )
+                    db.commit()
+                    log.info(f"Dodo webhook: Added 100 credits for user {user.id}")
+                return {"received": True, "status": "processed", "user_id": user.id}
+        except Exception as exc:
+            log.error(f"Error processing Dodo webhook for user {user_id_str}: {exc}")
+
+    return {"received": True, "status": "ignored"}
+

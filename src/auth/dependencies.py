@@ -41,6 +41,7 @@ PUBLIC_EXACT_PATHS: Set[str] = {
     "/favicon.ico",
     "/api/billing/webhook",
     "/api/billing/webhook/stripe",
+    "/api/billing/webhook/dodo",
     "/api/billing/plans",
     "/api/auth/login",
     "/api/auth/register",

@@ -24,64 +24,63 @@ from src.services.credit_service import add_credits
 
 log = logging.getLogger(__name__)
 
-# Standard Plan Definitions
+# Standard Plan Definitions (2-Tier Model: Free Tier + Pro at ~$3 / ₹249)
 PLANS: Dict[str, Dict[str, Any]] = {
     "free": {
         "id": "free",
         "name": "Free Starter",
+        "badge": "FREE FOREVER",
+        "description": "Essential job discovery and tracking to organize your search.",
         "price": 0,
-        "interval": "one-time",
+        "monthly": 0,
+        "yearly": 0,
+        "price_monthly_usd": 0,
+        "price_yearly_usd": 0,
+        "price_monthly_inr": 0,
+        "price_yearly_inr": 0,
+        "interval": "forever",
         "credits": 50,
+        "is_popular": False,
         "features": [
-            "50 complimentary applications",
-            "Standard multi-portal matching",
-            "Single resume profile",
-            "Community knowledge base",
+            "50 complimentary AI credits",
+            "Job discovery & smart portal search",
+            "Application tracking & Kanban board",
+            "Single resume profile storage",
+            "Public candidate portfolio",
         ],
-    },
-    "starter": {
-        "id": "starter",
-        "name": "Starter Autopilot",
-        "price": 29,
-        "interval": "month",
-        "credits": 300,
-        "features": [
-            "300 applications per month",
-            "Workday & NextRaise auto-apply",
-            "Tailored resume generations",
-            "Standard AI speed queue",
-            "Daily application summaries",
+        "limits": [
+            "No automated background submissions",
+            "No founder direct outreach drafts",
         ],
+        "cta": "Get Started Free",
     },
     "pro": {
         "id": "pro",
-        "name": "Pro Supercharger",
-        "price": 59,
+        "name": "Pro Autopilot",
+        "badge": "MOST POPULAR",
+        "description": "Full AI application autopilot, tailored resumes, and founder outreach.",
+        "price": 3,
+        "monthly": 3,
+        "yearly": 29,
+        "price_monthly_usd": 3.0,
+        "price_yearly_usd": 2.41,  # $29/year billed annually
+        "price_monthly_inr": 249,
+        "price_yearly_inr": 199,   # ₹2,388/year billed annually
+        "yearly_inr": 2388,
         "interval": "month",
         "credits": 1000,
-        "popular": True,
+        "is_popular": True,
         "features": [
-            "1,000 applications per month",
-            "Full autonomous multi-tenant autopilot",
-            "Cognitive Answer Bank auto-fill & sync",
-            "Deep ATS resume keyword optimization",
-            "Ghost-Hunter radar & hiring manager matching",
-            "Priority AI processing queue",
+            "1,000 AI credits every month",
+            "Workday & NextRaise autopilot assistance",
+            "AI tailored resumes & cover letters",
+            "Cold email drafts to startup founders",
+            "Recruiter email sync & auto-advancement",
+            "Cognitive Answer Bank auto-fill",
+            "Priority AI worker queue & 24/7 support",
         ],
-    },
-    "unlimited": {
-        "id": "unlimited",
-        "name": "Executive Unlimited",
-        "price": 99,
-        "interval": "month",
-        "credits": 9999,
-        "features": [
-            "Unlimited auto-applications & tailoring",
-            "Direct recruiter outreach & follow-up engine",
-            "Multi-resume A/B testing matrix",
-            "Dedicated high-throughput worker pool",
-            "24/7 VIP priority support",
-        ],
+        "limits": [],
+        "cta": "Upgrade to Pro",
     },
 }
 
@@ -89,22 +88,17 @@ CREDIT_PACKS: Dict[str, Dict[str, Any]] = {
     "pack_100": {
         "id": "pack_100",
         "name": "100 Credits Top-Up",
-        "price": 15,
+        "price": 1,
+        "price_usd": 1,
+        "price_inr": 89,
         "credits": 100,
-        "description": "Ideal for quick bursts of tailored applications",
-    },
-    "pack_300": {
-        "id": "pack_300",
-        "name": "300 Credits Top-Up",
-        "price": 35,
-        "credits": 300,
-        "description": "High-volume pack for active multi-role interview sprints",
+        "description": "Quick burst of tailored applications and founder emails",
     },
 }
 
 
 def get_plans_catalog(current_user: Optional[User] = None) -> Dict[str, Any]:
-    """Retrieve full catalog of subscription tiers, credit packs, and current user plan."""
+    """Retrieve canonical 2-tier catalog of subscription plans, credit packs, and user entitlements."""
     user_tier = current_user.subscription_tier if current_user else "free"
     user_credits = current_user.credits_balance if current_user else 0
     sub_status = getattr(current_user, "subscription_status", "active") if current_user else "active"
@@ -113,6 +107,8 @@ def get_plans_catalog(current_user: Optional[User] = None) -> Dict[str, Any]:
         "current_tier": user_tier,
         "current_credits": user_credits,
         "subscription_status": sub_status,
+        "default_currency": "USD",
+        "supported_currencies": ["USD", "INR"],
         "plans": list(PLANS.values()),
         "credit_packs": list(CREDIT_PACKS.values()),
     }
@@ -126,27 +122,73 @@ def create_checkout_session(
     cancel_url: Optional[str] = None,
 ) -> Dict[str, str]:
     """
-    Create a Stripe Checkout Session for either a subscription plan or a credit top-up pack.
+    Create a Checkout Session for either a subscription plan or a credit top-up pack.
+    Supports Dodo Payments (MoR for India UPI & Global Cards), Stripe, and mock fallback.
     Returns session URL and session ID.
-    If stripe_secret_key is not configured, provides a mock checkout session for test environments.
     """
-    is_plan = target in PLANS and target != "free"
-    is_pack = target in CREDIT_PACKS
+    target_clean = "pro" if target in ("starter", "basic", "pro") else target
+    is_plan = target_clean in PLANS and target_clean != "free"
+    is_pack = target_clean in CREDIT_PACKS
     
     if not is_plan and not is_pack:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid target '{target}'. Must be a valid subscription plan (starter, pro, unlimited) or credit pack (pack_100, pack_300).",
+            detail=f"Invalid target '{target}'. Must be a valid subscription plan ('pro') or credit pack ('pack_100').",
         )
     
     success_url = success_url or f"{settings.frontend_url}/#billing-success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = cancel_url or f"{settings.frontend_url}/#billing-cancel"
     
+    # ── Dodo Payments (Primary Merchant of Record for India & Global) ──────────
+    if settings.billing_provider == "dodo" and settings.dodo_payments_api_key and not settings.dodo_payments_api_key.startswith("mock_"):
+        dodo_base = "https://api.dodopayments.com/v1" if settings.dodo_payments_environment == "live_mode" else "https://test.dodopayments.com/v1"
+        item = PLANS[target_clean] if is_plan else CREDIT_PACKS[target_clean]
+        payload = {
+            "customer": {
+                "email": user.email,
+                "name": user.full_name or user.email.split("@")[0].title(),
+            },
+            "product_cart": [
+                {
+                    "product_id": target_clean,
+                    "quantity": 1,
+                    "amount": int(item["price"] * 100),
+                }
+            ],
+            "return_url": success_url,
+            "metadata": {
+                "user_id": str(user.id),
+                "target": target_clean,
+                "type": "subscription" if is_plan else "topup",
+            },
+        }
+        try:
+            with httpx.Client(timeout=15.0) as client:
+                res = client.post(
+                    f"{dodo_base}/checkouts",
+                    headers={"Authorization": f"Bearer {settings.dodo_payments_api_key}", "Content-Type": "application/json"},
+                    json=payload,
+                )
+                res.raise_for_status()
+                dodo_data = res.json()
+                return {
+                    "checkout_url": dodo_data.get("checkout_url") or dodo_data.get("url"),
+                    "session_id": dodo_data.get("session_id") or dodo_data.get("id"),
+                    "mode": "subscription" if is_plan else "payment",
+                    "provider": "dodo",
+                }
+        except Exception as exc:
+            log.error(f"Dodo Payments checkout creation error: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Dodo Payments billing gateway error: {exc}",
+            ) from exc
+
     # ── Real Stripe API Call ──────────────────────────────────────────────────
-    if settings.stripe_secret_key and not settings.stripe_secret_key.startswith("sk_test_mock"):
+    if settings.billing_provider == "stripe" and settings.stripe_secret_key and not settings.stripe_secret_key.startswith("sk_test_mock"):
         stripe_mode = "subscription" if is_plan else "payment"
-        unit_amount = (PLANS[target]["price"] * 100) if is_plan else (CREDIT_PACKS[target]["price"] * 100)
-        item_name = PLANS[target]["name"] if is_plan else CREDIT_PACKS[target]["name"]
+        unit_amount = (PLANS[target_clean]["price"] * 100) if is_plan else (CREDIT_PACKS[target_clean]["price"] * 100)
+        item_name = PLANS[target_clean]["name"] if is_plan else CREDIT_PACKS[target_clean]["name"]
         
         headers = {
             "Authorization": f"Bearer {settings.stripe_secret_key}",
@@ -164,7 +206,7 @@ def create_checkout_session(
             "line_items[0][price_data][unit_amount]": str(unit_amount),
             "line_items[0][quantity]": "1",
             "metadata[user_id]": str(user.id),
-            "metadata[target]": target,
+            "metadata[target]": target_clean,
             "metadata[type]": "subscription" if is_plan else "topup",
         }
         if is_plan:
@@ -179,6 +221,7 @@ def create_checkout_session(
                     "checkout_url": session_data.get("url"),
                     "session_id": session_data.get("id"),
                     "mode": stripe_mode,
+                    "provider": "stripe",
                 }
         except Exception as exc:
             log.error(f"Stripe API checkout session creation failed: {exc}")
@@ -189,12 +232,13 @@ def create_checkout_session(
 
     # ── Simulated Mock Checkout Session (Local dev & test environments) ──────
     mock_id = f"cs_mock_{uuid.uuid4().hex[:16]}"
-    mock_url = f"{settings.frontend_url}/#mock-checkout?session_id={mock_id}&target={target}&user_id={user.id}"
-    log.info(f"Generated mock checkout session for user {user.id} ({target}): {mock_id}")
+    mock_url = f"{settings.frontend_url}/#mock-checkout?session_id={mock_id}&target={target_clean}&user_id={user.id}&provider={settings.billing_provider}"
+    log.info(f"Generated mock checkout session for user {user.id} ({target_clean}) via {settings.billing_provider}: {mock_id}")
     return {
         "checkout_url": mock_url,
         "session_id": mock_id,
         "mode": "subscription" if is_plan else "payment",
+        "provider": settings.billing_provider,
     }
 
 
