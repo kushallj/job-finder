@@ -116,6 +116,18 @@ def init_db():
                 with engine.begin() as conn:
                     conn.execute(_text("ALTER TABLE contacts ADD COLUMN twitter_url TEXT"))
 
+        if "startups_gallery_companies" in tables:
+            existing_sg = {c["name"] for c in inspector.get_columns("startups_gallery_companies")}
+            sg_additions = {
+                "investors": "TEXT",
+                "jobs": "TEXT",
+                "jobs_count": "INTEGER DEFAULT 0",
+            }
+            with engine.begin() as conn:
+                for name, ddl in sg_additions.items():
+                    if name not in existing_sg:
+                        conn.execute(_text(f"ALTER TABLE startups_gallery_companies ADD COLUMN {name} {ddl}"))
+
     # Seed default user for backward compatibility and local development
     try:
         from src.models import User, CreditTransaction

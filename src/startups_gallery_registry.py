@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 DATA_PATH = os.path.join(
@@ -26,6 +26,9 @@ class StartupsGalleryCompany:
     location: str
     founded_year: str
     description: str
+    investors: List[str] = field(default_factory=list)
+    jobs: List[str] = field(default_factory=list)
+    jobs_count: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -37,6 +40,9 @@ class StartupsGalleryCompany:
             "location": self.location,
             "founded_year": self.founded_year,
             "description": self.description,
+            "investors": self.investors,
+            "jobs": self.jobs,
+            "jobs_count": self.jobs_count,
         }
 
 
@@ -58,6 +64,9 @@ def _load_registry() -> List[StartupsGalleryCompany]:
                 location=item.get("location", "Remote / Global"),
                 founded_year=item.get("founded_year", ""),
                 description=item.get("description", ""),
+                investors=item.get("investors", []),
+                jobs=item.get("jobs", []),
+                jobs_count=item.get("jobs_count", len(item.get("jobs", []))),
             )
             for item in items
         ]

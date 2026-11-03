@@ -187,6 +187,9 @@ class StartupsGalleryCompanyRecord(Base):
     founded_year = Column(String(50), nullable=True)
     description = Column(Text, nullable=True)
     ats_url = Column(Text, nullable=True)
+    investors = Column(Text, nullable=True)  # JSON-encoded list of VC investors
+    jobs = Column(Text, nullable=True)  # JSON-encoded list of active open jobs
+    jobs_count = Column(Integer, default=0)
 
     mined = Column(Boolean, default=False, index=True)
     mined_at = Column(DateTime, nullable=True)

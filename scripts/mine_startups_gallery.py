@@ -49,9 +49,9 @@ def print_status():
 
 
 def export_data(contacts, json_path=None, csv_path=None):
-    """Export contacts list to JSON and/or CSV files."""
+    """Export contacts list to JSON and/or CSV files with investors and open jobs data."""
     if not contacts:
-        print("ℹ️ No new contacts to export.")
+        print("ℹ️ No contacts to export.")
         return
 
     if json_path:
@@ -62,12 +62,48 @@ def export_data(contacts, json_path=None, csv_path=None):
 
     if csv_path:
         os.makedirs(os.path.dirname(os.path.abspath(csv_path)), exist_ok=True)
-        keys = ["name", "title", "company", "email", "linkedin_url", "twitter_url", "funding", "category", "location"]
+        keys = [
+            "name",
+            "title",
+            "company",
+            "category",
+            "location",
+            "funding",
+            "investors",
+            "jobs_count",
+            "open_jobs",
+            "ats_url",
+            "email",
+            "linkedin_url",
+            "twitter_url",
+        ]
+        rows = []
+        for c in contacts:
+            inv = c.get("investors")
+            inv_str = ", ".join(inv) if isinstance(inv, list) else (c.get("investors_str") or str(inv or ""))
+            jobs = c.get("open_jobs") or c.get("jobs")
+            jobs_str = " | ".join(jobs) if isinstance(jobs, list) else (c.get("open_jobs_str") or str(jobs or ""))
+            rows.append({
+                "name": c.get("name", ""),
+                "title": c.get("title", ""),
+                "company": c.get("company", ""),
+                "category": c.get("category", ""),
+                "location": c.get("location", ""),
+                "funding": c.get("funding", ""),
+                "investors": inv_str,
+                "jobs_count": c.get("jobs_count", 0),
+                "open_jobs": jobs_str,
+                "ats_url": c.get("ats_url", ""),
+                "email": c.get("email", ""),
+                "linkedin_url": c.get("linkedin_url", ""),
+                "twitter_url": c.get("twitter_url", ""),
+            })
+
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore")
             writer.writeheader()
-            writer.writerows(contacts)
-        print(f"✅ Exported {len(contacts)} contacts to CSV: {csv_path}")
+            writer.writerows(rows)
+        print(f"✅ Exported {len(rows)} contacts to CSV: {csv_path}")
 
 
 def reset_mined_state():
