@@ -110,6 +110,12 @@ def init_db():
                     if name not in existing_users:
                         conn.execute(_text(f"ALTER TABLE users ADD COLUMN {name} {ddl}"))
 
+        if "contacts" in tables:
+            existing_contacts = {c["name"] for c in inspector.get_columns("contacts")}
+            if "twitter_url" not in existing_contacts:
+                with engine.begin() as conn:
+                    conn.execute(_text("ALTER TABLE contacts ADD COLUMN twitter_url TEXT"))
+
     # Seed default user for backward compatibility and local development
     try:
         from src.models import User, CreditTransaction

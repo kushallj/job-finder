@@ -177,7 +177,15 @@ def test_fastapi_auth_endpoints_lifecycle(test_db_session):
         assert res_me.json()["email"] == "sarah.connor@cyberdyne.io"
         assert res_me.json()["credits_balance"] == 50
 
-        # 6. Topup credits
+        # 6. Verify non-superuser cannot top up credits (P0-2 fix)
+        res_topup_fail = client.post("/api/auth/credits/topup", json={"amount": 25}, headers={"Authorization": f"Bearer {token}"})
+        assert res_topup_fail.status_code == 403
+
+        # Superuser can adjust credits
+        sarah = test_db_session.query(User).filter(User.email == "sarah.connor@cyberdyne.io").first()
+        sarah.is_superuser = True
+        test_db_session.commit()
+
         res_topup = client.post("/api/auth/credits/topup", json={"amount": 25}, headers={"Authorization": f"Bearer {token}"})
         assert res_topup.status_code == 200
         assert res_topup.json()["credits_balance"] == 75

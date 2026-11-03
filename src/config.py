@@ -128,6 +128,12 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
     default_signup_credits: int = 50
 
+    # Clerk Authentication Bridge & Webhooks
+    clerk_issuer: Optional[str] = None
+    clerk_jwks_url: Optional[str] = None
+    clerk_webhook_secret: Optional[str] = None
+    clerk_secret_key: Optional[str] = None
+
     # Stripe Billing & Subscriptions
     stripe_secret_key: Optional[str] = None
     stripe_webhook_secret: Optional[str] = None

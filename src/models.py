@@ -10,8 +10,9 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
+    clerk_user_id = Column(String(255), unique=True, nullable=True, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
-    hashed_password = Column(String(500), nullable=False)
+    hashed_password = Column(String(500), nullable=True)
     full_name = Column(String(255), nullable=True)
     subscription_tier = Column(String(50), default="free")  # free, starter, pro, unlimited
     credits_balance = Column(Integer, default=50)  # Complimentary starting credits
@@ -29,6 +30,8 @@ class User(Base):
     applications = relationship("Application", back_populates="user")
     resumes = relationship("Resume", back_populates="user")
     credit_transactions = relationship("CreditTransaction", back_populates="user")
+    contacts = relationship("Contact", back_populates="user", cascade="all, delete-orphan")
+    outreach_records = relationship("OutreachRecord", back_populates="user", cascade="all, delete-orphan")
 
 class CreditTransaction(Base):
     """Audit log of credit additions, purchases, and AI generation/application deductions."""
@@ -146,16 +149,18 @@ class Contact(Base):
     __tablename__ = "contacts"
     
     id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     name = Column(String(255), nullable=False)
     title = Column(String(255))
     email = Column(String(255))
     linkedin_url = Column(Text)
+    twitter_url = Column(Text, nullable=True)
     company = Column(String(255), nullable=False)
     department = Column(String(255))
     confidence_score = Column(Integer, default=0)
     
     # Source tracking
-    source = Column(String(100))  # 'linkedin', 'website', 'generated'
+    source = Column(String(100))  # 'linkedin', 'website', 'generated', 'startups_gallery'
     found_at = Column(DateTime, default=datetime.utcnow)
     
     # Unsubscribe / Do-not-contact tracking (Requirement 17.4)
@@ -164,12 +169,35 @@ class Contact(Base):
     do_not_contact_at = Column(DateTime)  # When the do-not-contact flag was set
     
     # Relationships
+    user = relationship("User", back_populates="contacts")
     outreach_records = relationship("OutreachRecord", back_populates="contact")
+
+
+class StartupsGalleryCompanyRecord(Base):
+    """Catalog of startups.gallery companies tracking continuous mining progress."""
+    __tablename__ = "startups_gallery_companies"
+
+    id = Column(Integer, primary_key=True)
+    slug = Column(String(255), unique=True, index=True, nullable=False)
+    name = Column(String(255), nullable=False, index=True)
+    domain = Column(String(255), nullable=True)
+    category = Column(String(100), nullable=True, index=True)
+    funding = Column(String(255), nullable=True)
+    location = Column(String(255), nullable=True)
+    founded_year = Column(String(50), nullable=True)
+    description = Column(Text, nullable=True)
+    ats_url = Column(Text, nullable=True)
+
+    mined = Column(Boolean, default=False, index=True)
+    mined_at = Column(DateTime, nullable=True)
+    founders_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class OutreachRecord(Base):
     __tablename__ = "outreach_records"
     
     id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     contact_id = Column(Integer, ForeignKey("contacts.id"))
     job_id = Column(Integer, ForeignKey("jobs.id"))
     
@@ -199,6 +227,7 @@ class OutreachRecord(Base):
     timezone_detected = Column(String(100))     # detected recipient timezone
     
     # Relationships
+    user = relationship("User", back_populates="outreach_records")
     contact = relationship("Contact", back_populates="outreach_records")
     job = relationship("Job")
 

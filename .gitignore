@@ -173,3 +173,7 @@ dsm_deploy/docker_images
 # Node
 node_modules/
 npm-debug.log*
+
+# Jobify Frontend external repo
+Jobify-frontend/
+data/sample_*_founders.json

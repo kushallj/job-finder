@@ -5,19 +5,31 @@ Provides registration, login, profile inspection, and credit balance tracking.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
+from svix.webhooks import Webhook, WebhookVerificationError
 
 from src.config import settings
 from src.database import get_db
-from src.models import CreditTransaction, User
+from src.models import (
+    Application,
+    CandidateProfile,
+    Contact,
+    CreditTransaction,
+    MailboxAccount,
+    OutreachRecord,
+    Resume,
+    TelegramConnector,
+    User,
+)
 from src.auth.crypto import hash_password, verify_password
 from src.auth.jwt_handler import create_access_token
-from src.auth.dependencies import get_current_user
+from src.auth.dependencies import get_current_user, require_admin
 from src.services.credit_service import add_credits, get_credit_history
 
 log = logging.getLogger(__name__)
@@ -173,11 +185,11 @@ def get_user_credits_history(
 @router.post("/credits/topup")
 def topup_user_credits(
     req: TopupRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     """
-    Simulated credit top-up / purchase endpoint.
+    Administrative credit top-up endpoint (Restricted to superusers).
     Adds credits to the user balance and records transaction.
     """
     new_balance = add_credits(

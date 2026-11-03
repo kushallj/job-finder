@@ -280,9 +280,12 @@ class KanbanService:
         stage: Optional[str] = None,
         alert_severity: Optional[str] = None,
         overdue_only: bool = False,
+        user_id: Optional[int] = None,
     ) -> List[KanbanCardResponse]:
-        """Fetch flat list of cards with optional filtering."""
+        """Fetch flat list of cards with optional filtering and tenant scoping."""
         query = self.db.query(Application).join(Job)
+        if user_id is not None:
+            query = query.filter(Application.user_id == user_id)
         if stage:
             query = query.filter(Application.kanban_stage == stage.lower())
 
@@ -301,9 +304,13 @@ class KanbanService:
         application_id: int,
         target_stage: str,
         order: int = 0,
+        user_id: Optional[int] = None,
     ) -> KanbanCardResponse:
-        """Update Kanban column stage and ordering sequence."""
-        app = self.db.query(Application).filter(Application.id == application_id).first()
+        """Update Kanban column stage and ordering sequence scoped to user."""
+        query = self.db.query(Application).filter(Application.id == application_id)
+        if user_id is not None:
+            query = query.filter(Application.user_id == user_id)
+        app = query.first()
         if not app:
             raise ValueError(f"Application {application_id} not found")
 
@@ -327,9 +334,13 @@ class KanbanService:
         action_type: str,
         action_title: str,
         due_at: datetime,
+        user_id: Optional[int] = None,
     ) -> KanbanCardResponse:
-        """Schedule or update countdown timer next action."""
-        app = self.db.query(Application).filter(Application.id == application_id).first()
+        """Schedule or update countdown timer next action scoped to user."""
+        query = self.db.query(Application).filter(Application.id == application_id)
+        if user_id is not None:
+            query = query.filter(Application.user_id == user_id)
+        app = query.first()
         if not app:
             raise ValueError(f"Application {application_id} not found")
 
@@ -351,9 +362,13 @@ class KanbanService:
         recruiter_company: Optional[str] = None,
         thread_id: Optional[str] = None,
         received_at: Optional[datetime] = None,
+        user_id: Optional[int] = None,
     ) -> KanbanCardResponse:
-        """Link recruiter email thread provenance directly to application card."""
-        app = self.db.query(Application).filter(Application.id == application_id).first()
+        """Link recruiter email thread provenance directly to application card scoped to user."""
+        query = self.db.query(Application).filter(Application.id == application_id)
+        if user_id is not None:
+            query = query.filter(Application.user_id == user_id)
+        app = query.first()
         if not app:
             raise ValueError(f"Application {application_id} not found")
 
@@ -372,7 +387,7 @@ class KanbanService:
         self.db.refresh(app)
         return self.to_card_response(app)
 
-    def seed_sample_kanban(self) -> KanbanBoardResponse:
+    def seed_sample_kanban(self, user_id: Optional[int] = None) -> KanbanBoardResponse:
         """Seed realistic amber, blue, and red countdown cards with recruiter email provenance."""
         now = datetime.utcnow()
 
@@ -449,9 +464,13 @@ class KanbanService:
                 self.db.commit()
                 self.db.refresh(existing_job)
 
-            existing_app = self.db.query(Application).filter(Application.job_id == existing_job.id).first()
+            app_query = self.db.query(Application).filter(Application.job_id == existing_job.id)
+            if user_id is not None:
+                app_query = app_query.filter(Application.user_id == user_id)
+            existing_app = app_query.first()
             if not existing_app:
                 existing_app = Application(
+                    user_id=user_id,
                     job_id=existing_job.id,
                     match_score=92.0,
                     status=s["stage"],
@@ -481,4 +500,4 @@ class KanbanService:
                 existing_app.updated_at = now
 
         self.db.commit()
-        return self.get_board()
+        return self.get_board(user_id=user_id)

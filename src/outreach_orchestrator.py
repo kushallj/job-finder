@@ -486,10 +486,13 @@ class OutreachOrchestrator:
         template_type: str,
         ab_variant:    int,
     ) -> Optional[int]:
-        """Write OutreachRecord to DB and schedule follow-up. Returns the new record's id."""
         db = SessionLocal()
         try:
+            user_id = getattr(contact, "user_id", None)
+            contact_id = getattr(contact, "id", None)
             record = OutreachRecord(
+                user_id       = user_id,
+                contact_id    = contact_id,
                 job_id        = job_id,
                 subject       = subject,
                 template_type = template_type,

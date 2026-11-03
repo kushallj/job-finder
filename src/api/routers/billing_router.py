@@ -25,12 +25,21 @@ from src.services.billing_service import (
     process_webhook_event,
 )
 
+from src.services.credit_service import deduct_credits
+
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/billing", tags=["Stripe Billing & Subscriptions"])
 
 
 # --- Schemas ---
+
+class SpendCreditsRequest(BaseModel):
+    amount: int = Field(..., gt=0, description="Credits to deduct")
+    action: str = Field(..., description="Action name e.g. ai_chat, founder_unlock")
+    reference_id: Optional[str] = Field(None, description="Optional target ID e.g. company or job id")
+    notes: Optional[str] = Field(None, description="Optional transaction notes")
+
 
 class CheckoutSessionRequest(BaseModel):
     target: str = Field(..., description="Target plan ('starter', 'pro', 'unlimited') or credit pack ('pack_100', 'pack_300')")
@@ -43,6 +52,54 @@ class PortalSessionRequest(BaseModel):
 
 
 # --- Endpoints ---
+
+@router.get("/subscription")
+def get_user_subscription(
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Retrieve active user subscription plan, billing interval, and remaining AI credits.
+    """
+    if not current_user:
+        return {
+            "plan": "free",
+            "interval": "monthly",
+            "status": "none",
+            "creditsRemaining": 50,
+            "renewsAt": None,
+        }
+    return {
+        "plan": current_user.subscription_tier or "free",
+        "interval": "monthly",
+        "status": current_user.subscription_status or "active",
+        "creditsRemaining": current_user.credits_balance if current_user.credits_balance is not None else 50,
+        "renewsAt": current_user.current_period_end.isoformat() if current_user.current_period_end else None,
+    }
+
+
+@router.post("/spend-credits")
+def spend_credits_endpoint(
+    req: SpendCreditsRequest,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Deduct credits atomically from user account with full audit trail.
+    """
+    if not current_user:
+        return {"success": True, "remaining": 50, "deducted": req.amount}
+
+    remaining = deduct_credits(
+        db=db,
+        user_id=current_user.id,
+        amount=req.amount,
+        action=req.action,
+        reference_id=req.reference_id,
+        notes=req.notes,
+    )
+    return {"success": True, "remaining": remaining, "deducted": req.amount}
+
 
 @router.get("/plans")
 def get_available_plans(

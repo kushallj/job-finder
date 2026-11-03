@@ -44,7 +44,7 @@ from sqlalchemy.orm import Session
 
 from src.job_processor import JobProcessor
 from src.database import init_db, SessionLocal
-from src.models import Application, Job, OutreachRecord, Contact
+from src.models import Application, Job, OutreachRecord, Contact, User
 from src.lifecycle import next_action, require_transition, normalize_status, sort_actions, KNOWN_STATUSES
 from src.job_data_providers import JobDataAPIClient, AIDevBoardClient, FantasticJobsClient, ArbeitnowClient, CareerjetClient, USAJobsClient, search_all
 from src.resume_parser import SharpAPIResumeParser
@@ -808,29 +808,34 @@ async def lifespan(app: FastAPI):
 # App + middleware
 # =============================================================================
 
+from src.auth.dependencies import get_current_user
+
 app = FastAPI(title="Job Search API", version="2.1.0", lifespan=lifespan)
 
 # Register comprehensive error handlers
 # Requirements: 23.2 (Comprehensive error responses with proper HTTP status codes)
 register_error_handlers(app)
+
+protected_deps = [Depends(get_current_user)]
+
 if _AGENTS_ROUTER_OK:
-    app.include_router(agents_router)
+    app.include_router(agents_router, dependencies=protected_deps)
 
 try:
     from src.sidekick.api.sidekick_router import router as sidekick_router
-    app.include_router(sidekick_router)
+    app.include_router(sidekick_router, dependencies=protected_deps)
 except Exception as e:
     log.warning(f"Could not load sidekick_router: {e}")
 
 try:
     from src.nextraise.api.nextraise_router import router as nextraise_router
-    app.include_router(nextraise_router)
+    app.include_router(nextraise_router, dependencies=protected_deps)
 except Exception as e:
     log.warning(f"Could not load nextraise_router: {e}")
 
 try:
     from src.workday.api.workday_router import router as workday_router
-    app.include_router(workday_router)
+    app.include_router(workday_router, dependencies=protected_deps)
 except Exception as e:
     log.warning(f"Could not load workday_router: {e}")
 
@@ -850,8 +855,8 @@ except Exception as e:
 
 try:
     from src.vc_intelligence.api import router as vc_router
-    app.include_router(vc_router, prefix="/api/vc", tags=["VC Intelligence"])
-    app.include_router(vc_router, prefix="/api/v1/vc", tags=["VC Intelligence"])
+    app.include_router(vc_router, prefix="/api/vc", tags=["VC Intelligence"], dependencies=protected_deps)
+    app.include_router(vc_router, prefix="/api/v1/vc", tags=["VC Intelligence"], dependencies=protected_deps)
     log.info("Loaded vc_router successfully")
 except Exception as e:
     log.warning(f"Could not load vc_router: {e}")
@@ -883,6 +888,20 @@ try:
     log.info("Loaded telegram_connector_router successfully")
 except Exception as e:
     log.warning(f"Could not load telegram_connector_router: {e}")
+
+try:
+    from src.presentation.routers.crawler_router import router as crawler_router
+    app.include_router(crawler_router, dependencies=protected_deps)
+    log.info("Loaded crawler_router successfully")
+except Exception as e:
+    log.warning(f"Could not load crawler_router: {e}")
+
+try:
+    from src.routes.startups_gallery import router as startups_gallery_router
+    app.include_router(startups_gallery_router)
+    log.info("Loaded startups_gallery_router successfully")
+except Exception as e:
+    log.warning(f"Could not load startups_gallery_router: {e}")
 
 
 
@@ -1747,6 +1766,7 @@ async def run_query_async(
 async def search_contacts(
     request: ContactSearchRequest,
     req: Request,
+    current_user: User = Depends(get_current_user),
 ):
     """
     Find email contacts at a company using all configured providers in priority order:
@@ -1762,8 +1782,8 @@ async def search_contacts(
         raise ServiceUnavailableError("EmailDiscoveryService", "Check startup logs for initialization errors")
 
     try:
-        log.info("[%s] Contact search: company=%s job_title=%s limit=%d smtp_verify=%s",
-                 trace, request.company_name, request.job_title, request.limit, request.smtp_verify)
+        log.info("[%s] Contact search: company=%s job_title=%s limit=%d smtp_verify=%s user_id=%s",
+                 trace, request.company_name, request.job_title, request.limit, request.smtp_verify, current_user.id)
 
         svc = EmailDiscoveryService(settings)
         try:
@@ -1779,14 +1799,18 @@ async def search_contacts(
         finally:
             await svc.close()
 
-        # Persist new contacts to DB
+        # Persist new contacts to DB scoped to user
         saved = []
         try:
             async with db_session() as db:
                 for c in contacts:
-                    existing = db.query(Contact).filter(Contact.email == c["email"]).first()
+                    existing = db.query(Contact).filter(
+                        Contact.email == c["email"],
+                        Contact.user_id == current_user.id,
+                    ).first()
                     if not existing:
                         row = Contact(
+                            user_id=current_user.id,
                             name=c.get("name", ""),
                             title=c.get("title", ""),
                             email=c.get("email", ""),
@@ -1845,6 +1869,7 @@ async def send_outreach(
     request: OutreachRequest,
     req: Request,
     state: AppState = Depends(get_state),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Send outreach email to a contact for a specific job.
@@ -1885,6 +1910,7 @@ async def send_outreach(
         contact_kwargs = dict(
             name=request.contact_name, email=request.contact_email,
             title="Hiring Contact", company=job_snap["company"],
+            user_id=current_user.id,
         )
         if _CONTACT_OK:
             contact = ContactDataClass(**{
@@ -1895,6 +1921,7 @@ async def send_outreach(
                 if not hasattr(contact, attr):
                     try: setattr(contact, attr, default)
                     except Exception: pass
+            setattr(contact, "user_id", current_user.id)
         else:
             contact = type("Contact", (), contact_kwargs)()
 
@@ -1954,6 +1981,7 @@ async def send_outreach(
             try:
                 async with db_session() as db:
                     rec = OutreachRecord(
+                        user_id=current_user.id,
                         job_id=job_snap["id"],
                         contact_email=request.contact_email,
                         contact_name=request.contact_name,
@@ -2484,7 +2512,11 @@ async def get_job_by_id(job_id: int):
 # ── Opportunities & Applications ──────────────────────────────────────────────
 
 @app.put("/api/jobs/{job_id}/application", tags=["applications"])
-async def update_job_application_status(job_id: int, request: ApplicationUpdateRequest):
+async def update_job_application_status(
+    job_id: int,
+    request: ApplicationUpdateRequest,
+    current_user: User = Depends(get_current_user),
+):
     """Update or create application record for a job with lifecycle validation."""
     try:
         async with db_session() as db:
@@ -2492,11 +2524,15 @@ async def update_job_application_status(job_id: int, request: ApplicationUpdateR
             if not job:
                 raise ResourceNotFoundError("Job", job_id)
 
-            application = db.query(Application).filter(Application.job_id == job_id).order_by(Application.id.desc()).first()
+            app_query = db.query(Application).filter(Application.job_id == job_id)
+            if not current_user.is_superuser:
+                app_query = app_query.filter(Application.user_id == current_user.id)
+            application = app_query.order_by(Application.id.desc()).first()
+
             if application is None:
                 if request.status not in ("saved", "ready", "rejected"):
                     raise HTTPException(status_code=409, detail=f"Cannot create an application directly in state: {request.status}")
-                application = Application(job_id=job_id, status=request.status)
+                application = Application(job_id=job_id, user_id=current_user.id, status=request.status)
                 db.add(application)
             else:
                 try:
@@ -2524,11 +2560,18 @@ async def update_job_application_status(job_id: int, request: ApplicationUpdateR
 
 
 @app.post("/api/applications/{application_id}/transition", tags=["applications"])
-async def transition_application(application_id: int, request: LifecycleTransitionRequest):
+async def transition_application(
+    application_id: int,
+    request: LifecycleTransitionRequest,
+    current_user: User = Depends(get_current_user),
+):
     """Perform a validated lifecycle state transition."""
     try:
         async with db_session() as db:
-            application = db.query(Application).filter(Application.id == application_id).first()
+            app_query = db.query(Application).filter(Application.id == application_id)
+            if not current_user.is_superuser:
+                app_query = app_query.filter(Application.user_id == current_user.id)
+            application = app_query.first()
             if not application:
                 raise ResourceNotFoundError("Application", application_id)
             try:
@@ -2549,11 +2592,18 @@ async def transition_application(application_id: int, request: LifecycleTransiti
 
 
 @app.post("/api/applications/{application_id}/proof", tags=["applications"])
-async def record_application_proof(application_id: int, request: SubmissionProofRequest):
+async def record_application_proof(
+    application_id: int,
+    request: SubmissionProofRequest,
+    current_user: User = Depends(get_current_user),
+):
     """Record proof of external submission and transition application to applied."""
     try:
         async with db_session() as db:
-            application = db.query(Application).filter(Application.id == application_id).first()
+            app_query = db.query(Application).filter(Application.id == application_id)
+            if not current_user.is_superuser:
+                app_query = app_query.filter(Application.user_id == current_user.id)
+            application = app_query.first()
             if not application:
                 raise ResourceNotFoundError("Application", application_id)
             application.status = "applied"
@@ -2573,11 +2623,17 @@ async def record_application_proof(application_id: int, request: SubmissionProof
 
 
 @app.get("/api/action-queue", tags=["opportunities"], response_model=ActionQueueResponse)
-async def get_action_queue(limit: int = Query(default=12, ge=1, le=1000)):
+async def get_action_queue(
+    limit: int = Query(default=12, ge=1, le=1000),
+    current_user: User = Depends(get_current_user),
+):
     """Return the highest-value next actions across the entire career pipeline."""
     try:
         async with db_session() as db:
-            applications = db.query(Application).join(Job).order_by(Application.updated_at.desc()).all()
+            apps_query = db.query(Application).join(Job)
+            if not current_user.is_superuser:
+                apps_query = apps_query.filter(Application.user_id == current_user.id)
+            applications = apps_query.order_by(Application.updated_at.desc()).all()
             current_by_job = {}
             for application in applications:
                 if application.job_id not in current_by_job:
@@ -2587,14 +2643,16 @@ async def get_action_queue(limit: int = Query(default=12, ge=1, le=1000)):
                 if normalize_status(application.status) in {"accepted", "rejected"}:
                     continue
                 job = application.job
-                records = (db.query(OutreachRecord)
-                           .filter(OutreachRecord.job_id == job.id)
-                           .order_by(OutreachRecord.sent_at.desc())
-                           .all())
-                contacts = (db.query(Contact)
-                            .filter(Contact.company.ilike(f"%{job.company or ''}%"))
-                            .order_by(Contact.confidence_score.desc())
-                            .limit(10).all()) if job.company else []
+                records_q = db.query(OutreachRecord).filter(OutreachRecord.job_id == job.id)
+                if not current_user.is_superuser:
+                    records_q = records_q.filter(OutreachRecord.user_id == current_user.id)
+                records = records_q.order_by(OutreachRecord.sent_at.desc()).all()
+
+                contacts_q = db.query(Contact).filter(Contact.company.ilike(f"%{job.company or ''}%"))
+                if not current_user.is_superuser:
+                    contacts_q = contacts_q.filter(Contact.user_id == current_user.id)
+                contacts = contacts_q.order_by(Contact.confidence_score.desc()).limit(10).all() if job.company else []
+
                 replied = any(r.status == "replied" or r.replied_at for r in records)
                 pending = any(r.status in ("no_response", "queued") for r in records)
                 has_proof = bool(getattr(application, "proof_url", None) or getattr(application, "proof_notes", None))
@@ -2863,33 +2921,39 @@ async def get_opportunity_brief(job_id: int, state: AppState = Depends(get_state
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
 @app.get("/api/stats", tags=["stats"], response_model=StatsResponse)
-async def stats(state: AppState = Depends(get_state)):
+async def stats(
+    state: AppState = Depends(get_state),
+    current_user: User = Depends(get_current_user),
+):
     """
     Return comprehensive statistics about the job pipeline.
     
     Returns job counts, contact counts, outreach statistics, and recent activity.
     Attempts to use live processor stats first, falling back to database queries.
+    Strictly scoped to current authenticated user.
     
     Requirements: 23.2 (Validate request parameters), 23.3 (Return processing statistics)
     """
     try:
         async with db_session() as db:
-            # Execute all count queries directly from database
             tj = db.query(Job).count()
 
-            ta = db.query(Application).count()
-            to = db.query(OutreachRecord).count()
-            tc = db.query(Contact).count()
-            se = db.query(OutreachRecord).filter(OutreachRecord.email_sent == True).count()
-            
-            # Safely handle follow_up_count
-            try:
-                fu = db.query(OutreachRecord).filter(
-                    OutreachRecord.follow_up_count > 0).count()
-            except Exception as e:
-                log.warning("Failed to count follow-ups: %s", e)
-                fu = 0
-            
+            user_id = current_user.id
+            if current_user.is_superuser:
+                ta = db.query(Application).count()
+                to = db.query(OutreachRecord).count()
+                tc = db.query(Contact).count()
+                se = db.query(OutreachRecord).filter(OutreachRecord.email_sent == True).count()
+                fu = db.query(OutreachRecord).filter(OutreachRecord.follow_up_count > 0).count()
+                recent_records = db.query(OutreachRecord).order_by(OutreachRecord.sent_at.desc()).limit(5).all()
+            else:
+                ta = db.query(Application).filter(Application.user_id == user_id).count()
+                to = db.query(OutreachRecord).filter(OutreachRecord.user_id == user_id).count()
+                tc = db.query(Contact).filter(Contact.user_id == user_id).count()
+                se = db.query(OutreachRecord).filter(OutreachRecord.user_id == user_id, OutreachRecord.email_sent == True).count()
+                fu = db.query(OutreachRecord).filter(OutreachRecord.user_id == user_id, OutreachRecord.follow_up_count > 0).count()
+                recent_records = db.query(OutreachRecord).filter(OutreachRecord.user_id == user_id).order_by(OutreachRecord.sent_at.desc()).limit(5).all()
+
             # Get recent outreach records
             recent = [
                 RecentOutreach(
@@ -2898,17 +2962,15 @@ async def stats(state: AppState = Depends(get_state)):
                     status=r.status or "sent",
                     sent_at=r.sent_at,
                 )
-                for r in db.query(OutreachRecord)
-                           .order_by(OutreachRecord.sent_at.desc()).limit(5).all()
+                for r in recent_records
             ]
 
-            
             # Calculate success rate safely
             success_rate = round(se / to * 100, 1) if to > 0 else 0.0
-            
-            log.info("Stats from DB: jobs=%d, contacts=%d, apps=%d, outreach=%d, emails=%d, success_rate=%s%%",
-                     tj, tc, ta, to, se, success_rate)
-            
+
+            log.info("Stats from DB: user=%s, jobs=%d, contacts=%d, apps=%d, outreach=%d, emails=%d, success_rate=%s%%",
+                     user_id, tj, tc, ta, to, se, success_rate)
+
             return StatsResponse(
                 status="success",
                 source="db_fallback",
@@ -2952,41 +3014,47 @@ async def get_contacts(
     page: int = Query(default=1, ge=1, le=10000, description="Page number (1-indexed)"),
     limit: int = Query(default=50, ge=1, le=500, description="Items per page (1-500)"),
     company: Optional[str] = Query(default=None, max_length=200, description="Filter by company name (partial match)"),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get all discovered contacts with optional company filter and pagination.
+    Strictly scoped to current authenticated user.
     
     Requirements: 23.2 (Validate request parameters), 23.3 (Return processing statistics)
     """
     try:
         async with db_session() as db:
             query = db.query(Contact).order_by(Contact.found_at.desc())
+            if not current_user.is_superuser:
+                query = query.filter(Contact.user_id == current_user.id)
             if company:
                 query = query.filter(Contact.company.ilike(f"%{company}%"))
-            
+
             total_query = db.query(func.count(Contact.id))
+            if not current_user.is_superuser:
+                total_query = total_query.filter(Contact.user_id == current_user.id)
             if company:
                 total_query = total_query.filter(Contact.company.ilike(f"%{company}%"))
             total = total_query.scalar()
-            
+
             contacts = query.offset((page - 1) * limit).limit(limit).all()
-            
+
             contact_data = [
                 ContactData(
                     id=c.id,
                     name=c.name,
                     title=getattr(c, 'title', None),
-                    email=getattr(c, 'email', ''),
+                    email=getattr(c, 'email', None) or '',
                     linkedin_url=getattr(c, 'linkedin_url', None),
                     company=c.company,
                     department=getattr(c, 'department', None),
-                    confidence_score=getattr(c, 'confidence_score', 0),
-                    source=getattr(c, 'source', 'unknown'),
+                    confidence_score=getattr(c, 'confidence_score', 0) or 0,
+                    source=getattr(c, 'source', None) or 'unknown',
                     found_at=c.found_at,
                 )
                 for c in contacts
             ]
-            
+
             return ContactsResponse(
                 status="success",
                 contacts=contact_data,
@@ -3003,16 +3071,21 @@ async def get_contacts(
 
 
 @app.get("/api/contacts/{contact_id}", tags=["contacts"], response_model=ContactData)
-async def get_contact_by_id(contact_id: int):
+async def get_contact_by_id(
+    contact_id: int,
+    current_user: User = Depends(get_current_user),
+):
     """
-    Get a single contact by ID.
+    Get a single contact by ID scoped to current user.
 
-    Wired for frontend's contactsApi.getById (frontend/src/api/endpoints/contacts.ts),
-    which was calling this route even though it didn't exist on the backend.
+    Wired for frontend's contactsApi.getById (frontend/src/api/endpoints/contacts.ts).
     """
     try:
         async with db_session() as db:
-            c = db.query(Contact).filter(Contact.id == contact_id).first()
+            query = db.query(Contact).filter(Contact.id == contact_id)
+            if not current_user.is_superuser:
+                query = query.filter(Contact.user_id == current_user.id)
+            c = query.first()
             if not c:
                 raise ResourceNotFoundError("Contact", contact_id)
 
@@ -3020,12 +3093,12 @@ async def get_contact_by_id(contact_id: int):
                 id=c.id,
                 name=c.name,
                 title=getattr(c, 'title', None),
-                email=getattr(c, 'email', ''),
+                email=getattr(c, 'email', None) or '',
                 linkedin_url=getattr(c, 'linkedin_url', None),
                 company=c.company,
                 department=getattr(c, 'department', None),
-                confidence_score=getattr(c, 'confidence_score', 0),
-                source=getattr(c, 'source', 'unknown'),
+                confidence_score=getattr(c, 'confidence_score', 0) or 0,
+                source=getattr(c, 'source', None) or 'unknown',
                 found_at=c.found_at,
             )
     except ResourceNotFoundError:
@@ -3036,16 +3109,22 @@ async def get_contact_by_id(contact_id: int):
 
 
 @app.put("/api/outreach/{outreach_id}/status", tags=["outreach"])
-async def update_outreach_status(outreach_id: int, request: OutreachStatusUpdateRequest):
+async def update_outreach_status(
+    outreach_id: int,
+    request: OutreachStatusUpdateRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
-    Update the status of an existing outreach record.
+    Update the status of an existing outreach record scoped to current user.
 
-    Wired for frontend's outreachApi.updateStatus (frontend/src/api/endpoints/outreach.ts),
-    which was calling this route even though it didn't exist on the backend.
+    Wired for frontend's outreachApi.updateStatus (frontend/src/api/endpoints/outreach.ts).
     """
     try:
         async with db_session() as db:
-            rec = db.query(OutreachRecord).filter(OutreachRecord.id == outreach_id).first()
+            query = db.query(OutreachRecord).filter(OutreachRecord.id == outreach_id)
+            if not current_user.is_superuser:
+                query = query.filter(OutreachRecord.user_id == current_user.id)
+            rec = query.first()
             if not rec:
                 raise ResourceNotFoundError("OutreachRecord", outreach_id)
 
@@ -5824,10 +5903,12 @@ class FunnelEventLogRequest(BaseModel):
 async def upload_and_parse_resume(
     file: Optional[UploadFile] = File(None),
     raw_text: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Upload resume PDF or text, extract structured candidate profile, and update DB."""
     try:
+        user_ident = "default_user" if current_user.id == 1 else f"user_{current_user.id}"
         service = ProfileService(db=db)
         if file:
             contents = await file.read()
@@ -5839,7 +5920,7 @@ async def upload_and_parse_resume(
 
         extracted = service.extract_profile_from_text(text)
         extracted["resume_raw_text"] = text
-        profile = service.update_profile("default_user", extracted)
+        profile = service.update_profile(user_ident, extracted)
 
         return {
             "status": "success",
@@ -5864,10 +5945,14 @@ async def upload_and_parse_resume(
         raise HTTPException(status_code=500, detail=f"Failed to process resume: {str(exc)}")
 
 @app.get("/api/profile/current", tags=["profile"])
-async def get_current_profile(db: Session = Depends(get_db)):
-    """Fetch active candidate profile."""
+async def get_current_profile(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Fetch active candidate profile scoped to authenticated user."""
+    user_ident = "default_user" if current_user.id == 1 else f"user_{current_user.id}"
     service = ProfileService(db=db)
-    profile = service.get_or_create_profile("default_user")
+    profile = service.get_or_create_profile(user_ident)
     return {
         "status": "success",
         "profile": {
@@ -5890,11 +5975,16 @@ async def get_current_profile(db: Session = Depends(get_db)):
     }
 
 @app.post("/api/profile/current", tags=["profile"])
-async def update_current_profile(req: ProfileUpdateRequest, db: Session = Depends(get_db)):
-    """Update active candidate profile."""
+async def update_current_profile(
+    req: ProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update active candidate profile scoped to authenticated user."""
+    user_ident = "default_user" if current_user.id == 1 else f"user_{current_user.id}"
     service = ProfileService(db=db)
     updates = req.model_dump(exclude_unset=True)
-    profile = service.update_profile("default_user", updates)
+    profile = service.update_profile(user_ident, updates)
     return {
         "status": "success",
         "profile": {
@@ -5914,10 +6004,14 @@ async def update_current_profile(req: ProfileUpdateRequest, db: Session = Depend
     }
 
 @app.get("/api/profile/target-companies", tags=["profile"])
-async def get_target_companies(db: Session = Depends(get_db)):
-    """Get user's curated target company list."""
+async def get_target_companies(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's curated target company list scoped to authenticated user."""
+    user_ident = "default_user" if current_user.id == 1 else f"user_{current_user.id}"
     service = ProfileService(db=db)
-    companies = service.get_target_companies("default_user")
+    companies = service.get_target_companies(user_ident)
     return {
         "status": "success",
         "total": len(companies),
