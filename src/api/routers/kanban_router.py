@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.database import get_db
 from src.models import User
-from src.auth.dependencies import get_optional_current_user
+from src.auth.dependencies import get_current_user
 from src.services.kanban_service import KanbanService
 from src.api_models import (
     KanbanBoardResponse,
@@ -30,7 +30,7 @@ def get_kanban_service(db: Session = Depends(get_db)) -> KanbanService:
 @router.get("/board", response_model=KanbanBoardResponse)
 async def get_kanban_board(
     user_id: Optional[int] = Query(default=None, description="Optional user ID filter (superusers only)"),
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     service: KanbanService = Depends(get_kanban_service),
 ):
     """
@@ -40,9 +40,7 @@ async def get_kanban_board(
     Strictly isolated per tenant.
     """
     try:
-        effective_user_id = current_user.id if current_user else (user_id or 1)
-        if user_id is not None and current_user and current_user.is_superuser:
-            effective_user_id = user_id
+        effective_user_id = user_id if (user_id is not None and current_user.is_superuser) else current_user.id
         return service.get_board(user_id=effective_user_id)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to fetch Kanban board: {str(exc)}")
@@ -53,7 +51,7 @@ async def get_kanban_cards(
     stage: Optional[str] = Query(default=None, description="Filter by column stage e.g. applied, technical_interview"),
     alert_severity: Optional[str] = Query(default=None, description="Filter by alert severity: amber, blue, red"),
     overdue_only: bool = Query(default=False, description="Filter only overdue items (red alert)"),
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     service: KanbanService = Depends(get_kanban_service),
 ):
     """
@@ -61,12 +59,11 @@ async def get_kanban_cards(
     Strictly isolated per tenant.
     """
     try:
-        effective_user_id = current_user.id if current_user else 1
         return service.get_cards(
             stage=stage,
             alert_severity=alert_severity,
             overdue_only=overdue_only,
-            user_id=effective_user_id,
+            user_id=current_user.id,
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to fetch Kanban cards: {str(exc)}")
@@ -76,7 +73,7 @@ async def get_kanban_cards(
 async def update_card_stage(
     application_id: int,
     request: KanbanStageTransitionRequest,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     service: KanbanService = Depends(get_kanban_service),
 ):
     """
@@ -84,7 +81,7 @@ async def update_card_stage(
     Enforces ownership validation.
     """
     try:
-        effective_user_id = None if (current_user and current_user.is_superuser) else (current_user.id if current_user else None)
+        effective_user_id = None if current_user.is_superuser else current_user.id
         return service.transition_stage(
             application_id=application_id,
             target_stage=request.stage,
@@ -101,7 +98,7 @@ async def update_card_stage(
 async def set_next_action(
     application_id: int,
     request: KanbanNextActionRequest,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     service: KanbanService = Depends(get_kanban_service),
 ):
     """
@@ -110,7 +107,7 @@ async def set_next_action(
     Enforces ownership validation.
     """
     try:
-        effective_user_id = None if (current_user and current_user.is_superuser) else (current_user.id if current_user else None)
+        effective_user_id = None if current_user.is_superuser else current_user.id
         return service.set_next_action(
             application_id=application_id,
             action_type=request.next_action_type,
@@ -128,7 +125,7 @@ async def set_next_action(
 async def set_email_provenance(
     application_id: int,
     request: KanbanEmailProvenanceRequest,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     service: KanbanService = Depends(get_kanban_service),
 ):
     """
@@ -137,7 +134,7 @@ async def set_email_provenance(
     Enforces ownership validation.
     """
     try:
-        effective_user_id = None if (current_user and current_user.is_superuser) else (current_user.id if current_user else None)
+        effective_user_id = None if current_user.is_superuser else current_user.id
         return service.set_email_provenance(
             application_id=application_id,
             recruiter_email=request.recruiter_email,
@@ -156,7 +153,7 @@ async def set_email_provenance(
 
 @router.post("/seed", response_model=KanbanBoardResponse)
 async def seed_sample_kanban_board(
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     service: KanbanService = Depends(get_kanban_service),
 ):
     """
@@ -165,7 +162,6 @@ async def seed_sample_kanban_board(
     Scoped to the calling user.
     """
     try:
-        effective_user_id = current_user.id if current_user else 1
-        return service.seed_sample_kanban(user_id=effective_user_id)
+        return service.seed_sample_kanban(user_id=current_user.id)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to seed sample Kanban board: {str(exc)}")

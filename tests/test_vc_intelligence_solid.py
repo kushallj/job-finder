@@ -204,10 +204,14 @@ def test_jwt_nbf_future_validation():
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_vc_api_endpoints():
+    """Verify VC FastAPI endpoints via TestClient with auth headers."""
+    from src.auth.jwt_handler import create_access_token
+    token = create_access_token(data={"sub": "1"})
+    auth_headers = {"Authorization": f"Bearer {token}"}
     client = TestClient(app)
 
     # 1. GET /api/vc/firms
-    resp = client.get("/api/vc/firms")
+    resp = client.get("/api/vc/firms", headers=auth_headers)
     assert resp.status_code == 200
     firms = resp.json()
     assert len(firms) >= 5
@@ -219,14 +223,14 @@ def test_vc_api_endpoints():
     assert "india-accelerator" in firm_slugs
 
     # 2. POST /api/vc/firms/{slug}/sync
-    sync_resp = client.post("/api/vc/firms/accel/sync", json={"max_companies": 3, "enrich_contacts": True})
+    sync_resp = client.post("/api/vc/firms/accel/sync", json={"max_companies": 3, "enrich_contacts": True}, headers=auth_headers)
     assert sync_resp.status_code == 200
     sync_data = sync_resp.json()
     assert sync_data["status"] == "success"
     assert sync_data["vc_slug"] == "accel"
 
     # 3. GET /api/vc/companies
-    comp_resp = client.get("/api/vc/companies?vc_slug=accel")
+    comp_resp = client.get("/api/vc/companies?vc_slug=accel", headers=auth_headers)
     assert comp_resp.status_code == 200
     companies = comp_resp.json()
     assert len(companies) > 0
@@ -234,13 +238,13 @@ def test_vc_api_endpoints():
     assert "founders" in first_company
 
     # 4. GET /api/vc/export (CSV)
-    export_csv = client.get("/api/vc/export?vc_slug=accel&format=csv")
+    export_csv = client.get("/api/vc/export?vc_slug=accel&format=csv", headers=auth_headers)
     assert export_csv.status_code == 200
     assert "text/csv" in export_csv.headers["content-type"]
     assert "founder_name" in export_csv.text
     assert "founder_email" in export_csv.text
 
     # 5. GET /api/vc/export (JSON)
-    export_json = client.get("/api/vc/export?vc_slug=accel&format=json")
+    export_json = client.get("/api/vc/export?vc_slug=accel&format=json", headers=auth_headers)
     assert export_json.status_code == 200
     assert isinstance(export_json.json(), list)
