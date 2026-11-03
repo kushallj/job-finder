@@ -5,6 +5,7 @@ Supports both live Telegram polling/webhooks and sandbox web UI simulation.
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 import logging
@@ -111,7 +112,8 @@ class GodfatherBot:
                     return data.get("result", [])
                 return []
         except Exception as e:
-            logger.error(f"Error fetching telegram updates: {e}")
+            logger.warning(f"Unable to fetch telegram updates ({e}). Backing off 5s...")
+            await asyncio.sleep(5.0)
             return []
 
     def process_user_message(

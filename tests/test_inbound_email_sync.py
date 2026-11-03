@@ -22,6 +22,7 @@ from src.models import (
     Application,
     MailboxAccount,
     InboundRecruiterMessage,
+    User,
 )
 from src.database import get_db
 from src.services.inbound_email_classifier import InboundEmailIntentClassifier
@@ -54,8 +55,25 @@ def test_db_session(test_engine):
 
 @pytest.fixture
 def test_client(test_engine):
-    """FastAPI TestClient with overridden database session."""
+    """FastAPI TestClient with overridden database session and a seeded test user."""
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+    # Seed a test user so JWT auth succeeds
+    seed_db = TestingSessionLocal()
+    test_user = User(
+        id=1,
+        email="test@example.com",
+        full_name="Test User",
+        hashed_password="hashed",
+        is_active=True,
+        is_superuser=False,
+    )
+    seed_db.merge(test_user)
+    seed_db.commit()
+    seed_db.close()
+
+    from src.auth.jwt_handler import create_access_token
+    token = create_access_token(data={"sub": "1"})
 
     def override_get_db():
         session = TestingSessionLocal()
@@ -65,7 +83,7 @@ def test_client(test_engine):
             session.close()
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as client:
+    with TestClient(app, headers={"Authorization": f"Bearer {token}"}) as client:
         yield client
     app.dependency_overrides.clear()
 

@@ -182,7 +182,7 @@ services:
   frontend:
     image: jf_frontend:latest
     build:
-      context: ./frontend
+      context: ./Jobify-frontend
       dockerfile: Dockerfile
     container_name: jf_frontend
     restart: unless-stopped

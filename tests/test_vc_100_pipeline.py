@@ -160,7 +160,9 @@ async def test_batch_sync_pipeline(in_memory_db):
 
 def test_vc_api_endpoints_100():
     """Verify FastAPI routes for 100 VC firms."""
-    client = TestClient(app)
+    from src.auth.jwt_handler import create_access_token
+    token = create_access_token(data={"sub": "1"})
+    client = TestClient(app, headers={"Authorization": f"Bearer {token}"})
 
     # 1. Test /regions endpoint
     res_regions = client.get("/api/v1/vc/regions")

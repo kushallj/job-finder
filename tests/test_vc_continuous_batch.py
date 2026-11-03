@@ -64,7 +64,9 @@ def test_continuous_runner_status_structure():
 
 def test_continuous_api_endpoints():
     """Verify the FastAPI continuous batch REST routes."""
-    client = TestClient(app)
+    from src.auth.jwt_handler import create_access_token
+    token = create_access_token(data={"sub": "1"})
+    client = TestClient(app, headers={"Authorization": f"Bearer {token}"})
 
     # 1. Get status
     res = client.get("/api/vc/continuous/status")

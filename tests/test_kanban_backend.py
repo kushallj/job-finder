@@ -11,6 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from src.database import Base, get_db
 from src.models import Job, Application, User
 from src.services.kanban_service import KanbanService, KANBAN_COLUMNS
+from src.auth.jwt_handler import create_access_token
 from main import app
 
 
@@ -157,11 +158,45 @@ def test_kanban_service_crud_and_board(test_db):
 
 
 def test_kanban_api_endpoints():
-    """Verify FastAPI /api/kanban endpoints via TestClient."""
+    """Verify FastAPI /api/kanban endpoints via TestClient — authenticated as test user."""
+    from sqlalchemy.pool import StaticPool
+    # Build an isolated in-memory DB with a test user so we can generate a real JWT.
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    db = TestingSessionLocal()
+    test_user = User(
+        email="kanban_test@example.com",
+        full_name="Kanban Tester",
+        hashed_password="hashed",
+        is_active=True,
+        is_superuser=False,
+    )
+    db.add(test_user)
+    db.commit()
+    db.refresh(test_user)
+
+    from src.auth.jwt_handler import create_access_token
+    token = create_access_token(data={"sub": str(test_user.id)})
+    auth_headers = {"Authorization": f"Bearer {token}"}
+
+    def override_get_db():
+        session = TestingSessionLocal()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
 
     # 1. Seed board
-    seed_res = client.post("/api/kanban/seed")
+    seed_res = client.post("/api/kanban/seed", headers=auth_headers)
     assert seed_res.status_code == 200
     data = seed_res.json()
     assert data["status"] == "success"
@@ -171,7 +206,7 @@ def test_kanban_api_endpoints():
     assert "take_home" in data["columns"]
 
     # 2. Get board
-    board_res = client.get("/api/kanban/board")
+    board_res = client.get("/api/kanban/board", headers=auth_headers)
     assert board_res.status_code == 200
     b_data = board_res.json()
     assert b_data["active_countdown_alerts"] >= 3
@@ -180,7 +215,7 @@ def test_kanban_api_endpoints():
     assert b_data["red_count"] >= 1
 
     # 3. Get cards filtered by severity
-    cards_res = client.get("/api/kanban/cards?alert_severity=amber")
+    cards_res = client.get("/api/kanban/cards?alert_severity=amber", headers=auth_headers)
     assert cards_res.status_code == 200
     amber_list = cards_res.json()
     assert len(amber_list) >= 1
@@ -190,7 +225,11 @@ def test_kanban_api_endpoints():
     card_id = amber_list[0]["id"]
 
     # 4. Update stage via PATCH
-    patch_res = client.patch(f"/api/kanban/cards/{card_id}/stage", json={"stage": "recruiter_screen", "order": 2})
+    patch_res = client.patch(
+        f"/api/kanban/cards/{card_id}/stage",
+        json={"stage": "recruiter_screen", "order": 2},
+        headers=auth_headers,
+    )
     assert patch_res.status_code == 200
     assert patch_res.json()["kanban_stage"] == "recruiter_screen"
 
@@ -203,6 +242,7 @@ def test_kanban_api_endpoints():
             "next_action_title": "Take-home assessment",
             "next_action_due_at": action_time,
         },
+        headers=auth_headers,
     )
     assert post_action_res.status_code == 200
     assert post_action_res.json()["alert_severity"] == "blue"
@@ -215,6 +255,13 @@ def test_kanban_api_endpoints():
             "email_subject": "Re: Interview invitation — Senior Frontend Engineer",
             "recruiter_name": "Sarah Lin",
         },
+        headers=auth_headers,
     )
     assert prov_res.status_code == 200
     assert prov_res.json()["provenance_badge"] == '"Re: Interview invitation — Senior Frontend Engineer" from recruiter@tessellate.io'
+
+    # 7. Verify unauthenticated request is correctly rejected
+    unauth_res = client.get("/api/kanban/board")
+    assert unauth_res.status_code == 401
+
+    app.dependency_overrides.clear()

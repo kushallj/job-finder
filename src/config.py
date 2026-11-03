@@ -128,6 +128,12 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
     default_signup_credits: int = 50
 
+    # Clerk Authentication Bridge & Webhooks
+    clerk_issuer: Optional[str] = None
+    clerk_jwks_url: Optional[str] = None
+    clerk_webhook_secret: Optional[str] = None
+    clerk_secret_key: Optional[str] = None
+
     # Stripe Billing & Subscriptions
     stripe_secret_key: Optional[str] = None
     stripe_webhook_secret: Optional[str] = None
@@ -136,6 +142,13 @@ class Settings(BaseSettings):
     stripe_price_unlimited: str = "price_unlimited_mock"
     stripe_price_pack_100: str = "price_pack_100_mock"
     stripe_price_pack_300: str = "price_pack_300_mock"
+
+    # Dodo Payments (Merchant of Record - India UPI & Global Cards)
+    dodo_payments_api_key: Optional[str] = None
+    dodo_payments_webhook_secret: Optional[str] = None
+    dodo_payments_environment: str = "test_mode"  # "test_mode" | "live_mode"
+    billing_provider: str = "dodo"  # "dodo" | "stripe" | "mock"
+
     frontend_url: str = "http://localhost:5173"
     cors_origins: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173"
 
