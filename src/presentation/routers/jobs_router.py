@@ -82,6 +82,9 @@ async def get_all_jobs(
                     "ghost_probability": j.ghost_probability,
                     "ghost_risk_level": j.ghost_risk_level,
                     "ghost_verified_active": j.ghost_verified_active,
+                    "matched_skills": j.matched_skills,
+                    "missing_skills": j.missing_skills,
+                    "reasons": j.reasons,
                 }
                 for j in res.jobs
             ],

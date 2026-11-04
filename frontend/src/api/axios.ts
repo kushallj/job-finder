@@ -37,7 +37,9 @@ const api = axios.create({
   },
 });
 
-// Request interceptor for dynamic URL switching, logging, and trace ID
+export const STORAGE_KEY_AUTH_TOKEN = 'job_finder_auth_token';
+
+// Request interceptor for dynamic URL switching, logging, trace ID, and JWT auth
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // Dynamically update baseURL on each request in case user changed it in Setup Guide
@@ -45,6 +47,15 @@ api.interceptors.request.use(
     if (currentBase) {
       config.baseURL = currentBase;
     }
+    
+    // Attach JWT Bearer Token if logged in
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem(STORAGE_KEY_AUTH_TOKEN);
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+
     const traceId = crypto.randomUUID().slice(0, 8);
     config.headers['X-Trace-ID'] = traceId;
     console.log(`[API Request] ${config.method?.toUpperCase()} ${config.baseURL || ''}${config.url}`, {
@@ -60,7 +71,7 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor for logging and error handling
+// Response interceptor for logging, error handling, and 401/402 SaaS events
 api.interceptors.response.use(
   (response) => {
     console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
@@ -70,11 +81,25 @@ api.interceptors.response.use(
   },
   (error: AxiosError) => {
     const traceId = error.config?.headers['X-Trace-ID'] || 'unknown';
+    const status = error.response?.status;
     console.error(`[API Error] ${error.config?.method?.toUpperCase()} ${error.config?.url}`, {
       traceId,
-      status: error.response?.status,
+      status,
       message: error.message,
     });
+
+    if (typeof window !== 'undefined') {
+      if (status === 401) {
+        window.dispatchEvent(new CustomEvent('job_finder:auth_required'));
+      } else if (status === 402) {
+        window.dispatchEvent(
+          new CustomEvent('job_finder:insufficient_credits', {
+            detail: error.response?.data,
+          })
+        );
+      }
+    }
+
     return Promise.reject(error);
   }
 );

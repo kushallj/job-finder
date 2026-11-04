@@ -20,6 +20,8 @@ import { InterviewSidekickHUD } from './components/sidekick/InterviewSidekickHUD
 import { NextRaiseStudio } from './components/nextraise/NextRaiseStudio';
 import { WorkdayStudio } from './components/workday/WorkdayStudio';
 
+import { AuthProvider } from './context/AuthContext';
+
 // Create a client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,8 +38,9 @@ const App: React.FC = () => {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <BrowserRouter>
-          <Routes>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
             <Route path="/copilot-hud" element={<InterviewSidekickHUD />} />
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
@@ -57,6 +60,7 @@ const App: React.FC = () => {
             </Route>
           </Routes>
         </BrowserRouter>
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

@@ -18,6 +18,7 @@ import {
 } from '@mui/icons-material';
 import { useUIStore } from '../../stores/useUIStore';
 import { useNavigate } from 'react-router-dom';
+import { HeaderUserMenu } from './HeaderUserMenu';
 
 export const DRAWER_WIDTH = 260;
 
@@ -112,6 +113,8 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, title }) => {
           >
             ⚡ Alpha Jobs
           </Button>
+
+          <HeaderUserMenu />
 
           <IconButton
             size="small"

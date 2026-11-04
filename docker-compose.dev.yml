@@ -10,13 +10,13 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: ../docker/frontend/Dockerfile.dev
+      context: ./Jobify-frontend
+      dockerfile: Dockerfile
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     ports:
       - "5173:5173"
     volumes:
-      - ./frontend:/app
+      - ./Jobify-frontend:/app
       - /app/node_modules
 
   sidekick-brain:

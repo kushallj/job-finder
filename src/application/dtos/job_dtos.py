@@ -50,10 +50,19 @@ class JobResponseDTO:
     ghost_probability: float = 0.0
     ghost_risk_level: str = "low"
     ghost_verified_active: bool = True
+    matched_skills: List[str] = None
+    missing_skills: List[str] = None
+    reasons: List[str] = None
 
     def __post_init__(self) -> None:
         if self.tags is None:
             self.tags = []
+        if self.matched_skills is None:
+            self.matched_skills = []
+        if self.missing_skills is None:
+            self.missing_skills = []
+        if self.reasons is None:
+            self.reasons = []
 
 
 @dataclass

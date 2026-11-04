@@ -450,6 +450,9 @@ class JobData(BaseModel):
     experience_level: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
     provider_sources: List[str] = Field(default_factory=list)
+    matched_skills: List[str] = Field(default_factory=list, description="Candidate skills matching job requirements")
+    missing_skills: List[str] = Field(default_factory=list, description="Missing job skills for candidate")
+    reasons: List[str] = Field(default_factory=list, description="3 natural-language validation reasons")
 
 
 class PaginationData(BaseModel):
@@ -1689,14 +1692,330 @@ class MarketRadarResponseSchema(BaseModel):
     timestamp: str = Field(...)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Kanban Application Tracker with Countdown Timers & Email Provenance
+# ═══════════════════════════════════════════════════════════════════════════
+
+class KanbanNextActionRequest(BaseModel):
+    """Set or reschedule time-sensitive next action countdown deadline."""
+    next_action_type: str = Field(..., description="Action type: technical_interview, take_home, recruiter_screen, follow_up, offer_decision")
+    next_action_title: str = Field(..., description="Human-readable title e.g. Technical Interview, Take-home assessment")
+    next_action_due_at: datetime = Field(..., description="Target due date & time")
 
 
+class KanbanEmailProvenanceRequest(BaseModel):
+    """Attach recruiter email thread provenance directly to application card."""
+    recruiter_email: str = Field(..., description="Recruiter or hiring manager email e.g. recruiter@tessellate.io")
+    email_subject: str = Field(..., description="Email thread subject e.g. Re: Interview invitation — Senior Frontend Engineer")
+    recruiter_name: Optional[str] = Field(None, description="Recruiter full name")
+    recruiter_company: Optional[str] = Field(None, description="Recruiter company name")
+    email_thread_id: Optional[str] = Field(None, description="External email message/thread ID")
+    last_email_received_at: Optional[datetime] = Field(default_factory=datetime.utcnow, description="Timestamp of received email")
 
 
+class KanbanStageTransitionRequest(BaseModel):
+    """Update Kanban column stage and optional reorder index."""
+    stage: str = Field(..., description="Target stage: saved, applied, recruiter_screen, technical_interview, take_home, offer, rejected")
+    order: Optional[int] = Field(default=0, description="Column index order for drag-and-drop")
 
 
+class KanbanCardResponse(BaseModel):
+    """Card item in the Kanban Application Tracker with countdown & provenance badges."""
+    id: int = Field(..., description="Application ID")
+    job_id: int = Field(..., description="Associated Job ID")
+    job_title: str = Field(..., description="Job role title")
+    company: str = Field(..., description="Company name")
+    location: Optional[str] = Field(None, description="Role location")
+    work_mode: Optional[str] = Field(None, description="Remote / Hybrid / Onsite")
+    salary_min: Optional[float] = None
+    salary_max: Optional[float] = None
+    salary_currency: Optional[str] = None
+    match_score: Optional[float] = None
+    status: str = Field(..., description="Underlying application status")
+    kanban_stage: str = Field(..., description="Current column stage in Kanban")
+    kanban_order: int = Field(default=0, description="Column ordering sequence")
+    
+    # Countdown timer & Next Action Alert Badges
+    next_action_type: Optional[str] = None
+    next_action_title: Optional[str] = None
+    next_action_due_at: Optional[datetime] = None
+    days_remaining: Optional[float] = Field(None, description="Days remaining until due date (negative if overdue)")
+    countdown_label: Optional[str] = Field(None, description="Dynamic label e.g. 'Next: Technical Interview in 3 days'")
+    alert_severity: Optional[str] = Field(None, description="amber (1-3d), blue (4-7d), red (overdue/follow-up), neutral")
+    
+    # Email Provenance Badge
+    recruiter_name: Optional[str] = None
+    recruiter_email: Optional[str] = None
+    recruiter_company: Optional[str] = None
+    email_subject: Optional[str] = None
+    email_thread_id: Optional[str] = None
+    last_email_received_at: Optional[datetime] = None
+    provenance_badge: Optional[str] = Field(None, description="Exact badge text e.g. '\"Re: Interview invitation...\" from recruiter@tessellate.io'")
+    
+    applied_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
 
 
+class KanbanBoardResponse(BaseModel):
+    """Envelope containing all Kanban columns with summary counters."""
+    status: str = Field(default="success")
+    total_applications: int
+    active_countdown_alerts: int
+    amber_count: int = Field(..., description="Cards with amber alert (Next action in 1-3 days)")
+    blue_count: int = Field(..., description="Cards with blue alert (Next action in 4-7 days)")
+    red_count: int = Field(..., description="Cards with red alert (Overdue / follow-up required)")
+    columns: Dict[str, List[KanbanCardResponse]] = Field(default_factory=dict)
+    column_metadata: List[Dict[str, Any]] = Field(default_factory=list)
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Mailbox & Inbound Recruiter Email Sync Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class MailboxConnectRequest(BaseModel):
+    """Payload to connect a user's Gmail / Outlook / Custom IMAP account."""
+    provider: str = Field(default="gmail", description="Mailbox provider: gmail, outlook, custom")
+    email_address: str = Field(..., description="User's mailbox email address")
+    password: Optional[str] = Field(None, description="App password / auth token")
+    imap_host: Optional[str] = Field(None, description="IMAP server host (defaults to provider host)")
+    imap_port: Optional[int] = Field(993, description="IMAP server port")
+    use_ssl: bool = Field(True, description="Whether to use SSL")
+    auto_advance_pipeline: bool = Field(True, description="Whether to automatically advance Kanban cards")
+
+
+class MailboxAccountResponse(BaseModel):
+    """Connection details and sync statistics for a connected mailbox."""
+    id: int
+    provider: str
+    email_address: str
+    imap_host: str
+    imap_port: int
+    use_ssl: bool
+    is_connected: bool
+    auto_advance_pipeline: bool
+    last_sync_at: Optional[datetime] = None
+    total_messages_scanned: int = 0
+    total_advancements: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class InboundSimulationRequest(BaseModel):
+    """Simulate an inbound recruiter email for testing pipeline auto-advancement."""
+    sender_email: str = Field(..., description="Recruiter sender email, e.g. recruiter@tessellate.io")
+    sender_name: Optional[str] = Field(None, description="Recruiter name, e.g. Sarah Connor")
+    subject: str = Field(..., description="Email subject, e.g. Re: Interview invitation — Senior Frontend Engineer")
+    body_text: str = Field(..., description="Email body content with context or scheduling instructions")
+    company: Optional[str] = Field(None, description="Optional company name hint to match application")
+    application_id: Optional[int] = Field(None, description="Optional target application ID directly")
+
+
+class InboundAdvancementResult(BaseModel):
+    """Outcome of processing an inbound recruiter email."""
+    matched: bool
+    application_id: Optional[int] = None
+    company: Optional[str] = None
+    job_title: Optional[str] = None
+    classified_intent: str
+    confidence_score: float
+    previous_stage: Optional[str] = None
+    new_stage: Optional[str] = None
+    provenance_badge: Optional[str] = None
+    alert_severity: Optional[str] = None
+    countdown_label: Optional[str] = None
+    next_action_due_at: Optional[datetime] = None
+    message: str
+
+
+class MailboxSyncResponse(BaseModel):
+    """Summary of mailbox sync run with all auto-advancements recorded."""
+    status: str = "success"
+    mailbox_id: int
+    email_address: str
+    messages_scanned: int
+    advancements_count: int
+    advancements: List[InboundAdvancementResult] = Field(default_factory=list)
+
+
+class InboundMessageResponse(BaseModel):
+    """Audit record of a received & processed recruiter message."""
+    id: int
+    mailbox_id: Optional[int] = None
+    application_id: Optional[int] = None
+    job_id: Optional[int] = None
+    sender_email: str
+    sender_name: Optional[str] = None
+    subject: str
+    snippet: Optional[str] = None
+    classified_intent: str
+    confidence_score: float
+    previous_kanban_stage: Optional[str] = None
+    new_kanban_stage: Optional[str] = None
+    auto_advanced: bool
+    received_at: datetime
+    created_at: datetime
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Public Hosted Candidate Portfolio & Recruiter RAG Chatbot Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CandidateExperienceDTO(BaseModel):
+    """Experience item for portfolio timeline."""
+    id: int
+    company: str
+    title: str
+    location: str = "Remote"
+    employment_type: str = "Full-time"
+    start_date: str
+    end_date: str = "Present"
+    is_current: bool = False
+    description: Optional[str] = None
+    technologies: List[str] = Field(default_factory=list)
+    achievements: List[str] = Field(default_factory=list)
+    display_order: int = 0
+
+
+class CandidateProjectDTO(BaseModel):
+    """Verified project showcase item."""
+    id: int
+    title: str
+    tagline: Optional[str] = None
+    description: Optional[str] = None
+    github_repo_url: Optional[str] = None
+    demo_url: Optional[str] = None
+    tech_stack: List[str] = Field(default_factory=list)
+    stars_count: int = 0
+    is_verified: bool = True
+    display_order: int = 0
+
+
+class GitHubActivityHeatmapDay(BaseModel):
+    """Single calendar day contribution point for kibo-ui heatmap."""
+    date: str = Field(..., description="Date formatted as YYYY-MM-DD")
+    count: int = Field(..., description="Number of commits/contributions")
+    level: int = Field(..., description="Heatmap color intensity level 0 (none) to 4 (maximum)")
+
+
+class GitHubActivityResponse(BaseModel):
+    """Full GitHub contribution metrics and calendar matrix for kibo-ui."""
+    username: str
+    total_contributions: int
+    streak_days: int
+    longest_streak: int
+    total_repositories: int
+    total_stars: int
+    top_languages: List[Dict[str, Any]] = Field(default_factory=list)
+    days: List[GitHubActivityHeatmapDay] = Field(default_factory=list)
+
+
+class CandidateProfileOverviewDTO(BaseModel):
+    """Public profile header and summary info."""
+    username: str
+    full_name: str
+    headline: Optional[str] = None
+    email: Optional[str] = None
+    location: str = "Remote"
+    years_of_experience: float
+    bio_summary: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    github_url: Optional[str] = None
+    github_username: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    avatar_url: Optional[str] = None
+    skills: List[str] = Field(default_factory=list)
+    is_public: bool = True
+
+
+class PublicPortfolioResponse(BaseModel):
+    """Complete public portfolio payload for /portfolio/:username."""
+    status: str = "success"
+    profile: CandidateProfileOverviewDTO
+    experiences: List[CandidateExperienceDTO] = Field(default_factory=list)
+    projects: List[CandidateProjectDTO] = Field(default_factory=list)
+    github_activity: Optional[GitHubActivityResponse] = None
+    portfolio_url: str
+    indexed_chunks_count: int = 0
+
+
+class PortfolioCitationDTO(BaseModel):
+    """Grounded source citation for recruiter chatbot RAG responses."""
+    source_type: str  # resume, github_readme, project, experience
+    source_title: str
+    source_url: Optional[str] = None
+    similarity_score: float
+    excerpt: str
+
+
+class PortfolioChatRequest(BaseModel):
+    """Recruiter inquiry to candidate's interactive RAG chatbot."""
+    message: str = Field(..., description="Recruiter question about candidate experience or projects")
+    session_id: Optional[str] = Field(None, description="Conversational session ID")
+    stream: bool = Field(False, description="Whether to stream response tokens via Server-Sent Events (SSE)")
+
+
+class PortfolioChatResponse(BaseModel):
+    """AI RAG response with verified citations from candidate resume & GitHub READMEs."""
+    session_id: str
+    question: str
+    answer: str
+    citations: List[PortfolioCitationDTO] = Field(default_factory=list)
+    confidence_score: float = 0.95
+    created_at: datetime
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Telegram Push Notification Connector Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TelegramPairingResponse(BaseModel):
+    """Pairing deep link and current status for candidate Telegram bot connector."""
+    status: str = "success"
+    is_connected: bool
+    bot_username: str
+    pairing_code: Optional[str] = None
+    pairing_url: Optional[str] = None
+    instructions: str
+    paired_chat_id: Optional[str] = None
+    telegram_username: Optional[str] = None
+    paired_at: Optional[datetime] = None
+    min_match_score: float = 90.0
+    alerts_sent_count: int = 0
+    actions_taken_count: int = 0
+
+
+class TelegramManualPairRequest(BaseModel):
+    """Payload to manually verify or connect a Telegram chat ID."""
+    pairing_code: Optional[str] = Field(None, description="One-time pairing code generated by backend")
+    chat_id: Optional[str] = Field(None, description="Telegram chat ID")
+    telegram_username: Optional[str] = Field(None, description="Telegram handle without @")
+    first_name: Optional[str] = Field(None, description="Candidate first name")
+
+
+class TelegramPreferencesRequest(BaseModel):
+    """Update push alert triggers and matching thresholds."""
+    min_match_score: float = Field(90.0, ge=50.0, le=100.0, description="Minimum match percentage to push alert (default: 90%)")
+    notify_high_match_jobs: bool = Field(True, description="Push real-time alert when high-match job is found")
+    notify_interview_requests: bool = Field(True, description="Push alert when inbound interview request arrives")
+
+
+class TelegramAlertDispatchDTO(BaseModel):
+    """Dispatched push alert metadata and inline action buttons."""
+    status: str
+    alert_id: int
+    alert_type: str
+    recipient_chat_id: str
+    title: str
+    message: str
+    action_buttons: List[str] = Field(default_factory=list)
+    sent_at: datetime
+
+
+class TelegramTestAlertRequest(BaseModel):
+    """Simulate a high-match job or interview invitation alert to verify Telegram push."""
+    alert_type: str = Field(default="high_match_job", description="'high_match_job' or 'interview_request'")
+    job_id: Optional[int] = Field(None, description="Optional job ID to preview")
+    match_score: float = Field(default=94.0, ge=50.0, le=100.0, description="Match score percentage")
 
 

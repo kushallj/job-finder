@@ -556,6 +556,41 @@ class UnifiedAIService:
             fallback_letter,
         )
 
+    async def metered_rewrite_resume(
+        self,
+        original_resume: str,
+        job_description: str,
+        db: Optional[Any] = None,
+        user_id: Optional[int] = None,
+        cost_credits: int = 1,
+    ) -> str:
+        """
+        Rewrite resume tailored to job description with SaaS credit metering.
+        Deducts credits before generation and enforces 402 if exhausted.
+        """
+        if db is not None and user_id is not None:
+            from src.services.credit_service import deduct_credits
+            deduct_credits(db=db, user_id=user_id, amount=cost_credits, action="resume_tailor")
+        return await self.rewrite_resume(original_resume, job_description)
+
+    async def metered_generate_cover_letter(
+        self,
+        resume: str,
+        job_description: str,
+        company: str,
+        db: Optional[Any] = None,
+        user_id: Optional[int] = None,
+        cost_credits: int = 1,
+    ) -> str:
+        """
+        Generate cover letter with SaaS credit metering.
+        Deducts credits before generation and enforces 402 if exhausted.
+        """
+        if db is not None and user_id is not None:
+            from src.services.credit_service import deduct_credits
+            deduct_credits(db=db, user_id=user_id, amount=cost_credits, action="cover_letter")
+        return await self.generate_cover_letter(resume, job_description, company)
+
     async def generate_text(self, prompt: str, max_tokens: int = 512) -> str:
         """
         Generic text generation using cascade chain.

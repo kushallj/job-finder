@@ -1,106 +1,71 @@
-# Job Outreach Automation System
+# Job Finder
 
-An intelligent job search and outreach automation system that finds relevant job opportunities and conducts personalized cold email campaigns to HR managers and engineering leaders.
+Job Finder is a job-search and career workflow platform. It combines a FastAPI
+backend, a React dashboard, background workers, and integrations for job
+discovery, candidate matching, outreach, application tracking, and venture
+capital portfolio research.
 
-## 🎯 What This System Does
+## Features
 
-1. **Finds Relevant Jobs**: Searches multiple job boards and APIs for positions matching your skills
-2. **Analyzes Job Fit**: Uses AI to match your resume against job requirements and score compatibility  
-3. **Discovers Key Contacts**: Finds HR managers and engineering leaders at target companies
-4. **Sends Personalized Outreach**: Creates and sends tailored cold emails to boost your job prospects
-5. **Tracks Everything**: Maintains records of all outreach attempts and responses
+- Search and evaluate job opportunities against candidate profiles.
+- Discover target companies, contacts, and hiring signals.
+- Track applications in a tenant-isolated Kanban board.
+- Manage authentication, billing, and user credits.
+- Browse startup and VC portfolio research, including founder data.
+- Run background tasks with Celery and Redis.
+- Use the target-company agent pipeline for research, fit scoring, interview
+  preparation, and outreach drafts. The pipeline does not send outreach
+  automatically.
 
-## 🚀 Quick Start
+## Run locally
 
-### Setup
+### API
+
+Use Python 3.11 or newer. From the repository root:
+
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Initialize database
-python outreach_cli.py setup
-
-# Configure email (see OUTREACH_SETUP.md for details)
-# Add your Gmail app password to .env file
+python -m venv .venv
+# Activate the virtual environment, then:
+python -m pip install -r requirements.txt
+python -m uvicorn main:app --reload
 ```
 
-### Run Your First Campaign
-```bash
-# Fetch jobs and run outreach (dry run first)
-python outreach_cli.py fetch
-python outreach_cli.py outreach --dry-run
+The API is available at `http://localhost:8000`; interactive API
+documentation is at `http://localhost:8000/docs`. Configure optional
+integrations and production settings with environment variables or a local
+`.env` file. Never commit credentials.
 
-# If everything looks good, run for real
-python outreach_cli.py outreach
+### Full stack with Docker Compose
+
+```bash
+docker compose up --build
 ```
 
-## 📋 Available Scripts
+The Compose stack includes the API, frontend, PostgreSQL, Redis, Celery
+workers/scheduler, and supporting services. See
+[`docker-compose.yml`](./docker-compose.yml) and
+[`DEPLOYMENT_GUIDE.md`](./DEPLOYMENT_GUIDE.md) for deployment details.
 
-- `outreach_main.py` - Complete automated workflow
-- `outreach_cli.py` - Command-line interface for granular control
-- `main.py` - Original job analysis pipeline
+## Target-company agents
 
-## 📊 Key Features
-
-- **Multi-source job fetching** (Adzuna, Remotive, more)
-- **AI-powered resume matching** using Google Gemini
-- **Contact discovery** from company websites and patterns
-- **Personalized email generation** for different contact types
-- **Outreach tracking** and duplicate prevention
-- **Google Sheets integration** for campaign monitoring
-
-## 🎯 Target-Company Agent Strategies (`src/agents/`)
-
-Fifteen purpose-built agents that run against a researched, ranked list of
-target companies (`config/target_companies.yml`) instead of the generic
-job-board firehose — for fit-scoring, signal-aware timing, X-ray/boolean
-lead sourcing, evidenced-challenge networking, mock interviews, comp
-negotiation, and personalized outreach specifically tuned to *this*
-candidate's positioning (`config/profile.yml`). Exposed to the React
-dashboard over HTTP via `/api/agents/*` (`src/api/routers/agents_router.py`).
+The agent pipeline can run focused research and preparation stages from the
+repository root:
 
 ```bash
-# Run the full daily pipeline: signal check -> live ATS job discovery ->
-# fit scoring -> priority queue -> tailored resume framing -> contact
-# ranking -> signal-seeded outreach drafts. Nothing is auto-sent.
 python -m src.agents.orchestrator --stage daily
-
-# X-ray/boolean sourcing across ATS platforms, YC/Wellfound, funding press,
-# Medium/Substack, GitHub, YouTube, and search-indexed X/LinkedIn posts —
-# 30 queries in config/boolean_queries.yml. Runs through the Google Custom
-# Search API or Serper.dev (never raw scraping); without a key, it prints
-# the queries for manual use instead of failing.
 python -m src.agents.orchestrator --stage leads
-
-# Find a real, evidenced challenge at a company (from the JD or funding
-# signal — never invented) and draft LinkedIn/X content from it. You
-# copy-paste and post it yourself; nothing here logs into any platform.
-python -m src.agents.orchestrator --stage networker --company "Perfios" --jd "<paste JD>"
-
-# Build a WIN (problem/solution/narrative) one-pager from the same
-# evidenced-challenge logic
-python -m src.agents.orchestrator --stage pitch --company "Perfios" --jd "<paste JD>"
-
-# Mock interview: tailored questions + deterministic STAR-format scoring
-python -m src.agents.orchestrator --stage interview-questions --company "Perfios"
-
-# Comp benchmarking + a counter-offer script, using only real numbers
-python -m src.agents.orchestrator --stage negotiate-counter --company "Perfios" --offer 14.0
-
-# Once a target company replies and you land an interview
-python -m src.agents.orchestrator --stage interview-prep --company "Perfios"
-
-# Weekly: recalibrate which company tiers are actually converting
-python -m src.agents.orchestrator --stage weekly-learning
+python -m src.agents.orchestrator --stage interview-prep --company "Company"
 ```
 
-See `docs/AGENT_STRATEGIES.md` for the strategy behind each of the 15 agents,
-and `CLAUDE.md` for the `/nexus agents` slash-command routing.
+See [`docs/AGENT_STRATEGIES.md`](./docs/AGENT_STRATEGIES.md) for the agent
+strategies and [`CLAUDE.md`](./CLAUDE.md) for the available `/nexus` commands.
+Review generated drafts before taking action; the agents do not auto-send
+messages or apply to jobs.
 
-## 📖 Documentation
+## Tests
 
-See `OUTREACH_SETUP.md` for detailed setup instructions and best practices.
+Install the Python dependencies, then run the test suite with:
 
-## 🎯 Success Strategy
-
-This system helps you move beyond just applying through job boards to building direct relationships with hiring managers and technical leaders. The key is quality over quantity - focus on companies and roles that genuinely interest you, and let the AI help you craft compelling, personalized outreach.
+```bash
+python -m pytest
+```
