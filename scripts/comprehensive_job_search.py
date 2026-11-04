@@ -67,16 +67,29 @@ async def main(use_async: bool = False):
         print("-" * 50)
         
         # Search using enhanced API scraper (includes multi-platform)
-        enhanced_queries = [
-            "Python Developer",
-            "Backend Developer", 
-            "Full Stack Developer",
-            "Software Engineer",
-            "Django Developer",
-            "FastAPI Developer",
-            "GenAI Engineer",
-            "Machine Learning Engineer"
-        ]
+        # Search queries dynamically loaded from profile.yml
+        import yaml
+        enhanced_queries = []
+        try:
+            profile_file = "config/profile.yml"
+            if os.path.exists(profile_file):
+                with open(profile_file, "r", encoding="utf-8") as pf:
+                    pdata = yaml.safe_load(pf) or {}
+                    roles = pdata.get("target_roles", {})
+                    enhanced_queries = roles.get("primary", []) + roles.get("secondary", [])
+        except Exception as e:
+            print(f"Warning: Could not read target_roles from profile.yml: {e}")
+
+        if not enhanced_queries:
+            enhanced_queries = [
+                "Data Analyst",
+                "Financial Analyst",
+                "BI Analyst",
+                "Data Scientist",
+                "Analytics Engineer",
+                "Risk Analyst",
+                "Fraud Analyst"
+            ]
         
         total_new_jobs = 0
         for query in enhanced_queries:
