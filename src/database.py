@@ -157,7 +157,7 @@ def init_db():
                 session.add(tx)
                 session.commit()
     except Exception as exc:
-        print(f"⚠️ Notice on default user seed: {exc}")
+        print(f"[WARN] Notice on default user seed: {exc}")
 
     # Seed premier VC firms for VC Intelligence Engine
     try:
@@ -207,9 +207,9 @@ def init_db():
                     session.add(vc)
             session.commit()
     except Exception as exc:
-        print(f"⚠️ Notice on VC firms seed: {exc}")
+        print(f"[WARN] Notice on VC firms seed: {exc}")
 
-    print("✅ Database tables created")
+    print("[OK] Database tables created")
 
 def get_db():
     """Get database session"""
