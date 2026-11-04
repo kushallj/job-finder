@@ -10,7 +10,10 @@
     "sidekick": "cd sidekick-desktop && npm start",
     "sidekick:install": "cd sidekick-desktop && npm install",
     "sidekick:build": "cd sidekick-desktop && npm run build",
-    "sidekick:dist": "cd sidekick-desktop && npm run dist"
+    "sidekick:dist": "cd sidekick-desktop && npm run dist",
+    "lint:python": "python -m compileall src main.py",
+    "test:python": "python -m pytest",
+    "docs:check": "python -m compileall src main.py"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0"

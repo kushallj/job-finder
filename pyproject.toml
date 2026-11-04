@@ -1,0 +1,19 @@
+[project]
+name = "job-finder"
+version = "2.1.0"
+description = "Job-finder monorepo for job discovery, outreach, matching, and research automation."
+readme = "README.md"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "--tb=short -v"
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

@@ -1,0 +1,49 @@
+Kushall Jain
+Software Development Engineer · Full Stack Web Development · RESTful APIs · Cloud Architecture
+kushall.jain07@gmail.com | linkedin.com/in/kushall-jain-263009261 | github.com/kushallj | kushall.in | 9990079764
+PROFESSIONAL SUMMARY
+Software Development Engineer with 3+ years designing, developing, and deploying enterprise-grade web applications and RESTful APIs. Proven
+expertise in full-stack development with React (TypeScript), Python (Django/FastAPI), Node.js, and PostgreSQL. Delivered mission-critical systems
+processing 150+ Cr monthly transactions with 99.5% uptime serving 1000+ SMEs and 10,000+ DAU. Strong foundation in SOLID/OOP
+principles, microservices architecture, and agile methodologies. Currently expanding into C# and .NET.
+TECHNICAL SKILLS
+Languages & Frameworks: Python (FastAPI, Django REST), Node.js (Express), JavaScript/TypeScript (ES6+), React.js, Redux Toolkit, HTML5,
+CSS3 · Learning: C#, .NET Core
+Architecture & Design: RESTful API Design, Microservices, MVC, SOLID Principles, OOP, Design Patterns (Factory, Singleton, Strategy), Async
+Programming
+Databases: PostgreSQL (Advanced), MySQL, MongoDB, Django ORM, SQL Optimization, Query Performance Tuning
+Cloud & DevOps: AWS (S3, ECS, IAM), Docker, Git/GitHub, CI/CD (GitHub Actions), Postman, Agile/Scrum
+PROFESSIONAL EXPERIENCE
+Full Stack Software Developer
+Progfin Pvt Ltd (FinTech) · Dec 2023 – Present · Delhi, India
+(cid:127) Architected mission-critical financial platform serving 1000+ SMEs and 10,000+ DAU, processing 150+ Cr monthly transactions at 99.5%
+uptime — stack: React 18/TypeScript, Django/FastAPI, PostgreSQL, AWS
+(cid:127) Built 10+ RESTful microservices with Pydantic validation, JWT auth, role-based authorization, and Swagger/OpenAPI docs; async task processing
+via Celery
+(cid:127) Designed normalized PostgreSQL schemas with strategic indexing; optimized ORM queries (select_related, prefetch_related) achieving 70%
+query performance improvement
+(cid:127) Reduced SQL response time 800ms fi 200ms (75%) via systematic profiling of complex joins, subqueries, and aggregations
+(cid:127) Delivered credit scoring rule engine and automated lending workflows, achieving 85% process automation across real-time financial data
+pipelines
+(cid:127) Mentored 2 junior developers; led code reviews enforcing SOLID principles and architectural guidance across sprint cycles
+Subject Matter Expert — EdTech Platform
+ByteDance Pvt Ltd · Apr 2020 – Nov 2021 · India
+(cid:127) Built Django REST Framework APIs for content management system serving grades 9–12 platform with 2M+ video views; contributed to 30%
+enrollment growth
+(cid:127) Implemented business logic for learning analytics and recommendation engine, driving 25% increase in user engagement
+(cid:127) Analyzed 2M+ user interactions (Python/Pandas/NumPy) to derive product insights; built ETL data pipelines for quality reporting
+(cid:127) Automated content validation, data extraction, and bulk operations via Python scripts — reduced manual work by 60%; cut support tickets 40% via
+proactive error handling
+KEY PROJECTS
+Enterprise Financial Platform · Django REST, FastAPI, React/TypeScript, PostgreSQL, AWS
+Production system processing 150+ Cr monthly across 25+ institutions. Credit scoring microservices, automated lending workflows, real-time
+dashboards — 85% process automation.
+DevFrnds — Developer Networking Platform · React/TypeScript, Node.js, MongoDB · 2023 · devfrnds.online
+Full-stack developer matching platform (500+ users). Swipe-based matching, real-time WebSocket chat, JWT auth, RESTful APIs for
+user/connection/messaging management.
+EDUCATION
+B.Tech in Civil Engineering · G L Bajaj Institute of Technology & Management · 2014 – 2018
+Relevant: Data Structures & Algorithms, OOP, DBMS, Software Engineering, Web Technologies, Computer Networks
+CERTIFICATIONS & ADDITIONAL
+Frontend: React – The Complete Guide (TypeScript), Advanced React Patterns, Redux Toolkit · Database: PostgreSQL Performance Tuning,
+Advanced SQL, Database Design · Learning: C# Fundamentals, .NET Core, ASP.NET Core · LeetCode: 300+ problems solved
