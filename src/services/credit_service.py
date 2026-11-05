@@ -24,6 +24,9 @@ CREDIT_COSTS = {
     "nextraise_apply": 1,
     "ats_deep_analysis": 1,
     "interview_prep_sprint": 3,
+    # Jobify (jobify/src/app/pages/ChatPage.jsx CREDIT_COST, mocks/founders.js UNLOCK_COST)
+    "chat_message": 5,
+    "founder_unlock": 5,
 }
 
 

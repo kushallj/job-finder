@@ -808,9 +808,16 @@ async def lifespan(app: FastAPI):
 # App + middleware
 # =============================================================================
 
-from src.auth.dependencies import get_current_user
+from src.auth.dependencies import get_current_user, enforce_auth_unless_public
 
-app = FastAPI(title="Job Search API", version="2.1.0", lifespan=lifespan)
+# Secure by default: every route requires a valid token unless its path is in
+# src/auth/dependencies.py:is_public_path. Add public routes there, not per-route.
+app = FastAPI(
+    title="Job Search API",
+    version="2.1.0",
+    lifespan=lifespan,
+    dependencies=[Depends(enforce_auth_unless_public)],
+)
 
 # Register comprehensive error handlers
 # Requirements: 23.2 (Comprehensive error responses with proper HTTP status codes)

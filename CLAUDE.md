@@ -156,18 +156,18 @@ Goal: ship **Jobify** (`jobify/`, copied from `devnoid1/Jobify` @ `89b2570` on 2
 
 | Area | State | Gap |
 |---|---|---|
-| Clerk auth | ✅ `get_current_user` verifies RS256 via JWKS (`CLERK_ISSUER` / `CLERK_JWKS_URL`), auto-provisions `User` with signup credits; HS256 legacy path kept. ✅ Svix-verified webhook `POST /api/auth/webhook/clerk` (user.created/updated/deleted) | No `azp` / authorized-parties check. `CLERK_*` missing from `.env.example`. Webhook skips verification when `CLERK_WEBHOOK_SECRET` is unset outside production |
-| Route protection | Router-level `protected_deps` on agents, sidekick, nextraise, workday, vc, crawler; kanban per-route (6/6) | **`main.py`: ~155 of 170 routes have no auth.** `mailbox` (0/5), `portfolio` (0/4, partly public by design), `telegram_connector` (0/7) have none. `enforce_auth_unless_public` + `is_public_path` exist but are **not wired** as a global dependency |
+| Clerk auth | ✅ `get_current_user` verifies RS256 via JWKS (`CLERK_ISSUER` / `CLERK_JWKS_URL`), auto-provisions `User` with signup credits; **fails closed when JWKS isn't configured**; `azp` checked against `CLERK_AUTHORIZED_PARTIES`; `dev_token_admin` needs `ALLOW_DEV_AUTH_TOKENS=true`. ✅ Svix-verified webhook `POST /api/auth/webhook/clerk` | Webhook skips verification when `CLERK_WEBHOOK_SECRET` is unset outside production. Test helper: `clerk_auth` fixture in `tests/conftest.py` |
+| Route protection | ✅ `enforce_auth_unless_public` is an **app-level dependency**: every route needs a token unless `is_public_path()` allows it | New public routes (e.g. Gmail OAuth callback) must be added to `is_public_path`. Admin-only actions still need `require_admin` |
 | Dev auth fallback | `multi_tenant_enabled=True` by default. Only with `MULTI_TENANT_ENABLED=false` and `ENV≠production` do anonymous requests act as the first/admin user | Never deploy with `MULTI_TENANT_ENABLED=false` |
 | Credits top-up | ✅ `/api/auth/credits/topup` now `require_admin` | It credits the **caller** (`user.id`), not a target user. Fix it before admins rely on it |
 | CORS | Explicit list in production; outside production `allow_origin_regex=https?://.*` with credentials | Use an explicit allow-list in every deployed env |
-| Tenant isolation | `user_id` only on Application, CandidateProfile, CreditTransaction, MailboxAccount, OutreachFunnelEvent, Resume, TargetCompanyRecord, TelegramConnector, XOAuthToken | Job (per-user saved/applied), Contact, OutreachRecord and others need `user_id` + always-filtered queries + A-vs-B isolation tests |
-| Migrations | Only the initial Alembic revision | Autogenerate against clean Postgres; stop `migrate_database.py \|\| true` swallowing failures |
+| Tenant isolation | `user_id` column on Application, Contact, CreditTransaction, MailboxAccount, OutreachRecord, Resume, TelegramConnector (checked via `__table__.c`). `scoped()` in `src/api/contract.py` raises on models without it | No `user_id`: CandidateProfile/Experience/Project, InboundRecruiterMessage, XOAuthToken, OutreachFunnelEvent, TargetCompanyRecord, PortfolioChatLog. Add it before exposing these per-user. Job/VC tables are shared catalogs: per-user state goes in join tables |
+| Migrations | ✅ `b4686927ddeb` regenerated as a full baseline (26 tables, `alembic check` clean); compose runs `alembic upgrade head` | Existing create_all DBs: run `alembic stamp head` once. One new revision per phase |
 | Mailbox / Gmail | **Simulated**: hard-coded `candidate@gmail.com`, `/simulate-inbound` | Real Google OAuth (`gmail.readonly`, encrypted refresh token, Celery sync); remove simulate in production |
 | Chat | None: there is no conversations/messages endpoint | Tables + SSE streaming; side effects need a second confirm call |
 | Portfolio | Read-only public GET + chat | Draft PUT, publish/unpublish, username availability (3–24 `[a-z0-9-]`, reserved words) |
 | Billing | Stripe only; backend plans free/$29/$59/$99 vs Jobify $5/$8 | One plan catalog served by `GET /api/billing/plans`; idempotent webhooks; webhook-only entitlement |
-| Response shape | FastAPI default `{detail}`; jobs shape differs from the UI | Standard `{items,total,page,pageSize}` and `{error:{code,message}}` envelopes, or mappers |
+| Response shape | ✅ All errors → `{error:{code,message,…}, detail}` (402 → `CREDITS_REQUIRED`); `paginate()` → `{items,total,page,pageSize}`; `scoped()` tenant filter (all in `src/api/contract.py`) | Per-feature mappers to the Jobify field names |
 | Legal/risk surface | Anti-bot scraping (stealth/camoufox/nodriver), email permutation, Common Crawl email mining, Workday/NextRaise auto-apply, founder email harvesting, `sidekick-desktop` "screen-share invisible" interview HUD | Keep out of the SaaS image/product until reviewed (ToS, GDPR/DPDP, anti-spam) |
 
 ### 8. Screen → endpoint map
@@ -189,7 +189,7 @@ Goal: ship **Jobify** (`jobify/`, copied from `devnoid1/Jobify` @ `89b2570` on 2
 
 **Decisions:** existing `/api/*` routes are **replaced** in place (`VITE_API_BASE_URL=https://<host>/api`) · `frontend/` and `extension/` are **retired**, so their routes can be reshaped or deleted freely · payments via **Dodo** (merchant of record, which handles GST/tax) at **Jobify `plans.js` prices** (Basic $5/500 credits, Pro $8/1,500) · Jobs/Founders data = **everything currently in the DB** (legal review is the user's accepted risk, so flag it, don't block) · **real Gmail OAuth in the MVP** · Chat LLM provider **deferred**.
 
-**Cross-cutting (do first, applies to every phase):**
+**Cross-cutting: ✅ done 2026-11-05** (global auth, fail-closed Clerk + `azp`, contract envelope/`paginate`/`scoped`, credit costs, Alembic baseline, `clerk_auth` test fixture, `.env.example`). Tests: legacy endpoint tests run single-tenant via an autouse fixture in `tests/conftest.py`; Jobify-phase tests must use `clerk_auth`. 22 tests were failing before this work and still fail (not caused by it). Original checklist for reference:
 - Global auth: wire `enforce_auth_unless_public` as an app-level dependency and keep `is_public_path` as the allow-list. Add an `azp` check. Add `CLERK_*`, `DODO_*`, `GOOGLE_OAUTH_*`, `TOKEN_ENCRYPTION_KEY` to `.env.example`.
 - Contract helpers in `src/api/contract.py`: `paginate()` → `{items,total,page,pageSize}`, plus an exception handler mapping every `HTTPException`/validation error to `{error:{code,message}}` (402 → `CREDITS_REQUIRED`).
 - Tenant helper `scoped(query, Model, user)`. Every new route uses it, and pytest asserts user A can't read or write user B's rows.

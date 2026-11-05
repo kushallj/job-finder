@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import model_validator
-from typing import Optional
+from typing import List, Optional
 
 class Settings(BaseSettings):
     # Pydantic v2 settings configuration
@@ -133,6 +133,14 @@ class Settings(BaseSettings):
     clerk_jwks_url: Optional[str] = None
     clerk_webhook_secret: Optional[str] = None
     clerk_secret_key: Optional[str] = None
+    # Comma-separated frontend origins allowed in the token's azp claim, e.g.
+    # "https://app.jobify.com,http://localhost:3000". Empty = azp not checked.
+    clerk_authorized_parties: str = ""
+    allow_dev_auth_tokens: bool = False  # enables dev_token_admin when ENV=development
+
+    @property
+    def clerk_authorized_parties_list(self) -> List[str]:
+        return [p.strip().rstrip("/") for p in self.clerk_authorized_parties.split(",") if p.strip()]
 
     # Stripe Billing & Subscriptions
     stripe_secret_key: Optional[str] = None

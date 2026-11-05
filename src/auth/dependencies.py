@@ -141,8 +141,14 @@ def get_current_user(
 
     token = credentials.credentials.strip()
 
-    # Developer convenience bypass for local automated testing
-    if settings.env.lower() == "development" and token in ("dev_token_admin", "test_admin_token"):
+    # Developer convenience bypass for local automated testing. Opt-in only: ENV defaults to
+    # "development", so gating on ENV alone would expose a superuser token on any deploy
+    # that forgot to set ENV.
+    if (
+        settings.allow_dev_auth_tokens
+        and settings.env.lower() == "development"
+        and token in ("dev_token_admin", "test_admin_token")
+    ):
         admin_user = db.query(User).filter(User.is_superuser == True).first()
         if admin_user:
             return admin_user
@@ -180,22 +186,25 @@ def get_current_user(
                     headers={"WWW-Authenticate": "Bearer"},
                 ) from exc
         else:
-            # Offline / unconfigured fallback: Validate expiration and time-based claims
-            now_ts = int(time.time())
-            exp = payload.get("exp")
-            if exp is not None and now_ts > exp:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Clerk token has expired",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-            nbf = payload.get("nbf")
-            if nbf is not None and now_ts < nbf:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Clerk token not valid yet",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
+            # Fail closed: without JWKS the signature can't be checked, and accepting an
+            # unverified token would let anyone mint one for any Clerk user id.
+            log.error("Clerk token received but CLERK_ISSUER / CLERK_JWKS_URL is not configured")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Clerk token verification is not configured on this server",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # azp = origin the token was minted for; blocks tokens issued to other apps
+        # on the same Clerk instance.
+        allowed_parties = settings.clerk_authorized_parties_list
+        azp = payload.get("azp")
+        if allowed_parties and azp and azp not in allowed_parties:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token not issued for this app",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
         clerk_user_id = str(payload.get("sub", "")).strip()
         if not clerk_user_id:

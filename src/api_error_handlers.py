@@ -16,12 +16,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from src.api_models import (
-    ErrorResponse,
-    ErrorDetail,
-    TimeoutErrorResponse,
-    RateLimitErrorResponse,
-)
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from src.api.contract import error_response, http_exception_handler
+from src.api_models import ErrorDetail
 
 log = logging.getLogger("api_error_handlers")
 
@@ -146,16 +144,12 @@ def build_error_response(
     
     Requirements: 23.2 (Comprehensive error responses with proper HTTP status codes)
     """
-    error_response = ErrorResponse(
-        error=error_type,
-        message=message,
+    return error_response(
+        status_code,
+        message,
+        code=error_type,
         trace_id=trace_id,
-        details=details,
-    )
-    
-    return JSONResponse(
-        status_code=status_code,
-        content=error_response.model_dump(mode="json", exclude_none=True),
+        details=[d.model_dump(mode="json") if hasattr(d, "model_dump") else d for d in details] if details else None,
     )
 
 
@@ -181,16 +175,12 @@ def build_validation_error_response(
             )
         )
     
-    error_response = ErrorResponse(
-        error="ValidationError",
-        message="Request validation failed. Please check the request parameters.",
+    return error_response(
+        status.HTTP_422_UNPROCESSABLE_ENTITY,
+        "Request validation failed. Please check the request parameters.",
+        code="VALIDATION_ERROR",
         trace_id=trace_id,
-        details=details,
-    )
-    
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content=error_response.model_dump(mode="json", exclude_none=True),
+        details=[d.model_dump(mode="json") for d in details],
     )
 
 
@@ -204,15 +194,12 @@ def build_timeout_error_response(
     
     Requirements: 23.4 (Implement request timeout handling)
     """
-    timeout_response = TimeoutErrorResponse(
-        message=message,
-        timeout_seconds=timeout_seconds,
+    return error_response(
+        status.HTTP_504_GATEWAY_TIMEOUT,
+        message,
+        code="TIMEOUT",
         trace_id=trace_id,
-    )
-    
-    return JSONResponse(
-        status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-        content=timeout_response.model_dump(mode="json", exclude_none=True),
+        timeout_seconds=timeout_seconds,
     )
 
 
@@ -226,20 +213,17 @@ def build_rate_limit_error_response(
     
     Requirements: 23.2 (Comprehensive error responses)
     """
-    rate_limit_response = RateLimitErrorResponse(
-        message=message,
-        retry_after_seconds=retry_after_seconds,
-        trace_id=trace_id,
-    )
-    
     headers = {}
     if retry_after_seconds:
         headers["Retry-After"] = str(retry_after_seconds)
     
-    return JSONResponse(
-        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        content=rate_limit_response.model_dump(mode="json", exclude_none=True),
+    return error_response(
+        status.HTTP_429_TOO_MANY_REQUESTS,
+        message,
+        code="RATE_LIMITED",
         headers=headers,
+        trace_id=trace_id,
+        retry_after_seconds=retry_after_seconds,
     )
 
 
@@ -399,6 +383,9 @@ def register_error_handlers(app):
     
     Requirements: 23.2 (Comprehensive error responses with proper HTTP status codes)
     """
+    # HTTPException -> {error:{code,message}} (Jobify contract, src/api/contract.py)
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+
     # Custom API errors
     app.add_exception_handler(APIError, api_error_handler)
     
