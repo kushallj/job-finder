@@ -83,13 +83,18 @@ export const Select = ({ className, children, style, ...p }) => (
 /** Accessible modal dialog / side drawer: Escape closes, focus is trapped and restored. */
 export function Dialog({ open, onClose, title, children, footer, side, width = 480 }) {
   const ref = useRef(null);
+  // Callers pass inline onClose (a new function every render). Read it through a ref so the
+  // effect below runs only when `open` changes; otherwise each keystroke re-ran it, moved
+  // focus to the first focusable (the Close button) and the next space closed the dialog.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement;
     const el = ref.current;
-    el?.querySelector("input,select,textarea,button,[tabindex]")?.focus();
+    (el?.querySelector("input,select,textarea") || el?.querySelector("button,[tabindex]"))?.focus();
     const onKey = (e) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
       if (e.key === "Tab" && el) {
         const f = [...el.querySelectorAll("a[href],button:not([disabled]),input,select,textarea,[tabindex]:not([tabindex='-1'])")];
         if (!f.length) return;
@@ -100,7 +105,7 @@ export function Dialog({ open, onClose, title, children, footer, side, width = 4
     };
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("keydown", onKey); prev?.focus?.(); };
-  }, [open, onClose]);
+  }, [open]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[70] flex" style={{ justifyContent: side ? "flex-end" : "center", alignItems: side ? "stretch" : "center" }}>
