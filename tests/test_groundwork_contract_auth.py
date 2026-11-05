@@ -143,3 +143,40 @@ def test_cors_allows_local_dev_but_not_other_origins():
     assert ok.headers.get("access-control-allow-origin") == "http://localhost:3000"
     evil = client.options("/api/jobs", headers={"Origin": "https://evil.example.com", **pre})
     assert evil.headers.get("access-control-allow-origin") not in ("https://evil.example.com", "*")
+
+
+# --- default admin credential (found in manual QA 2026-11-05) -------------------------
+
+def test_default_admin_password_refused_at_login(test_db):
+    from src.api.routers.auth_router import LoginRequest, login_user
+    from src.auth.crypto import hash_password
+
+    test_db.add(User(email="admin@jobfinder.ai", hashed_password=hash_password("admin123"),
+                     is_superuser=True, is_active=True, credits_balance=0))
+    test_db.commit()
+    with pytest.raises(HTTPException) as exc:
+        login_user(LoginRequest(email="admin@jobfinder.ai", password="admin123"), test_db)
+    assert exc.value.status_code == 403
+
+
+def test_init_db_does_not_seed_admin_by_default(monkeypatch):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+    import src.database as database
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    monkeypatch.setattr(database, "engine", engine)
+    monkeypatch.setattr(database, "SessionLocal", sessionmaker(bind=engine))
+    monkeypatch.setattr(settings, "seed_dev_admin", False)
+    database.init_db()
+    with database.SessionLocal() as s:
+        assert s.query(User).filter(User.email == "admin@jobfinder.ai").count() == 0
+
+
+def test_require_admin_ignores_email_match():
+    from src.auth.dependencies import require_admin
+
+    with pytest.raises(HTTPException) as exc:
+        require_admin(User(email="admin@jobfinder.ai", is_superuser=False))
+    assert exc.value.status_code == 403

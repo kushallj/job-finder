@@ -137,6 +137,9 @@ class Settings(BaseSettings):
     # "https://app.jobify.com,http://localhost:3000". Empty = azp not checked.
     clerk_authorized_parties: str = ""
     allow_dev_auth_tokens: bool = False  # enables dev_token_admin when ENV=development
+    # Local-only superuser seed. Never runs in production; needs both flags (no default password).
+    seed_dev_admin: bool = False
+    dev_admin_password: Optional[str] = None
 
     @property
     def clerk_authorized_parties_list(self) -> List[str]:

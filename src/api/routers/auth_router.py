@@ -127,6 +127,9 @@ def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
     )
 
 
+KNOWN_DEFAULT_PASSWORDS = frozenset({"admin123"})
+
+
 @router.post("/login", response_model=AuthResponse)
 def login_user(req: LoginRequest, db: Session = Depends(get_db)):
     """
@@ -147,7 +150,15 @@ def login_user(req: LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account has been deactivated",
         )
-    
+
+    # Databases initialised before 2026-11-05 contain admin@jobfinder.ai / admin123 (a public
+    # default). Refuse it everywhere until the password is changed.
+    if req.password in KNOWN_DEFAULT_PASSWORDS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Default credentials are disabled. Set a new password for this account.",
+        )
+
     token = create_access_token(data={"sub": str(user.id), "email": user.email})
     return AuthResponse(
         access_token=token,

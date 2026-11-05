@@ -128,36 +128,40 @@ def init_db():
                     if name not in existing_sg:
                         conn.execute(_text(f"ALTER TABLE startups_gallery_companies ADD COLUMN {name} {ddl}"))
 
-    # Seed default user for backward compatibility and local development
-    try:
-        from src.models import User, CreditTransaction
-        from src.auth.crypto import hash_password
-        with SessionLocal() as session:
-            existing_user = session.query(User).filter(User.email == "admin@jobfinder.ai").first()
-            if not existing_user:
-                admin_user = User(
-                    email="admin@jobfinder.ai",
-                    hashed_password=hash_password("admin123"),
-                    full_name="Default Administrator",
-                    subscription_tier="unlimited",
-                    credits_balance=1000,
-                    is_active=True,
-                    is_superuser=True,
-                )
-                session.add(admin_user)
-                session.flush()
-                # Record welcome transaction
-                tx = CreditTransaction(
-                    user_id=admin_user.id,
-                    amount=1000,
-                    balance_after=1000,
-                    action="system_seed",
-                    notes="Initial system administrator provisioning",
-                )
-                session.add(tx)
-                session.commit()
-    except Exception as exc:
-        print(f"[WARN] Notice on default user seed: {exc}")
+    # Local dev superuser: opt-in only (SEED_DEV_ADMIN=true + DEV_ADMIN_PASSWORD), never in
+    # production. It used to be seeded unconditionally with a public password, which made
+    # admin@jobfinder.ai / admin123 a working superuser login on every deployment.
+    from src.config import settings as _settings
+    if _settings.env.lower() != "production" and _settings.seed_dev_admin and _settings.dev_admin_password:
+        try:
+            from src.models import User, CreditTransaction
+            from src.auth.crypto import hash_password
+            with SessionLocal() as session:
+                existing_user = session.query(User).filter(User.email == "admin@jobfinder.ai").first()
+                if not existing_user:
+                    admin_user = User(
+                        email="admin@jobfinder.ai",
+                        hashed_password=hash_password(_settings.dev_admin_password),
+                        full_name="Default Administrator",
+                        subscription_tier="unlimited",
+                        credits_balance=1000,
+                        is_active=True,
+                        is_superuser=True,
+                    )
+                    session.add(admin_user)
+                    session.flush()
+                    # Record welcome transaction
+                    tx = CreditTransaction(
+                        user_id=admin_user.id,
+                        amount=1000,
+                        balance_after=1000,
+                        action="system_seed",
+                        notes="Initial system administrator provisioning",
+                    )
+                    session.add(tx)
+                    session.commit()
+        except Exception as exc:
+            print(f"[WARN] Notice on default user seed: {exc}")
 
     # Seed premier VC firms for VC Intelligence Engine
     try:
