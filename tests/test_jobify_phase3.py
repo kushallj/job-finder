@@ -200,7 +200,7 @@ def test_sync_advances_matched_cards_and_discards_unrelated_mail(client, clerk_a
     res = client.post("/api/gmail/sync", headers=_auth(clerk_auth))
     assert res.status_code == 200, res.text
     body = res.json()
-    assert body["status"] == "connected" and body["lastSync"] and body["nextScan"]
+    assert body["status"] == "connected" and body["lastSync"].endswith("Z") and body["nextScan"].endswith("Z")
     assert body["result"] == {"scanned": 3, "stored": 2, "advanced": 2}
     db_session.refresh(acme), db_session.refresh(globex)
     assert (acme.kanban_stage, globex.kanban_stage) == ("interview", "rejected")
@@ -286,6 +286,16 @@ def test_parse_prefers_plain_text_and_strips_html():
     raw = {"id": "x", "payload": {"headers": [{"name": "From", "value": "A <a@b.com>"}], "mimeType": "text/html", "body": {"data": html}}}
     msg = gs.parse_message(raw)
     assert msg.sender_email == "a@b.com" and "Hello" in msg.body and "<b>" not in msg.body
+
+
+def test_access_log_redacts_oauth_code_and_state():
+    import logging
+    from main import _RedactOAuthParams
+
+    rec = logging.LogRecord("uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d', ("127.0.0.1", "GET", "/api/gmail/callback?state=abc.def&code=4/0Ab-secret&scope=x", "1.1", 302), None)
+    _RedactOAuthParams().filter(rec)
+    line = rec.getMessage()
+    assert "4/0Ab-secret" not in line and "abc.def" not in line and "scope=x" in line
 
 
 def test_matching_ignores_generic_domains():

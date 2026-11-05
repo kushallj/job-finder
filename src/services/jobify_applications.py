@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from src.api.contract import iso_utc
 from src.models import Application, InboundRecruiterMessage, Job
 
 Stage = Literal["applied", "interview", "offer", "rejected", "ghosted"]
@@ -90,7 +91,7 @@ def to_ui(app: Application, job: Optional[Job] = None, inbound: int = 0) -> Dict
         "stage": stage if stage in STAGES else "applied",
         "subject": app.email_subject or "Added manually",
         "sender": app.recruiter_email or "",
-        "date": (app.applied_at or app.created_at or datetime.utcnow()).isoformat(),
+        "date": iso_utc(app.applied_at or app.created_at or datetime.utcnow()),
         "messages": 1 + inbound,
         "notes": app.notes or "",
         "events": _loads(app.events_json, []),

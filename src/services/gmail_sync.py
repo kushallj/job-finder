@@ -30,6 +30,7 @@ import httpx
 import jwt
 from sqlalchemy.orm import Session
 
+from src.api.contract import iso_utc
 from src.config import settings
 from src.models import Application, InboundRecruiterMessage, MailboxAccount, User
 from src.services.inbound_email_classifier import InboundEmailIntentClassifier
@@ -170,8 +171,8 @@ def connection_state(mb: Optional[MailboxAccount]) -> Dict[str, Any]:
     return {
         "status": mb.sync_status,
         "email": mb.email_address if live else None,
-        "lastSync": mb.last_sync_at.isoformat() if live and mb.last_sync_at else None,
-        "nextScan": mb.next_scan_at.isoformat() if live and mb.next_scan_at else None,
+        "lastSync": iso_utc(mb.last_sync_at) if live else None,
+        "nextScan": iso_utc(mb.next_scan_at) if live else None,
         **({"error": mb.last_error} if mb.sync_status == "failed" and mb.last_error else {}),
     }
 

@@ -84,7 +84,7 @@ def test_subscription_maps_paid_tier(client, clerk_auth, db_session):
     user.current_period_end = datetime(2026, 12, 5)
     db_session.commit()
     sub = client.get("/api/me/subscription", headers=_auth(clerk_auth)).json()
-    assert (sub["plan"], sub["status"], sub["renewsAt"]) == ("pro", "active", "2026-12-05T00:00:00")
+    assert (sub["plan"], sub["status"], sub["renewsAt"]) == ("pro", "active", "2026-12-05T00:00:00Z")
 
 
 # --- jobs list / detail -----------------------------------------------------------

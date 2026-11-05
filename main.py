@@ -819,6 +819,20 @@ app = FastAPI(
     dependencies=[Depends(enforce_auth_unless_public)],
 )
 
+# Uvicorn's access log prints full URLs; never write OAuth authorization codes or state to logs.
+import re as _re
+_OAUTH_QS = _re.compile(r"([?&](?:code|state)=)[^&\s\"]+")
+
+
+class _RedactOAuthParams(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(_OAUTH_QS.sub(r"\1<redacted>", a) if isinstance(a, str) else a for a in record.args)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_RedactOAuthParams())
+
 # Register comprehensive error handlers
 # Requirements: 23.2 (Comprehensive error responses with proper HTTP status codes)
 register_error_handlers(app)

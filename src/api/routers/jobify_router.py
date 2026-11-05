@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from src.api.contract import scoped
+from src.api.contract import iso_utc, scoped
 from src.auth.dependencies import get_current_user
 from src.database import get_db
 from src.models import CandidateProfile, Job, User, UserJob
@@ -60,7 +60,7 @@ def get_subscription(user: User = Depends(get_current_user)) -> Dict[str, Any]:
         "interval": "monthly",  # no interval column yet; set by the Phase 7 billing webhook
         "status": status,
         "creditsRemaining": user.credits_balance or 0,
-        "renewsAt": user.current_period_end.isoformat() if user.current_period_end else None,
+        "renewsAt": iso_utc(user.current_period_end),
     }
 
 

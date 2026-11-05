@@ -60,6 +60,7 @@ def test_create_manual_card_shape(client, clerk_auth):
     assert (card["subject"], card["sender"], card["messages"], card["events"], card["offer"], card["source"]) == \
         ("Added manually", "", 1, [], None, "manual")
     assert isinstance(card["id"], str) and datetime.fromisoformat(card["date"])
+    assert card["date"].endswith("Z")  # UTC marker, else browsers show it in local time
 
 
 def test_create_from_jobs_page_payload(client, clerk_auth):

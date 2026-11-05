@@ -91,6 +91,16 @@ def paginate(
     return {"items": [mapper(r) for r in rows], "total": total, "page": page, "pageSize": page_size}
 
 
+def iso_utc(dt) -> Optional[str]:
+    """Serialize a stored datetime for the frontend. DB datetimes are naive UTC; without an
+    explicit offset the browser parses them as local time (5h30m off in India)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.isoformat() + "Z"
+    return dt.isoformat()
+
+
 def scoped(query, model, user):
     """Restrict `query` to rows owned by `user`. Use on every per-user read/update/delete.
 
