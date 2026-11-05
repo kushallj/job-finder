@@ -3,6 +3,7 @@ import { Search, RefreshCw, Unplug, Plus, Mail, Calendar, MessageSquare, LayoutP
 import { applicationService } from "../../services/applicationService.js";
 import { STAGES } from "../../mocks/applications.js";
 import { uid } from "../../lib/storage.js";
+import { isLive } from "../../lib/apiClient.js";
 import { useApp } from "../AppProvider.jsx";
 import { Avatar, Badge, Button, ConfirmDialog, Dialog, EmptyState, Field, Input, PageHeader, Select, Skeleton, Textarea } from "../ui.jsx";
 import { cn } from "../../lib/utils.js";
@@ -12,6 +13,15 @@ const COLORS = ["#2563EB", "#059669", "#DC2626", "#7C3AED", "#D97706", "#0891B2"
 const colorFor = (s) => COLORS[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
 
 const STATUS_LABEL = { not_connected: "Not connected", pending: "Connecting…", connected: "Gmail connected (simulated)", syncing: "Syncing…", failed: "Sync failed", disconnected: "Disconnected" };
+const NO_CONN = { status: "not_connected", email: null, lastSync: null, nextScan: null };
+// Reasons the backend puts on /app/applications?gmail=error&reason=... after Google's redirect.
+const CONNECT_ERRORS = {
+  ACCESS_DENIED: "Gmail access was declined.",
+  GMAIL_SCOPE_DENIED: "Jobify needs read access to Gmail to track replies. Please allow it and try again.",
+  GMAIL_IN_USE: "That Gmail account is already connected to another Jobify account.",
+  GMAIL_NO_REFRESH_TOKEN: "Google didn't grant offline access. Please try connecting again.",
+  INVALID_STATE: "The connect link expired. Please try again.",
+};
 const STATUS_TONE = { not_connected: "neutral", pending: "warning", connected: "success", syncing: "warning", failed: "danger", disconnected: "neutral" };
 
 function AppCard({ a, onOpen, onDragStart }) {
@@ -47,7 +57,19 @@ export default function ApplicationsPage() {
   const [form, setForm] = useState(null); // create / edit
   const [errors, setErrors] = useState({});
   const [deleting, setDeleting] = useState(null);
-  const [conn, setConn] = useState(() => applicationService.getConnection());
+  const live = isLive();
+  const [conn, setConn] = useState(NO_CONN);
+  const refreshConn = useCallback(() => applicationService.getConnection().then(setConn).catch(() => {}), []);
+  useEffect(() => {
+    refreshConn();
+    // Returning from Google's consent screen.
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("gmail");
+    if (!result) return;
+    if (result === "connected") toast("Gmail connected (read-only). Run Sync to pull recruiter replies.");
+    else toast(CONNECT_ERRORS[params.get("reason")] || "Couldn't connect Gmail. Please try again.", "error");
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [refreshConn, toast]);
   const [eventDraft, setEventDraft] = useState({ title: "", at: "" });
 
   const load = useCallback(async () => {
@@ -98,13 +120,32 @@ export default function ApplicationsPage() {
 
   const connect = async () => {
     setConn({ ...conn, status: "pending" });
-    setConn(await applicationService.connect("demo-inbox@jobify.example"));
-    toast("Simulated Gmail connection. No real inbox is accessed.");
+    try {
+      setConn(await applicationService.connect("demo-inbox@jobify.example"));
+      if (!live) toast("Simulated Gmail connection. No real inbox is accessed.");
+    } catch (e) {
+      setConn(conn);
+      toast(e?.code === "GMAIL_NOT_CONFIGURED" ? "Gmail connection isn't available yet." : "Couldn't start the Gmail connection.", "error");
+    }
   };
   const sync = async (fail) => {
     setConn({ ...conn, status: "syncing" });
-    try { setConn(await applicationService.sync({ fail })); toast("Sync completed (simulated)."); }
-    catch { setConn(applicationService.getConnection()); toast("Sync failed (simulated).", "error"); }
+    try {
+      const res = await applicationService.sync({ fail });
+      setConn(res);
+      if (live) {
+        const r = res.result || {};
+        toast(r.stored ? `Synced: ${r.stored} recruiter email${r.stored === 1 ? "" : "s"} matched, ${r.advanced} card${r.advanced === 1 ? "" : "s"} moved.` : "Synced. No new recruiter emails.");
+        load();
+      } else toast("Sync completed (simulated).");
+    } catch (e) {
+      refreshConn();
+      toast(e?.code === "GMAIL_REAUTH_REQUIRED" ? "Gmail access expired. Connect again." : live ? "Sync failed. Try again later." : "Sync failed (simulated).", "error");
+    }
+  };
+  const disconnect = async () => {
+    try { setConn(await applicationService.disconnect()); toast(live ? "Gmail disconnected. Access revoked and synced email bodies removed." : "Disconnected."); }
+    catch { toast("Couldn't disconnect Gmail. Try again.", "error"); }
   };
 
   const connected = conn.status === "connected" || conn.status === "syncing";
@@ -113,7 +154,7 @@ export default function ApplicationsPage() {
     <div className="min-h-full">
       <PageHeader icon={LayoutPanelTop} title="Applications"
         sub={<>
-          <Badge tone={STATUS_TONE[conn.status]}>{STATUS_LABEL[conn.status]}</Badge>
+          <Badge tone={STATUS_TONE[conn.status]}>{live && conn.status === "connected" ? "Gmail connected" : STATUS_LABEL[conn.status]}</Badge>
           {connected && <span className="text-[12px] text-[#707070] hidden xl:inline">{conn.email} · Last sync {conn.lastSync ? fmt(conn.lastSync) : "never"} · Next scan {conn.nextScan ? fmt(conn.nextScan) : "n/a"}</span>}
         </>}>
         <div className="relative">
@@ -124,10 +165,10 @@ export default function ApplicationsPage() {
         {connected ? (
           <>
             <Button disabled={conn.status === "syncing"} onClick={() => sync(false)}><RefreshCw className={cn("w-3.5 h-3.5", conn.status === "syncing" && "animate-spin")} />Sync</Button>
-            <Button variant="outline" onClick={() => { setConn(applicationService.disconnect()); toast("Disconnected."); }}><Unplug className="w-3.5 h-3.5" />Disconnect</Button>
+            <Button variant="outline" onClick={disconnect}><Unplug className="w-3.5 h-3.5" />Disconnect</Button>
           </>
         ) : (
-          <Button disabled={conn.status === "pending"} onClick={connect}><Plug className="w-3.5 h-3.5" />Connect Gmail (demo)</Button>
+          <Button disabled={conn.status === "pending"} onClick={connect}><Plug className="w-3.5 h-3.5" />{live ? "Connect Gmail" : "Connect Gmail (demo)"}</Button>
         )}
         {conn.status === "failed" && <Button variant="outline" onClick={() => sync(false)}>Retry sync</Button>}
       </PageHeader>

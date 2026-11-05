@@ -95,6 +95,10 @@ app.conf.update(
             "task": "src.tasks.run_full_pipeline",
             "schedule": crontab(minute="0", hour="*/2"),
         },
+        "jobify-gmail-sync-hourly": {
+            "task": "src.tasks.sync_gmail_mailboxes",
+            "schedule": crontab(minute="30"),
+        },
         "jobify-ghosted-sweep-daily": {
             "task": "src.tasks.sweep_ghosted_applications",
             "schedule": crontab(minute="15", hour="3"),
@@ -441,3 +445,31 @@ def sweep_ghosted_applications() -> int:
         moved = sweep_ghosted(db)
     log.info("[ghosted] moved %d application(s) to ghosted", moved)
     return moved
+
+
+@app.task(name="src.tasks.sync_gmail_mailboxes")
+def sync_gmail_mailboxes() -> dict:
+    """Jobify: sync connected Gmail mailboxes whose next_scan_at is due (read-only)."""
+    from datetime import datetime
+    from src.database import SessionLocal
+    from src.models import MailboxAccount
+    from src.services import gmail_sync as gs
+
+    if not gs.configured():
+        return {"skipped": "gmail not configured"}
+    done, failed = 0, 0
+    with SessionLocal() as db:
+        due = (db.query(MailboxAccount)
+               .filter(MailboxAccount.provider == "gmail", MailboxAccount.oauth_refresh_token_enc.isnot(None),
+                       MailboxAccount.sync_status.in_(["connected", "failed"]),
+                       MailboxAccount.next_scan_at <= datetime.utcnow())
+               .all())
+        client = gs.get_client()
+        for mb in due:
+            try:
+                gs.sync_mailbox(db, mb, client)
+                done += 1
+            except gs.GmailError as exc:
+                failed += 1
+                log.warning("[gmail] mailbox %s sync failed: %s", mb.id, exc.code)
+    return {"synced": done, "failed": failed}

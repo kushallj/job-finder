@@ -135,6 +135,18 @@ def init_db():
                     if name not in existing_sg:
                         conn.execute(_text(f"ALTER TABLE startups_gallery_companies ADD COLUMN {name} {ddl}"))
 
+    # Jobify Gmail OAuth columns on existing DBs (alembic revision for Phase 3)
+    if engine.url.get_backend_name() in ("sqlite", "postgresql"):
+        _insp = inspect(engine)
+        if "mailbox_accounts" in _insp.get_table_names():
+            _existing = {c["name"] for c in _insp.get_columns("mailbox_accounts")}
+            _adds = {"oauth_refresh_token_enc": "TEXT", "sync_status": "VARCHAR(30)",
+                     "last_error": "TEXT", "next_scan_at": "TIMESTAMP"}
+            with engine.begin() as conn:
+                for name, ddl in _adds.items():
+                    if name not in _existing:
+                        conn.execute(_text(f"ALTER TABLE mailbox_accounts ADD COLUMN {name} {ddl}"))
+
     # Local dev superuser: opt-in only (SEED_DEV_ADMIN=true + DEV_ADMIN_PASSWORD), never in
     # production. It used to be seeded unconditionally with a public password, which made
     # admin@jobfinder.ai / admin123 a working superuser login on every deployment.

@@ -516,6 +516,11 @@ class MailboxAccount(Base):
     last_sync_at = Column(DateTime, nullable=True)
     total_messages_scanned = Column(Integer, default=0)
     total_advancements = Column(Integer, default=0)
+    # Jobify Gmail OAuth (read-only). Refresh token is Fernet-encrypted; never returned by the API.
+    oauth_refresh_token_enc = Column(Text, nullable=True)
+    sync_status = Column(String(30), nullable=True)  # connected | syncing | failed | disconnected
+    last_error = Column(Text, nullable=True)
+    next_scan_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -141,6 +141,15 @@ class Settings(BaseSettings):
     seed_dev_admin: bool = False
     dev_admin_password: Optional[str] = None
 
+    # Gmail (Jobify Applications sync). Read-only scope; refresh tokens are Fernet-encrypted
+    # with TOKEN_ENCRYPTION_KEY. Redirect URI must be registered on the Google OAuth client.
+    google_oauth_client_id: Optional[str] = None
+    google_oauth_client_secret: Optional[str] = None
+    google_oauth_redirect_uri: str = "http://localhost:8000/api/gmail/callback"
+    token_encryption_key: Optional[str] = None
+    gmail_sync_lookback_days: int = 30
+    gmail_sync_max_messages: int = 50
+
     @property
     def clerk_authorized_parties_list(self) -> List[str]:
         return [p.strip().rstrip("/") for p in self.clerk_authorized_parties.split(",") if p.strip()]

@@ -875,12 +875,8 @@ try:
 except Exception as e:
     log.warning(f"Could not load kanban_router: {e}")
 
-try:
-    from src.api.routers.mailbox_router import router as mailbox_router
-    app.include_router(mailbox_router)
-    log.info("Loaded mailbox_router successfully")
-except Exception as e:
-    log.warning(f"Could not load mailbox_router: {e}")
+# Legacy /api/mailbox (simulated inbox) is not mounted: its matcher is not user-scoped, so
+# /simulate-inbound let one user move another user's cards. Real Gmail: jobify_gmail_router.
 
 try:
     from src.api.routers.portfolio_router import router as portfolio_router
@@ -916,6 +912,8 @@ from src.api.routers.jobify_router import router as jobify_router
 app.include_router(jobify_router)
 from src.api.routers.jobify_applications_router import router as jobify_applications_router
 app.include_router(jobify_applications_router)
+from src.api.routers.jobify_gmail_router import router as jobify_gmail_router
+app.include_router(jobify_gmail_router)
 
 
 

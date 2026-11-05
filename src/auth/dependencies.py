@@ -48,6 +48,7 @@ PUBLIC_EXACT_PATHS: Set[str] = {
     "/api/auth/refresh",
     "/api/auth/webhook/clerk",
     "/api/auth/clerk/webhook",
+    "/api/gmail/callback",  # Google OAuth redirect; protected by the signed `state`
 }
 
 PUBLIC_PREFIXES = (
