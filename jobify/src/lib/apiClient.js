@@ -21,6 +21,13 @@ export class ApiError extends Error {
 let getToken = async () => null;
 export const setTokenGetter = (fn) => { getToken = fn; };
 
+// Services call the backend only in the signed-in workspace (/app) with VITE_API_BASE_URL set.
+// /demo must never call the API. AppProvider sets this on every render, so it is
+// current before any page effect runs.
+let liveMode = false;
+export const setLiveMode = (on) => { liveMode = Boolean(on); };
+export const isLive = () => liveMode && Boolean(env.apiBaseUrl);
+
 const DEFAULT_TIMEOUT_MS = 15000;
 
 export async function api(path, { method = "GET", query, body, signal, timeout = DEFAULT_TIMEOUT_MS, headers = {} } = {}) {

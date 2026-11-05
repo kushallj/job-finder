@@ -1,13 +1,15 @@
 import { JOBS } from "../mocks/jobs.js";
 import { readStore, writeStore, wait } from "../lib/storage.js";
+import { api, isLive } from "../lib/apiClient.js";
 
 /**
- * JobService contract. Local implementation; swap for an API-backed one later.
+ * JobService contract. Backend: GET /jobs, GET /jobs/:id, GET /me/jobs/state,
+ * PUT /me/jobs/:id/saved, POST /me/jobs/:id/applied. Mock fixtures in /demo or without an API.
  *   list(query)      -> { items, total, page, pageSize }
  *   get(id)          -> Job | null
- *   getUserState()   -> { saved: string[], applied: string[] }
- *   toggleSaved(id)  -> string[]
- *   markApplied(id)  -> string[]
+ *   getUserState()   -> Promise<{ saved: string[], applied: string[] }>
+ *   toggleSaved(id)  -> Promise<{ saved, applied }>
+ *   markApplied(id)  -> Promise<{ saved, applied }>  (records only; nothing is sent to the employer)
  */
 const parseSalary = (s) => {
   const m = s.match(/([₹$£])([\d.]+)([LK])/);
@@ -17,7 +19,7 @@ const parseSalary = (s) => {
 };
 const minYears = (s) => Number((s.match(/\d+/) || [0])[0]);
 
-export const jobService = {
+const mock = {
   async list({ q = "", workModes = [], types = [], countries = [], skills = [], matchOnly = false, minSalaryUsd = 0, maxYears = null, sort = "match", page = 1, pageSize = 20 } = {}) {
     await wait(250);
     const needle = q.trim().toLowerCase();
@@ -46,19 +48,37 @@ export const jobService = {
     await wait(120);
     return JOBS.find((j) => j.id === id) || null;
   },
-  getUserState() {
+  async getUserState() {
     return readStore("jobs:state", { saved: [], applied: [] });
   },
-  toggleSaved(id) {
-    const s = this.getUserState();
+  async toggleSaved(id) {
+    const s = await this.getUserState();
     s.saved = s.saved.includes(id) ? s.saved.filter((x) => x !== id) : [...s.saved, id];
     writeStore("jobs:state", s);
     return s;
   },
-  markApplied(id) {
-    const s = this.getUserState();
+  async markApplied(id) {
+    const s = await this.getUserState();
     if (!s.applied.includes(id)) s.applied = [...s.applied, id];
     writeStore("jobs:state", s);
     return s;
   },
+};
+
+const live = {
+  list: (query = {}) => api("/jobs", { query }),
+  get: (id) => api(`/jobs/${encodeURIComponent(id)}`).catch((e) => (e.status === 404 ? null : Promise.reject(e))),
+  getUserState: () => api("/me/jobs/state"),
+  toggleSaved: (id) => api(`/me/jobs/${encodeURIComponent(id)}/saved`, { method: "PUT" }),
+  markApplied: (id) => api(`/me/jobs/${encodeURIComponent(id)}/applied`, { method: "POST" }),
+};
+
+const impl = () => (isLive() ? live : mock);
+
+export const jobService = {
+  list: (query) => impl().list(query),
+  get: (id) => impl().get(id),
+  getUserState: () => impl().getUserState(),
+  toggleSaved: (id) => impl().toggleSaved(id),
+  markApplied: (id) => impl().markApplied(id),
 };

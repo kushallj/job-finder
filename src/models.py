@@ -79,6 +79,19 @@ class Job(Base):
     # Relationships
     applications = relationship("Application", back_populates="job")
 
+class UserJob(Base):
+    """Per-user state on a shared Job row (Jobify saved / applied). Jobs stay a shared catalog."""
+    __tablename__ = "user_jobs"
+    __table_args__ = (UniqueConstraint("user_id", "job_id", name="uq_user_jobs_user_job"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    saved_at = Column(DateTime, nullable=True)
+    applied_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class Application(Base):
     __tablename__ = "applications"
     

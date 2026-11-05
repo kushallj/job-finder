@@ -910,6 +910,11 @@ try:
 except Exception as e:
     log.warning(f"Could not load startups_gallery_router: {e}")
 
+# Jobify product API (jobify/docs/INTEGRATION.md). Not wrapped in try/except: the
+# product UI depends on it, so an import error should stop startup, not hide it.
+from src.api.routers.jobify_router import router as jobify_router
+app.include_router(jobify_router)
+
 
 
 
@@ -2259,194 +2264,7 @@ async def market_intelligence():
 
 # ── Jobs ──────────────────────────────────────────────────────────────────────
 
-@app.get("/api/jobs", tags=["jobs"], response_model=JobsResponse)
-async def get_jobs(
-    page: int = Query(default=1, ge=1, le=10000, description="Page number (1-indexed)"),
-    limit: int = Query(default=50, ge=1, le=500, description="Items per page (1-500)"),
-    search: Optional[str] = Query(default=None, description="Fuzzy search title, company, description, or tags"),
-    region: Optional[str] = Query(default=None, description="Region filter: 'india', 'us', 'remote', 'europe', 'apac' or city name"),
-    experience_level: Optional[str] = Query(default=None, description="Level: 'Junior / Entry', 'Mid-Level', 'Senior', 'Lead / Staff / Principal'"),
-    years_of_experience: Optional[int] = Query(default=None, ge=0, le=30, description="Numeric years of experience (e.g. 1, 4, 7, 10)"),
-    date_posted: Optional[str] = Query(default=None, description="Posting time: '24h', '7d', '30d', 'anytime'"),
-    tech_stack: Optional[str] = Query(default=None, description="Comma-separated tech keywords, e.g. 'Python,FastAPI,AWS'"),
-    source: Optional[str] = Query(default=None, description="Job source filter, e.g. 'greenhouse_direct', 'greenhouse_startup'"),
-    has_remote: Optional[bool] = Query(default=None, description="Filter remote positions only"),
-    sort_by: Optional[str] = Query(default="fetched_at", description="Sort field: 'fetched_at', 'posted_date', 'title', 'company'"),
-    sort_order: Optional[str] = Query(default="desc", description="Sort direction: 'asc', 'desc'"),
-):
-    """
-    Get all jobs with multi-facet ORM filtering across region, YOE, posting date, tech stack, and keywords.
-    """
-    from sqlalchemy import or_, and_, func
-    from datetime import datetime, timedelta, timezone
-
-    try:
-        async with db_session() as db:
-            query = db.query(Job)
-
-            # 1. Search Query across title, company, location, tags, description
-            if search and search.strip():
-                term = f"%{search.strip().lower()}%"
-                query = query.filter(
-                    or_(
-                        func.lower(Job.title).like(term),
-                        func.lower(Job.company).like(term),
-                        func.lower(Job.location).like(term),
-                        func.lower(Job.tags).like(term),
-                        func.lower(Job.description).like(term),
-                    )
-                )
-
-            # 2. Region / Location Filtering
-            if region and region.strip() and region.lower() != "all":
-                reg = region.strip().lower()
-                if reg in ("remote", "global_remote", "work_from_home"):
-                    query = query.filter(
-                        or_(
-                            Job.has_remote == True,
-                            Job.work_mode == "remote",
-                            Job.work_mode == "remote_any",
-                            func.lower(Job.location).like("%remote%"),
-                            func.lower(Job.location).like("%anywhere%"),
-                        )
-                    )
-                elif reg in ("india", "in", "bengaluru", "bangalore", "mumbai", "delhi", "hyderabad", "pune", "chennai", "noida", "gurgaon"):
-                    query = query.filter(
-                        or_(
-                            func.lower(Job.location).like("%india%"),
-                            func.lower(Job.location).like("%bengaluru%"),
-                            func.lower(Job.location).like("%bangalore%"),
-                            func.lower(Job.location).like("%mumbai%"),
-                            func.lower(Job.location).like("%delhi%"),
-                            func.lower(Job.location).like("%hyderabad%"),
-                            func.lower(Job.location).like("%pune%"),
-                            func.lower(Job.location).like("%chennai%"),
-                            func.lower(Job.location).like("%noida%"),
-                            func.lower(Job.location).like("%gurgaon%"),
-                        )
-                    )
-                elif reg in ("us", "usa", "united states", "san francisco", "new york", "seattle", "austin"):
-                    query = query.filter(
-                        or_(
-                            func.lower(Job.location).like("%u.s%"),
-                            func.lower(Job.location).like("%united states%"),
-                            func.lower(Job.location).like("%ca%"),
-                            func.lower(Job.location).like("%ny%"),
-                            func.lower(Job.location).like("%wa%"),
-                            func.lower(Job.location).like("%san francisco%"),
-                            func.lower(Job.location).like("%new york%"),
-                            func.lower(Job.location).like("%seattle%"),
-                        )
-                    )
-                elif reg in ("europe", "eu", "germany", "uk", "london", "singapore"):
-                    query = query.filter(
-                        or_(
-                            func.lower(Job.location).like("%europe%"),
-                            func.lower(Job.location).like("%uk%"),
-                            func.lower(Job.location).like("%london%"),
-                            func.lower(Job.location).like("%germany%"),
-                            func.lower(Job.location).like("%singapore%"),
-                        )
-                    )
-                else:
-                    query = query.filter(func.lower(Job.location).like(f"%{reg}%"))
-
-            # 3. Experience Level & Years of Experience (YOE) Filtering
-            if years_of_experience is not None:
-                if years_of_experience <= 2:
-                    query = query.filter(or_(Job.experience_level.like("%Junior%"), Job.experience_level.like("%Entry%"), func.lower(Job.title).like("%intern%"), func.lower(Job.title).like("%junior%")))
-                elif years_of_experience <= 5:
-                    query = query.filter(or_(Job.experience_level.like("%Mid%"), Job.experience_level.like("%SWE II%"), Job.experience_level.like("%L4%"), func.lower(Job.title).like("%sde 2%"), func.lower(Job.title).like("%sde ii%")))
-                elif years_of_experience <= 8:
-                    query = query.filter(or_(Job.experience_level.like("%Senior%"), Job.experience_level.like("%L5%"), func.lower(Job.title).like("%senior%"), func.lower(Job.title).like("%sr%")))
-                else:
-                    query = query.filter(or_(Job.experience_level.like("%Lead%"), Job.experience_level.like("%Staff%"), Job.experience_level.like("%Principal%"), Job.experience_level.like("%Director%"), func.lower(Job.title).like("%lead%"), func.lower(Job.title).like("%staff%"), func.lower(Job.title).like("%principal%")))
-            elif experience_level and experience_level.strip() and experience_level.lower() != "all":
-                exp_lower = experience_level.strip().lower()
-                if "junior" in exp_lower or "entry" in exp_lower or "0-2" in exp_lower:
-                    query = query.filter(or_(Job.experience_level.like("%Junior%"), Job.experience_level.like("%Entry%"), func.lower(Job.title).like("%intern%"), func.lower(Job.title).like("%junior%")))
-                elif "mid" in exp_lower or "3-5" in exp_lower:
-                    query = query.filter(or_(Job.experience_level.like("%Mid%"), Job.experience_level.like("%SWE II%"), Job.experience_level.like("%L4%")))
-                elif "senior" in exp_lower or "5-8" in exp_lower:
-                    query = query.filter(or_(Job.experience_level.like("%Senior%"), Job.experience_level.like("%L5%"), func.lower(Job.title).like("%senior%"), func.lower(Job.title).like("%sr%")))
-                elif "lead" in exp_lower or "staff" in exp_lower or "principal" in exp_lower or "8+" in exp_lower:
-                    query = query.filter(or_(Job.experience_level.like("%Lead%"), Job.experience_level.like("%Staff%"), Job.experience_level.like("%Principal%"), Job.experience_level.like("%Director%"), func.lower(Job.title).like("%lead%"), func.lower(Job.title).like("%staff%"), func.lower(Job.title).like("%principal%")))
-                else:
-                    query = query.filter(func.lower(Job.experience_level).like(f"%{exp_lower}%"))
-
-            # 4. Date Posted Filtering
-            if date_posted and date_posted.strip() and date_posted.lower() not in ("anytime", "all"):
-                now = datetime.now(timezone.utc).replace(tzinfo=None)
-                dp_lower = date_posted.strip().lower()
-                cutoff = None
-                if dp_lower in ("24h", "1d", "today"):
-                    cutoff = now - timedelta(days=1)
-                elif dp_lower in ("7d", "1w", "week"):
-                    cutoff = now - timedelta(days=7)
-                elif dp_lower in ("14d", "2w"):
-                    cutoff = now - timedelta(days=14)
-                elif dp_lower in ("30d", "1m", "month"):
-                    cutoff = now - timedelta(days=30)
-                
-                if cutoff:
-                    query = query.filter(or_(Job.posted_date >= cutoff, Job.fetched_at >= cutoff))
-
-            # 5. Tech Stack Filter
-            if tech_stack and tech_stack.strip() and tech_stack.lower() != "all":
-                stacks = [s.strip() for s in tech_stack.split(",") if s.strip()]
-                for s in stacks:
-                    s_term = f"%{s.lower()}%"
-                    query = query.filter(or_(func.lower(Job.tags).like(s_term), func.lower(Job.title).like(s_term), func.lower(Job.description).like(s_term)))
-
-            # 6. Source Filter
-            if source and source.strip() and source.lower() != "all":
-                src_clean = source.strip().lower()
-                if src_clean == "tier1":
-                    query = query.filter(Job.source.in_(["greenhouse_direct", "lever_direct", "smartrecruiters_direct"]))
-                elif src_clean == "startups":
-                    query = query.filter(Job.source.in_(["greenhouse_startup", "lever_startup"]))
-                elif src_clean == "fintech":
-                    query = query.filter(Job.source.in_(["greenhouse_fintech", "smartrecruiters_fintech"]))
-                elif src_clean == "usajobs":
-                    query = query.filter(Job.source == "usajobs")
-                else:
-                    query = query.filter(func.lower(Job.source).like(f"%{src_clean}%"))
-
-            if has_remote is True:
-                query = query.filter(or_(Job.has_remote == True, Job.work_mode == "remote", Job.work_mode == "remote_any"))
-
-            # 7. Sorting
-            sort_col = Job.fetched_at
-            if sort_by == "posted_date":
-                sort_col = Job.posted_date
-            elif sort_by == "title":
-                sort_col = Job.title
-            elif sort_by == "company":
-                sort_col = Job.company
-
-            if sort_order and sort_order.lower() == "asc":
-                query = query.order_by(sort_col.asc())
-            else:
-                query = query.order_by(sort_col.desc())
-
-            total = query.count()
-            jobs = query.offset((page - 1) * limit).limit(limit).all()
-            job_data = [_to_job_data(j) for j in jobs]
-
-            return JobsResponse(
-                status="success",
-                jobs=job_data,
-                pagination=PaginationData(
-                    page=page,
-                    limit=limit,
-                    total=total,
-                    pages=(total + limit - 1) // limit if limit > 0 else 0,
-                ),
-            )
-    except Exception as exc:
-        log.error("Failed to retrieve filtered jobs: %s", exc, exc_info=True)
-        raise DatabaseError(f"Failed to retrieve filtered jobs: {str(exc)}")
-
+# GET /api/jobs and GET /api/jobs/{job_id} moved to src/api/routers/jobify_router.py (Jobify contract).
 
 
 @app.get("/api/jobs/pending-outreach", tags=["jobs"], response_model=PendingOutreachResponse)
@@ -2494,26 +2312,6 @@ async def pending_outreach(
     except Exception as exc:
         log.error("Failed to retrieve pending outreach jobs: %s", exc, exc_info=True)
         raise DatabaseError(f"Failed to retrieve pending outreach jobs: {str(exc)}")
-
-
-@app.get("/api/jobs/{job_id}", tags=["jobs"], response_model=JobData)
-async def get_job_by_id(job_id: int):
-    """Get a single job by ID."""
-    try:
-        async with db_session() as db:
-            j = db.query(Job).filter(Job.id == job_id).first()
-            if not j:
-                raise ResourceNotFoundError("Job", job_id)
-
-            app_rec = db.query(Application).filter(Application.job_id == job_id).order_by(Application.id.desc()).first()
-            match_score = app_rec.match_score if app_rec else None
-            app_status = app_rec.status if app_rec else None
-            return _to_job_data(j, match_score=match_score, application_status=app_status)
-    except ResourceNotFoundError:
-        raise
-    except Exception as exc:
-        log.error("Failed to retrieve job %s: %s", job_id, exc, exc_info=True)
-        raise DatabaseError(f"Failed to retrieve job: {str(exc)}")
 
 
 # ── Opportunities & Applications ──────────────────────────────────────────────

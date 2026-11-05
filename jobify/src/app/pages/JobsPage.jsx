@@ -39,9 +39,10 @@ export default function JobsPage() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
-  const [user, setUser] = useState(() => jobService.getUserState());
+  const [user, setUser] = useState({ saved: [], applied: [] });
   const [detail, setDetail] = useState(null);
 
+  useEffect(() => { jobService.getUserState().then(setUser).catch(() => {}); }, []);
   useEffect(() => { const t = setTimeout(() => setDebounced(q), 200); return () => clearTimeout(t); }, [q]);
   useEffect(() => setPage(1), [debounced, filters, sort]);
   useEffect(() => {
@@ -58,17 +59,25 @@ export default function JobsPage() {
     [filters]
   );
 
-  const saveToggle = (job) => {
-    const s = jobService.toggleSaved(job.id);
-    setUser({ ...s });
-    toast(s.saved.includes(job.id) ? "Job saved." : "Removed from saved.");
+  const saveToggle = async (job) => {
+    try {
+      const s = await jobService.toggleSaved(job.id);
+      setUser({ ...s });
+      toast(s.saved.includes(job.id) ? "Job saved." : "Removed from saved.");
+    } catch {
+      toast("Couldn't update saved jobs. Try again.", "error");
+    }
   };
 
   const apply = async (job) => {
-    jobService.markApplied(job.id);
-    await applicationService.create({ company: job.company, position: job.title, subject: "Marked as applied in Jobify", sender: "", source: "job" });
-    setUser(jobService.getUserState());
-    toast("Marked as applied and added to Applications. No application was sent to the company.");
+    try {
+      const s = await jobService.markApplied(job.id);
+      await applicationService.create({ company: job.company, position: job.title, subject: "Marked as applied in Jobify", sender: "", source: "job" });
+      setUser({ ...s });
+      toast("Marked as applied and added to Applications. No application was sent to the company.");
+    } catch {
+      toast("Couldn't mark as applied. Try again.", "error");
+    }
   };
 
   const rows = data?.items || [];
