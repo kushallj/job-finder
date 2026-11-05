@@ -1,156 +1,227 @@
-# NEXUS — Neural Execution for eXpert Unified Search
-## Claude Code Agent Instructions
+# CLAUDE.md: NEXUS / Job Finder + Jobify
 
-This is a job acquisition system. When operating in this repo, follow the routing below.
+Agent and contributor context. Auto-loaded by Claude Code every session, so keep it dense, current, and true. Human-facing overview and run steps are in `README.md`. **These two files are the only docs in this repo.** Don't create new `.md` docs. Update this file when architecture, rules, or the MVP state changes, and put per-module rationale in module docstrings.
 
 ---
 
-## Slash Command Routing
+## 1. Hard rules (apply to every task)
 
-When the user types `/nexus <subcommand>`, route to the appropriate action:
+**NEVER**
+- Auto-apply, auto-send email, or post to any social platform without explicit user approval. `AUTO_SEND_EMAILS=false` stays the default.
+- Scrape LinkedIn, X, or Google result pages directly, or automate a social account. Lead search uses official key-based APIs only (Google CSE, Serper).
+- Invent experience, metrics, company facts, or comp numbers. Everything traces to `data/resume.txt`, `config/profile.yml`, or `config/target_companies.yml`.
+- Hardcode candidate data in code. Read it from config.
+- Recommend applying to roles that score below 50%.
+- Put a secret in a `VITE_*` variable, or commit `.env*`, keys, or personal data.
+- Use free-form application statuses (see §3).
+
+**ALWAYS**
+- Read `config/profile.yml` + `data/resume.txt` before evaluating fit or writing outreach. Cite resume lines when justifying a score.
+- Regenerate `data/applications.md` (`python -m src.tracker`) after any status change.
+- New API routes: require auth by default and filter every query by the current user (§6).
+- Validate with the smallest relevant check: `python -m compileall src main.py`, the targeted `pytest` file, and `npm run check` in `jobify/`.
+- Keep diffs to one concern each. Don't refactor business logic unless asked.
+
+---
+
+## 2. `/nexus` command routing
 
 | Command | Action |
-|---------|--------|
-| `/nexus` | Show all available commands (this table) |
-| `/nexus tracker` | Run `python -m src.tracker` then display `data/applications.md` |
-| `/nexus status <id> <Status>` | Run `python -m src.tracker --update <id> <Status>` then regenerate |
-| `/nexus pipeline` | Read `data/pipeline.md`, process pending URLs (see Pipeline section) |
-| `/nexus scan <query>` | Run job scraper: `python -m src.cli scan "<query>"` |
-| `/nexus verify` | Run `python -m src.cli verify` — DB health check |
-| `/nexus dedup` | Run `python -m src.cli dedup` — remove duplicate job entries |
-| `/nexus normalize` | Run `python -m src.cli normalize` — fix non-canonical status values |
-| `/nexus digest` | Run `python -m src.cli digest` — print weekly outreach digest |
-| `/nexus deep <company>` | WebSearch company AI/engineering strategy + open roles + culture |
-| `/nexus agents` | Run the 15-agent target-company pipeline: `python -m src.agents.orchestrator --stage daily`, then display `data/agent_run_report.md` |
-| `/nexus agents tier1` | Same, restricted to Tier 1 companies: `python -m src.agents.orchestrator --stage daily --tiers 1` |
-| `/nexus leads` | Run boolean/X-ray lead sourcing: `python -m src.agents.orchestrator --stage leads` |
-| `/nexus networker <company>` | Find a real evidenced challenge + draft LinkedIn/X content: `python -m src.agents.orchestrator --stage networker --company "<company>"` |
-| `/nexus prep <company>` | Run `python -m src.agents.orchestrator --stage interview-prep --company "<company>"` |
-| `/nexus pitch <company>` | Build the WIN one-pager: `python -m src.agents.orchestrator --stage pitch --company "<company>"` |
-| `/nexus mock <company>` | Generate mock-interview questions: `python -m src.agents.orchestrator --stage interview-questions --company "<company>"` |
-| `/nexus negotiate <company> <offer_lpa>` | Comp benchmark + counter script: `python -m src.agents.orchestrator --stage negotiate-counter --company "<company>" --offer <offer_lpa>` |
-| `/nexus learn` | Run `python -m src.agents.orchestrator --stage weekly-learning` — recalibrate tier weights from real reply data |
-| `/nexus help` | Show this file |
+|---|---|
+| `/nexus` / `/nexus help` | Show this table |
+| `/nexus tracker` | `python -m src.tracker`, then show `data/applications.md` |
+| `/nexus status <id> <Status>` | `python -m src.tracker --update <id> <Status>`, then regenerate |
+| `/nexus pipeline` | Process `data/pipeline.md` (§4) |
+| `/nexus scan <query>` | `python -m src.cli scan "<query>"` |
+| `/nexus verify` / `dedup` / `normalize` / `digest` | `python -m src.cli <same>` |
+| `/nexus drafts` | `python -m src.cli drafts` (review queue; `send <id>` only after the user approves) |
+| `/nexus deep <company>` | WebSearch the company's AI/eng strategy, open roles, and culture. Feed new signals via `SignalScoutAgent.ingest_signal()` |
+| `/nexus agents [tier1]` | `python -m src.agents.orchestrator --stage daily [--tiers 1]`, then show `data/agent_run_report.md` |
+| `/nexus leads` | `... --stage leads [--categories funding ats yc]` |
+| `/nexus networker <co>` | `... --stage networker --company "<co>" [--jd "<text>"]` |
+| `/nexus prep <co>` | `... --stage interview-prep --company "<co>" [--role "<title>"]` |
+| `/nexus pitch <co>` | `... --stage pitch --company "<co>" [--jd "<text>"]` |
+| `/nexus mock <co>` | `... --stage interview-questions --company "<co>" [--num-questions 5]` |
+| `/nexus negotiate <co> <lpa>` | `... --stage negotiate-counter --company "<co>" --offer <lpa>` (benchmark only: `negotiate-benchmark`) |
+| `/nexus learn` | `... --stage weekly-learning` |
 
-### Status Values (canonical)
-`Ready` · `Outreach` · `Applied` · `Replied` · `Interview` · `Offer` · `Rejected` · `Skip`
+`...` = `python -m src.agents.orchestrator`.
 
 ---
 
-## Sources of Truth
+## 3. Domain model
 
-ALWAYS read these before evaluating or generating content:
+**Tracker statuses (canonical, CLI + `data/applications.md`):** `Ready` · `Outreach` · `Applied` · `Replied` · `Interview` · `Offer` · `Rejected` · `Skip`
 
-| File | Purpose |
-|------|---------|
-| `data/resume.txt` | Full resume — skills, experience, proof points |
-| `config/profile.yml` | Candidate identity, target roles, compensation, narrative |
-| `config/target_companies.yml` | Ranked target-company list with funding/hiring signals (labor-market research) |
-| `config/boolean_queries.yml` | 30-query X-ray/boolean sourcing bank (ATS, YC, funding press, GitHub, YouTube, content) |
-| `data/applications.md` | Application tracker — current pipeline state |
-| `data/pipeline.md` | Pending job URLs to process |
-| `docs/AGENT_STRATEGIES.md` | Rationale for each of the 15 target-company agents in `src/agents/` |
+**Lifecycle state machine (`src/lifecycle.py`, API):** `saved → ready → applied → interview → offer → negotiation → accepted`. `rejected` can be reached from any active stage and is terminal.
+- `applied` only after proof is logged (`POST /api/applications/{id}/proof`). External actions are never silently marked as done.
+- `negotiation → accepted` requires explicit UI confirmation.
+- "Do This Next" returns exactly one action per opportunity: `GET /api/action-queue`, `POST /api/opportunities/{job_id}/do-next`, `GET /api/opportunities/{job_id}/brief`, `POST /api/applications/{id}/transition`.
 
----
+**Jobify Kanban stages:** `applied, interview, offer, rejected, ghosted`. These are not the same as the backend vocab, so the mapper must translate (§6).
 
-## Pipeline Processing (`/nexus pipeline`)
+**Fit rubric** (used by `/nexus pipeline` and `agent_03_fit_scorer.py`, deterministic):
 
-When processing `data/pipeline.md`:
-1. Read the table — extract all rows where Status is empty or `pending`
-2. For each URL:
-   a. Fetch the job description (use WebFetch or Bash playwright if needed)
-   b. Evaluate fit against `data/resume.txt` + `config/profile.yml`
-   c. Report: company, role, match score (%), key matched skills, gaps, recommendation
-3. After evaluating all, summarise: how many processed, top 3 by fit
-4. Do NOT auto-apply or auto-send outreach — always surface results for user review
+| Role match | Career level | Tech stack | Remote/location | Company stage | Growth | Comp vs target |
+|---|---|---|---|---|---|---|
+| 25% | 15% | 20% | 10% | 10% | 10% | 10% |
+
+Score 0–100. **≥65% = worth applying**, <50% = never recommend.
 
 ---
 
-## Evaluation Framework
+## 4. `/nexus pipeline` procedure
 
-When evaluating a job description, score across these dimensions:
-
-| # | Dimension | Weight |
-|---|-----------|--------|
-| 1 | Role match (skills vs JD) | 25% |
-| 2 | Career level fit | 15% |
-| 3 | Tech stack overlap | 20% |
-| 4 | Remote / location | 10% |
-| 5 | Company stage fit | 10% |
-| 6 | Growth potential | 10% |
-| 7 | Compensation vs target | 10% |
-
-Score: 0–100%. Threshold for "worth applying": ≥65%.
+1. Read `data/pipeline.md` and take the rows whose Status is empty or `pending`.
+2. For each URL: fetch the JD (WebFetch, or Playwright if needed), then score it with §3 against the resume and profile.
+3. Report company, role, match %, matched skills (with resume citations), gaps, and a recommendation.
+4. Summarise the count processed and the top 3 by fit. **Don't apply or send anything.** Surface the results for the user.
 
 ---
 
-## Global Rules
-
-**NEVER:**
-- Invent experience or metrics not in `data/resume.txt`
-- Auto-submit applications or send emails without explicit approval
-- Hardcode candidate metrics — always read from profile.yml / resume.txt
-- Recommend applying to roles scoring below 50%
-
-**ALWAYS:**
-- Read `config/profile.yml` before evaluating compensation fit
-- Cite specific lines from the resume when justifying match scores
-- Regenerate `data/applications.md` after any status update
-- Respect the canonical status list — no free-form status values
-
----
-
-## Architecture Reference
+## 5. Architecture map
 
 ```
-NEXUS Pipeline
-──────────────
-Job Sources (JobSpy, Adzuna, ATS boards)
-    ↓
-src/scrapers/          — fetch raw job listings
-    ↓
-src/job_processor.py   — AI match scoring, content generation
-    ↓
-src/email_engine/      — email discovery (Hunter.io-style)
-    ↓
-src/contact_intelligence/ — decision-maker graph ranking
-    ↓
-src/personalization/   — company research + hook generation
-    ↓
-src/outreach/          — smart timing, A/B, follow-up scheduler
-    ↓
-src/feedback/          — self-improving feedback loop
-    ↓
-data/applications.md   — human-readable tracker
+Job sources (JobSpy, Adzuna, Careerjet, USAJobs, ATS boards, Firecrawl)
+  → src/scrapers/            raw listings
+  → src/job_processor.py     AI match scoring + content generation
+  → src/email_engine/, src/email_discovery.py      contact email discovery
+  → src/contact_intelligence/                      decision-maker graph ranking (PageRank)
+  → src/personalization/     company research, HookGenerator, EmailComposer
+  → src/outreach/            timing, A/B, follow-up scheduler (draft → approve → send)
+  → src/feedback/            hook-type / send-hour learning
+  → data/applications.md     human-readable tracker
 ```
 
-## Target-Company Agent Layer (`src/agents/`)
+| Concern | Where |
+|---|---|
+| App bootstrap, most routes | `main.py` (FastAPI, lifespan, CORS ~L920, router includes) |
+| Routers | `src/api/routers/*.py`, `src/vc_intelligence/api.py`, crawler, sidekick, nextraise, workday, startups_gallery |
+| Auth | `src/auth/dependencies.py` (Clerk RS256 via JWKS + auto-provision, HS256 legacy, `require_admin`, `is_public_path`), `jwt_handler.py`, `crypto.py` |
+| Settings | `src/config.py`. `env`, `database_url` (default SQLite `jobs.db`), `cors_origins`, `frontend_url`, `clerk_*`, `default_signup_credits=50`, `auto_send_emails=False`; the default `jwt_secret_key` is blocked when `ENV=production` |
+| Models / DB | `src/models.py` (`User.clerk_user_id` exists), `src/database.py`, `alembic/` (only `b4686927ddeb_initial_schema`) |
+| Billing / credits | `billing_router.py` + `billing_service.py` (Stripe; webhook paths also reserved for Dodo), `credit_service.py` (`CREDIT_COSTS`, `SELECT … FOR UPDATE`) |
+| AI providers | `src/ai/unified_ai_service.py`: cascade Ollama → Gemini → OpenAI/Anthropic/Groq. Ollama isn't available on PaaS |
+| Background | `src/tasks.py`. Procfile: `api`, `worker` (concurrency 4), `beat` (exactly one), `flower` :5555 (internal only) |
+| CLI | `src/cli.py`: tracker, verify, dedup, normalize, digest, pipeline, drafts, send, skip, status, scan, process-async, vc-seed-100, vc-scrape-*, vc-cron |
+| Deploy | `Dockerfile`, `docker-compose{,.dev,.prod}.yml` (postgres, redis, api, celery_worker/beat/flower, telegram_daemon, frontend, ollama), `render.yaml`, `fly.toml` |
+| CI | `.github/workflows/deploy-frontend.yml`, `security-scan.yml`. No backend test CI yet |
 
-Fifteen strategy agents, purpose-built around `config/target_companies.yml`
-(the ranked, research-backed company list) rather than the generic job-board
-firehose above. They wrap the modules in the diagram above instead of
-replacing them. Exposed over HTTP via `src/api/routers/agents_router.py`
-(`/api/agents/*`, delegating to `src/services/agents_service.py`) for the
-React dashboard. Full rationale in `docs/AGENT_STRATEGIES.md`.
+### Agent layer (`src/agents/`)
 
-```
-1 SignalScoutAgent        — freshness-track funding/hiring signals per company
-2 ATSHunterAgent          — probe Greenhouse/Lever/Ashby boards directly
-3 FitScorerAgent          — CLAUDE.md rubric, deterministic, ≥65% = worth applying
-4 ResumeTailorAgent       — Python/Django-first bullet reordering per JD
-5 ContactMapperAgent      — wraps src/contact_intelligence, tier-gated + cached
-6 OutreachComposerAgent   — wraps src/personalization, signal-seeded hooks
-7 PriorityScheduleAgent   — fit + signal-freshness decay -> daily send queue (cap 8)
-8 InterviewPrepAgent      — per-company dossier, triggered on Interview status
-9 FeedbackStrategistAgent — learns whether Tier 1 really out-converts Tier 2/3
-10 ChallengeSolverAgent   — finds a real, evidenced challenge (never invented)
-11 QueryHunterAgent       — 30-query X-ray/boolean sourcing -> lead CRM table
-12 InfluencerAgent        — drafts LinkedIn/X content, never auto-posts
-13 PitcherAgent           — WIN (problem/solution/narrative) one-pager
-14 InterviewerAgent       — mock Q&A + deterministic STAR-format feedback
-15 NegotiatorAgent        — comp benchmarking + counter-offer script
-```
+Contract: `AgentContext` in, `AgentResult{ok, summary, data, warnings}` out (`base.py`). Every agent falls back to a labelled result when keys or network are missing, and none raises. Each one can run standalone: `python -m src.agents.agent_NN_name`. HTTP: `/api/agents/*` (`agents_router.py` → `src/services/agents_service.py`). The orchestrator only writes `data/agent_run_report.md` and `data/agent_state.db`.
 
-Run: `python -m src.agents.orchestrator --stage daily`. Never auto-sends,
-never scrapes LinkedIn/X/Google directly, never automates any social
-platform — same hard rule as `/nexus pipeline` above, extended.
+| # | Agent | Key behaviour |
+|---|---|---|
+| 1 | SignalScout | Funding/IPO/leadership signals from `target_companies.yml`; hot <45d, stale >180d; `ingest_signal()`; no web scraping |
+| 2 | ATSHunter | Probes public Greenhouse/Lever/Ashby JSON boards by slug; 403/404 is silent |
+| 3 | FitScorer | The §3 rubric, deterministic, no LLM |
+| 4 | ResumeTailor | Re-ranks profile differentiators by JD overlap; LLM polishes wording only and never adds facts |
+| 5 | ContactMapper | Wraps `contact_intelligence`; skips Tier 3 by default; 7-day cache |
+| 6 | OutreachComposer | Feeds the exact signal into `HookGenerator`/`EmailComposer`; falls back to a template |
+| 7 | PriorityScheduler | fit + signal decay (30d half-life) + tier boost + learned multiplier; **daily cap 8** |
+| 8 | InterviewPrep | Manual, on `Interview` status; dossier from signals + `CompanyResearcher` (7d cache) + industry heuristics |
+| 9 | FeedbackStrategist | Tests whether Tier 1 really out-converts Tier 2/3; `MIN_SAMPLE_SIZE=5`, `DAMPENING=0.5`; writes `tier:N` multipliers |
+| 10 | ChallengeSolver | Only publicly evidenced challenges (JD pain points via `jd_analyzer`, else signal type); proof points traceable to the resume |
+| 11 | QueryHunter | 30 queries from `boolean_queries.yml` via CSE/Serper → `boolean_leads` table (`new→reviewed→converted`); with no key it just prints the queries |
+| 12 | Influencer | LinkedIn/X drafts only, never posts |
+| 13 | Pitcher | WIN one-pager composed from #10/#4 output; warns when generic |
+| 14 | Interviewer | Stateless `generate_questions()` / `score_answer()` (STAR regex + specificity, optional LLM) |
+| 15 | Negotiator | Uses only `comp_benchmark_inr_lpa` + profile comp; anchor between your floor and the company max; with no benchmark it uses a labelled +12% fallback |
+| 16–26 | Interviewer profiler, proof-of-work "fabricator", anti-ghosting SLA, frontier-AI radar, reverse headhunter, geo-arbitrage, web3 bounties, exec decision memo, system-design whiteboard, exec outreach drip, architecture sandbox | **Experimental.** Not wired into orchestrator stages or `/api/agents/*`; only `tests/test_sprint{1..6}_features.py` exercise them. Audit each against §1 before using or shipping. #17 and #25 (and #16's interviewer profiling) carry the highest risk of fabrication or spam |
+
+Orchestrator stages: `daily`, `interview-prep`, `weekly-learning`, `leads`, `networker`, `pitch`, `interview-questions`, `negotiate-benchmark`, `negotiate-counter`.
+
+### Sources of truth (read before generating content)
+
+`data/resume.txt` · `config/profile.yml` · `config/target_companies.yml` · `config/boolean_queries.yml` · `data/applications.md` · `data/pipeline.md`. All of these are personal data: never paste them into public artifacts, logs, or commits.
+
+---
+
+## Production MVP (Jobify)
+
+Goal: ship **Jobify** (`jobify/`, copied from `devnoid1/Jobify` @ `89b2570` on 2026-11-05, without history) as the only UI on this FastAPI backend. `frontend/` and `extension/` are being retired (§9).
+
+### 6. Jobify frontend rules
+
+- Stack: React 19, Vite 8, Tailwind 4, React Router 7, `@clerk/react`, Motion, Lucide. TypeScript entry `src/main.tsx`; the rest is mostly `.jsx`. Node 22. Deploys to Vercel (`vercel.json`: SPA rewrite, security headers, report-only CSP).
+- Routes: `/` marketing · `/signin` (Clerk) · `/plans` → `/checkout` · `/demo/{chat,jobs,applications,founders,portfolio}` (no auth, fixtures) · `/app/{…}` (Clerk session).
+- **Integration seam = `jobify/src/services/*.js`** (application, auth, chat, founder, job, newsletter, portfolio). Pages import services only, never `mocks/` or `fetch`.
+- `import.meta.env` is read **only** in `src/config/env.js`. `hasApi` is true when `VITE_API_BASE_URL` is set.
+- Server calls go through `src/lib/apiClient.js` (sends `Authorization: Bearer <Clerk JWT>`, throws `ApiError{status, code, message}`). Call `getToken()` on every request and never cache it. 401 → sign-in; 402 → `CREDITS_REQUIRED` → "Choose a plan".
+- Wiring a service: keep its exported names and return shapes. Swap the mock body for `api(...)`, but keep `mode === "demo" || !hasApi ? mock : api(...)` (**`/demo` must never call the API**). Put backend↔UI field mapping in `src/services/mappers/*.js`, then delete the matching `src/mocks/*.js` once it's unused.
+- Env: `VITE_CLERK_PUBLISHABLE_KEY`, `VITE_API_BASE_URL`, `VITE_NEWSLETTER_ENDPOINT`, `VITE_SUPPORT_EMAIL`. Vite bakes these in at build time, so a change needs a redeploy.
+
+### 7. Backend state (verified in code, 2026-11-05)
+
+| Area | State | Gap |
+|---|---|---|
+| Clerk auth | ✅ `get_current_user` verifies RS256 via JWKS (`CLERK_ISSUER` / `CLERK_JWKS_URL`), auto-provisions `User` with signup credits; HS256 legacy path kept. ✅ Svix-verified webhook `POST /api/auth/webhook/clerk` (user.created/updated/deleted) | No `azp` / authorized-parties check. `CLERK_*` missing from `.env.example`. Webhook skips verification when `CLERK_WEBHOOK_SECRET` is unset outside production |
+| Route protection | Router-level `protected_deps` on agents, sidekick, nextraise, workday, vc, crawler; kanban per-route (6/6) | **`main.py`: ~155 of 170 routes have no auth.** `mailbox` (0/5), `portfolio` (0/4, partly public by design), `telegram_connector` (0/7) have none. `enforce_auth_unless_public` + `is_public_path` exist but are **not wired** as a global dependency |
+| Dev auth fallback | `multi_tenant_enabled=True` by default. Only with `MULTI_TENANT_ENABLED=false` and `ENV≠production` do anonymous requests act as the first/admin user | Never deploy with `MULTI_TENANT_ENABLED=false` |
+| Credits top-up | ✅ `/api/auth/credits/topup` now `require_admin` | It credits the **caller** (`user.id`), not a target user. Fix it before admins rely on it |
+| CORS | Explicit list in production; outside production `allow_origin_regex=https?://.*` with credentials | Use an explicit allow-list in every deployed env |
+| Tenant isolation | `user_id` only on Application, CandidateProfile, CreditTransaction, MailboxAccount, OutreachFunnelEvent, Resume, TargetCompanyRecord, TelegramConnector, XOAuthToken | Job (per-user saved/applied), Contact, OutreachRecord and others need `user_id` + always-filtered queries + A-vs-B isolation tests |
+| Migrations | Only the initial Alembic revision | Autogenerate against clean Postgres; stop `migrate_database.py \|\| true` swallowing failures |
+| Mailbox / Gmail | **Simulated**: hard-coded `candidate@gmail.com`, `/simulate-inbound` | Real Google OAuth (`gmail.readonly`, encrypted refresh token, Celery sync); remove simulate in production |
+| Chat | None: there is no conversations/messages endpoint | Tables + SSE streaming; side effects need a second confirm call |
+| Portfolio | Read-only public GET + chat | Draft PUT, publish/unpublish, username availability (3–24 `[a-z0-9-]`, reserved words) |
+| Billing | Stripe only; backend plans free/$29/$59/$99 vs Jobify $5/$8 | One plan catalog served by `GET /api/billing/plans`; idempotent webhooks; webhook-only entitlement |
+| Response shape | FastAPI default `{detail}`; jobs shape differs from the UI | Standard `{items,total,page,pageSize}` and `{error:{code,message}}` envelopes, or mappers |
+| Legal/risk surface | Anti-bot scraping (stealth/camoufox/nodriver), email permutation, Common Crawl email mining, Workday/NextRaise auto-apply, founder email harvesting, `sidekick-desktop` "screen-share invisible" interview HUD | Keep out of the SaaS image/product until reviewed (ToS, GDPR/DPDP, anti-spam) |
+
+### 8. Screen → endpoint map
+
+| Jobify screen / service | Backend today | Needed |
+|---|---|---|
+| Sign in · `authService` | Clerk verification ✅, `/api/auth/me` (credits_balance) | `/me` returns user + plan + credits; retire password register/login for customers |
+| Jobs · `jobService` (`workModes, types, countries, skills, minSalaryUsd, maxYears, matchOnly, sort`) | `GET /api/jobs` (page, limit, search, region, experience_level, years_of_experience, date_posted, tech_stack, source, has_remote, sort_by/order), `GET /api/jobs/{id}` | Param mapper; per-user match % from CandidateProfile; `user_jobs` saved/applied. "Mark applied" only records it and never submits to the employer |
+| Applications · `applicationService` | `/api/kanban/board`, `/cards`, `PATCH /cards/{id}/stage`, `/next-action`, `/email-provenance` | Card CRUD, notes, interview events, offer fields, stage-vocab mapping; "ghosted" after 30 days of silence via Celery beat |
+| Founders · `founderService` | `/api/vc/*` | search/country/industry/hiringOnly filters; per-user **unlock** that debits credits; emails returned only after unlock |
+| Chat · `chatService` | `/api/agents/*` only | conversations + messages + SSE; outreach returns a draft for approval |
+| Portfolio · `portfolioService` | `GET /api/portfolio/{username}`, `/github-activity`, `/chat`, `/seed` | write/publish endpoints (§7) |
+| Plans/Checkout | `/api/billing/plans`, `create-checkout-session`, `create-portal-session`, `webhook` | Real redirect, webhook-driven plan, subscription UI |
+| Credits counter | `/api/auth/me`, `/credits/history`, `CREDIT_COSTS` | The server decides cost; the UI refetches after a spend and never decrements locally |
+
+### 9. MVP plan: backend conforms to Jobify (decided 2026-11-05)
+
+**Principle:** the frontend is the spec. `jobify/docs/INTEGRATION.md` and the return shapes in `jobify/src/services/*.js` define the API, and the backend changes to match. Frontend changes are limited to swapping service bodies to `api(...)` (keeping the `/demo` mock branch) and removing "simulated" labels once a feature is real.
+
+**Decisions:** existing `/api/*` routes are **replaced** in place (`VITE_API_BASE_URL=https://<host>/api`) · `frontend/` and `extension/` are **retired**, so their routes can be reshaped or deleted freely · payments via **Dodo** (merchant of record, which handles GST/tax) at **Jobify `plans.js` prices** (Basic $5/500 credits, Pro $8/1,500) · Jobs/Founders data = **everything currently in the DB** (legal review is the user's accepted risk, so flag it, don't block) · **real Gmail OAuth in the MVP** · Chat LLM provider **deferred**.
+
+**Cross-cutting (do first, applies to every phase):**
+- Global auth: wire `enforce_auth_unless_public` as an app-level dependency and keep `is_public_path` as the allow-list. Add an `azp` check. Add `CLERK_*`, `DODO_*`, `GOOGLE_OAUTH_*`, `TOKEN_ENCRYPTION_KEY` to `.env.example`.
+- Contract helpers in `src/api/contract.py`: `paginate()` → `{items,total,page,pageSize}`, plus an exception handler mapping every `HTTPException`/validation error to `{error:{code,message}}` (402 → `CREDITS_REQUIRED`).
+- Tenant helper `scoped(query, Model, user)`. Every new route uses it, and pytest asserts user A can't read or write user B's rows.
+- One credit table in `credit_service.CREDIT_COSTS`: `chat_message=5`, `founder_unlock=5` (matching `ChatPage.CREDIT_COST` and `mocks/founders.UNLOCK_COST`). The server debits; the UI refetches `/me/subscription`.
+- Alembic: baseline the current models, then one migration per phase. Remove `migrate_database.py || true`.
+- Test auth: inject a fake JWKS via `set_clerk_jwks_client()` in a pytest fixture.
+
+| Phase | Jobify contract (paths under `/api`) | Backend work (reuse → new) | Size |
+|---|---|---|---|
+| **1. Me + Jobs** | `GET /me`, `GET /me/subscription`; `GET /jobs?q&workModes&types&countries&skills&matchOnly&minSalaryUsd&maxYears&sort&page&pageSize`, `GET /jobs/:id`, `PUT /me/jobs/:id/saved`, `POST /me/jobs/:id/applied` | `User`/`get_current_user` → `Subscription` mapper (`subscription_tier`→`basic\|pro\|null`, status, `credits_balance`, `renewsAt`). `Job` → `toJob` mapper (`workMode`, `type`, `postedDaysAgo`, `skills[]`, `responsibilities[]`). Per-user `match` from `CandidateProfile` vs job, deterministic, in one function. **New** `user_jobs(user_id, job_id, saved_at, applied_at)`. `applied` also creates an `Application(stage=applied, source="jobs")`. Delete the old `/api/jobs*` handlers in `main.py` | M |
+| **2. Applications** | `GET/POST /applications`, `PATCH/DELETE /applications/:id` | `Application` (has `kanban_stage`, `email_subject`, `recruiter_*`). **Add** `company`, `position`, `notes`, `offer_salary`, `offer_deadline`, `source`, and make `job_id` nullable. **New** `application_events(id, application_id, title, at)`. Map stages to `applied\|interview\|offer\|rejected\|ghosted`. Celery beat marks `ghosted` after 30 days with no inbound mail. Retire `kanban_router` | M |
+| **3. Gmail (real)** | `GET /gmail`, `POST /gmail/connect` → `{url}`, `POST /gmail/sync`, `DELETE /gmail` | Google OAuth web flow, scope `gmail.readonly`; public `GET /api/gmail/callback` with a signed `state`. Fernet-encrypt the refresh token in `MailboxAccount`. `sync` = Celery task → `InboundRecruiterMessage` → classify → advance cards (record provenance). `DELETE` revokes the token and purges bodies. Delete `/simulate-inbound` and the hard-coded `candidate@gmail.com`. **External:** Google Cloud project, consent screen in *Testing* mode (≤100 test users) until verification/CASA | L |
+| **4. Founders** | `GET /founders?q&country&industry&hiringOnly&page&pageSize`, `PUT /me/founders/:id/saved`, `POST /founders/:id/unlock` | `PortfolioCompany` + `CompanyFounder` → `Company{…, hiring, founders[{id,name,initials,role,linkedin,x}]}`. **The list never includes emails.** **New** `founder_unlocks(user_id, company_id)` (unique) and `user_saved_founders`. Unlock = one transaction: `deduct_credits(founder_unlock)` with `FOR UPDATE` → insert unlock → return contact fields. Unlocking again is free and idempotent | M |
+| **5. Portfolio** | `GET/PUT /portfolio`, `POST /portfolio/publish {username}`, `DELETE /portfolio/publish`, `GET /portfolio/username-available?name=`, `POST /portfolio/regenerate` | **New** `portfolios(user_id unique, username unique nullable, status draft\|published, content JSON, updated_at)`. Username `^[a-z0-9-]{3,24}$` plus reserved words. Declare the static paths before `/{username}`. Public `GET /portfolio/{username}` serves published content only. `regenerate` builds deterministically from `CandidateProfile`/`CandidateProject` until the LLM is chosen | S–M |
+| **6. Chat** | `GET/POST /conversations`, `PATCH/DELETE /conversations/:id`, `POST /conversations/:id/messages {content, mode: ask\|agent}` (streamed, abortable) | **New** `conversations(id, user_id, title, mode, updated_at)` and `messages(id, conversation_id, role, content, usage, created_at)`. SSE response that stops on client disconnect. Debit `chat_message` per send. A `ChatProvider` protocol with an **echo/stub provider until the LLM decision**. Agent mode may only return drafts (never sends). First match the stream format `chatService.send` expects | M |
+| **7. Payments (Dodo)** | `POST /checkout/session` (name, email, phone, country, address, business/GSTIN, plan, interval, currency, discount) → `{url}`; plans catalog | Extend the existing Dodo code in `billing_service.py`. Server-side plan catalog = `plans.js` values (confirm yearly prices). Hosted checkout URL. Verify the signature on `POST /api/billing/webhook/dodo`. **New** `payment_events(provider_event_id unique)` for idempotency. Webhook alone sets `subscription_tier/status/renewsAt` and grants credits (`CreditTransaction`). Handle `past_due`/`cancelled`. Remove the unused Stripe path once Dodo is live | M |
+
+**Order and parallelism:** cross-cutting → 1 → 2 → {3, 4, 5} in any order → 7 → 6 once the LLM is decided. (Phase 8 cleanup/launch dropped from the MVP plan on 2026-11-05.) Gmail (3) has external lead time (Google project + consent screen), so start that setup on day one.
+
+**Still open (ask, don't assume):** Chat LLM provider · Jobify yearly prices and currency handling (USD only vs INR display) · owner of the Google Cloud and Dodo accounts (need test keys) · the exact SSE event format in `chatService.js`.
+
+**Production target:** Jobify on Vercel (Clerk *production* instance on an owned domain) · slim API image without Playwright (scrapers in a separate worker image) · Celery worker + one beat · managed Postgres (backups/PITR) + Redis · Sentry + PostHog · secrets in the platform store · Flower and `/metrics` kept private.
+
+---
+
+## 10. Gotchas
+
+- `401 Invalid Clerk token`: wrong `CLERK_ISSUER`/JWKS, or a dev/prod Clerk instance mismatch between Jobify and the API.
+- 401 after about a minute: the client cached the Clerk token. Call `getToken()` on every request.
+- `/signin` blank on Vercel: `VITE_CLERK_PUBLISHABLE_KEY` wasn't set at build time. Set it and redeploy.
+- Works on SQLite but fails on Postgres: develop against compose Postgres; SQLite is lax about types and JSON.
+- Celery tasks never run: worker/beat not started, or wrong `REDIS_URL`.
+- LLM calls fail in production: there's no Ollama on PaaS, so set `GEMINI_API_KEY` plus a fallback.
+- PowerShell 5.1 `Get-Content` misreads UTF-8 (em-dashes print as `â€”`). Pass `-Encoding utf8`; the files themselves are fine.
+- `main.py` is 6.6k lines. Search it with `Grep`; don't read it whole. Splitting it into routers is a planned refactor, so don't do it ad hoc.

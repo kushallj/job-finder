@@ -1,179 +1,88 @@
-# Job Finder
+# Job Finder + Jobify
 
-Job Finder is a job-intelligence and workflow platform focused on job discovery, candidate profiling, application tracking, outreach preparation, and startup/VC research. The repository mixes a Python FastAPI backend, a React frontend, automation tasks, and domain-specific data pipelines.
+Job-search intelligence platform. **Job Finder** (this repo root) is the FastAPI backend: job discovery and scoring, application tracking, outreach drafting, startup/VC research, and a target-company agent layer. **Jobify** (`jobify/`) is the new customer-facing React frontend being taken to an MVP on top of it.
 
-## Repository goals
+Human-in-the-loop by design: the system drafts, scores, and tracks. It never auto-applies, auto-sends email, or posts to social platforms without explicit approval.
 
-- Keep the application understandable and modular
-- Keep operational logic separate from generated data and research artifacts
-- Keep deployment and environment configuration explicit
-- Keep onboarding friction low for contributors and operators
-- Preserve compatibility with the existing stack while improving documentation and structure
+> **Docs policy:** this repo has exactly two docs, this `README.md` (humans: what it is, how to run it) and [`CLAUDE.md`](./CLAUDE.md) (agents and contributors: rules, architecture, current state, MVP plan). Don't add more Markdown docs; extend one of these or put rationale in module docstrings.
 
-## Repository overview
+## Layout
 
 ```text
 job-finder/
-├── main.py                     # FastAPI app entrypoint
-├── src/                       # Python backend: app logic, models, routers, services
-├── frontend/                  # Vite/React frontend and UI logic
-├── sidekick-desktop/          # desktop integration shell
-├── extension/                 # browser extension helpers
-├── config/                    # candidate and sourcing profiles
-├── data/                      # resumes, generated outputs, pipeline and tracker data
-├── docs/                      # canonical docs + legacy archive
-├── docker/                    # containerized service definitions
-├── scripts/                   # operational scripts
-├── tests/                     # repository-level test documentation and additions
-├── .github/                   # CI/workflow definitions
-├── alembic/                   # migration support
-├── .env.example               # example environment variables
-├── .pre-commit-config.yaml    # basic repository checks
-├── pytest.ini                 # pytest defaults
-├── pyproject.toml             # minimal Python project metadata/tooling config
-├── package.json               # repo-level npm scripts
-├── README.md                  # canonical user-facing entry point
-├── agent.md                   # architecture, operations, and contributor guide
-├── docker-compose.yml         # local runtime stack
-├── Dockerfile                 # app image
-└── requirements.txt           # Python dependency lockfile
+├── main.py              FastAPI app (≈6.6k lines, ≈170 routes) + router composition
+├── src/                 Backend: models, auth, routers, services, scrapers, agents
+│   ├── api/routers/     agents, auth, billing, kanban, mailbox, portfolio, telegram
+│   ├── agents/          26 target-company agents + orchestrator.py
+│   ├── auth/            Clerk RS256 + legacy HS256 JWT verification
+│   ├── models.py        SQLAlchemy models    database.py  engine/session
+│   ├── tasks.py         Celery tasks         cli.py       NEXUS CLI
+│   └── config.py        Pydantic settings (reads .env)
+├── jobify/              NEW product frontend: React 19, Vite 8, Tailwind 4, Clerk
+├── frontend/            Legacy internal dashboard: React 19, MUI, react-query
+├── config/              profile.yml, target_companies.yml, boolean_queries.yml
+├── data/                resume.txt, tracker, pipeline.md, agent_state.db (sensitive)
+├── alembic/             migrations (only the initial schema so far)
+├── tests/               pytest suite (≈120 test files)
+├── extension/  sidekick-desktop/  n8n_workflows/  dsm_deploy/   non-core surfaces
+├── docker-compose*.yml  Dockerfile  Procfile  render.yaml  fly.toml
+└── README.md  CLAUDE.md
 ```
 
-## What is in the codebase
+## Run locally
 
-The platform currently includes:
-
-- FastAPI backend for jobs, contacts, outreach, profile data, and startup signals
-- SQLAlchemy + PostgreSQL support with optional SQLite compatibility
-- Celery + Redis task workers for background jobs
-- React frontend and a Vite-based dashboard
-- startup/VC research, networking, and lead-sourcing workflows
-- recruiter/outreach and candidate match pipelines
-- target-company agents for interviews, fit scoring, and outreach prep
-
-## Runtime stack
-
-- Python 3.11+
-- FastAPI + Uvicorn
-- SQLAlchemy / Alembic
-- PostgreSQL (current desired local DB)
-- Redis + Celery
-- React + Vite
-- Docker Compose for orchestration
-
-## Quick start
-
-### 1. Create a local environment
+**Backend** (Python 3.11+)
 
 ```bash
 python -m venv .venv
-# Windows PowerShell
-.\.venv\Scripts\Activate.ps1
-# macOS/Linux
-source .venv/bin/activate
+.\.venv\Scripts\Activate.ps1          # macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+copy .env.example .env                 # SQLite + mock providers work with zero keys
+python -m uvicorn main:app --reload --port 8000
 ```
 
-### 2. Install dependencies
+API docs at http://localhost:8000/docs, health check at `/api/health`.
+
+The full stack (Postgres, Redis, API, Celery worker/beat/flower, Ollama) runs with `docker compose up --build`.
+
+**Jobify frontend** (Node 22)
 
 ```bash
-python -m pip install -r requirements.txt
+cd jobify
+npm install
+copy .env.example .env.local           # set VITE_CLERK_PUBLISHABLE_KEY
+npm run dev                            # http://localhost:3000
+npm run check                          # typecheck + build
 ```
 
-### 3. Configure environment variables
+`/demo/*` works with no login and mock data. `/app/*` needs a Clerk session. To point Jobify at the local API, set `VITE_API_BASE_URL=http://localhost:8000` (the backend CORS default already allows `:3000`). Leave it empty to stay on mocks.
 
-Use the repo root `.env` file (or copy from `.env.example`). Keep secrets out of version control.
-
-```bash
-copy .env.example .env
-```
-
-The repo already supports PostgreSQL via the env variable configuration used by the application and Compose files.
-
-### 4. Start the backend
+**Agents and CLI**
 
 ```bash
-python -m uvicorn main:app --reload
-```
-
-API docs: `http://localhost:8000/docs`
-
-### 5. Start the stack with Docker (optional)
-
-```bash
-docker compose up --build
-```
-
-## Database and operations
-
-This repo expects a PostgreSQL-backed runtime for production-style usage, with Redis and Celery for async work. The authoritative local configuration is described in:
-
-- `.env`
-- `docker-compose.yml`
-- `src/config.py`
-- `src/database.py`
-
-## Key directories
-
-- `src/`: backend implementation. Most business logic lives here.
-- `frontend/`: UI and frontend API layer.
-- `docs/`: operational reference documentation and archive of older design notes.
-- `config/`: profiles, search configs, target company definitions.
-- `data/`: persisted job data, resumes, generated artifacts, and research state.
-- `scripts/`: one-off automation and environment setup helpers.
-
-## Documentation hierarchy
-
-This repo is intentionally consolidating its documentation. The canonical order is:
-
-1. `README.md`
-2. `agent.md`
-3. `docs/architecture/README.md`
-4. `docs/repository-structure.md`
-5. `docs/legacy/README.md`
-6. deeper domain docs under `docs/`
-
-## Repository structure optimization
-
-The repository is in a safe first pass of folder structure optimization. The current plan and migration checklist live in [docs/repository-structure.md](./docs/repository-structure.md). This pass keeps production logic intact while clarifying ownership, archives, and documentation boundaries.
-
-## Target-company agents
-
-The project contains an agent-oriented workflow for research, fit scoring, interview prep, and outreach. Review drafts before action; the system is designed to support human approval rather than autonomous sending.
-
-```bash
-python -m src.agents.orchestrator --stage daily
+python -m src.agents.orchestrator --stage daily          # signal → ATS → fit → schedule → tailor → contacts → drafts
 python -m src.agents.orchestrator --stage leads
 python -m src.agents.orchestrator --stage interview-prep --company "Company"
+python -m src.cli tracker | verify | drafts | scan "<query>"
 ```
 
-See [`docs/AGENT_STRATEGIES.md`](./docs/AGENT_STRATEGIES.md) for the agent rationale and [`agent.md`](./agent.md) for repo operations.
+Output is written to `data/` (for example `data/agent_run_report.md`) for review.
 
-## Testing and quality checks
+## Checks
 
 ```bash
 python -m pytest
 python -m compileall src main.py
+cd jobify && npm run check
 ```
 
-The repo also includes basic pre-commit and CI conventions to catch common issues early.
+## Status
 
-## Security and production readiness
+Jobify UI is built but still reads mock services (`jobify/src/services/*`). The backend now verifies Clerk tokens, but most routes are still unauthenticated. **It is not production-ready.** The verified gap list and the MVP plan are in [`CLAUDE.md` → Production MVP](./CLAUDE.md#production-mvp-jobify).
 
-- Never commit secrets or API keys.
-- Keep all production-sensitive values in `.env` or platform secrets.
-- Prefer environment-based config over hardcoded credentials.
-- Review generated outreach and job automation output before sending or applying.
-- Treat `config/`, `data/`, and logs as operationally sensitive assets.
+## Security
 
-## Contributing
-
-Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for the contributor workflow and expectations.
-
-- Keep production logic stable unless specifically requested.
-- Prefer documentation and structure changes before behavior changes.
-- Use consistent naming, keep module boundaries clear, and avoid duplicate source-of-truth files.
-- Add or update docs when adding new workflows or significant tooling changes.
-
-## Maintainer notes
-
-This repository has grown into a monorepo-like structure with multiple workloads. The top-level docs and the repo-level conventions are intentionally more opinionated than the older scattered Markdown. The goal is to make onboarding and architecture review simpler without freezing the technical direction.
+- Never commit secrets. `.env*` is git-ignored; use platform secret stores in deployment.
+- Treat `config/`, `data/`, and logs as personal data.
+- `AUTO_SEND_EMAILS=false` is the default and must stay that way.
+- Only `VITE_*` variables reach the browser. Never put a secret in one.
