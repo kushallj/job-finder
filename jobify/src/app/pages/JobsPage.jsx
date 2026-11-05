@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Search, SlidersHorizontal, Briefcase, Bookmark, BookmarkCheck, MapPin, X } from "lucide-react";
+import { Search, SlidersHorizontal, Briefcase, Bookmark, BookmarkCheck, MapPin, X, Sparkles } from "lucide-react";
 import { jobService } from "../../services/jobService.js";
 import { applicationService } from "../../services/applicationService.js";
+import { profileService } from "../../services/profileService.js";
+import { isLive } from "../../lib/apiClient.js";
 import { JOB_FILTER_OPTIONS as OPT } from "../../mocks/jobs.js";
 import { useApp } from "../AppProvider.jsx";
-import { Avatar, Badge, Button, Dialog, EmptyState, Field, PageHeader, Pagination, Select, Skeleton } from "../ui.jsx";
+import { Avatar, Badge, Button, Dialog, EmptyState, Field, Input, PageHeader, Pagination, Select, Skeleton } from "../ui.jsx";
 import { cn } from "../../lib/utils.js";
 
 const PAGE_SIZE = 20;
@@ -27,6 +29,8 @@ const Chip = ({ active, onClick, children }) => (
 );
 
 const toggle = (arr, v) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+const splitList = (s) => s.split(",").map((x) => x.trim()).filter(Boolean);
+const toDraft = (p) => ({ skills: p.skills.join(", "), targetRoles: p.targetRoles.join(", "), locations: p.locations.join(", "), years: p.yearsOfExperience ?? "" });
 
 export default function JobsPage() {
   const { toast } = useApp();
@@ -41,6 +45,29 @@ export default function JobsPage() {
   const [error, setError] = useState(false);
   const [user, setUser] = useState({ saved: [], applied: [] });
   const [detail, setDetail] = useState(null);
+  // Matching profile (live only; demo data already carries match values).
+  const live = isLive();
+  const [profile, setProfile] = useState(null);
+  const [profileDraft, setProfileDraft] = useState(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [reload, setReload] = useState(0);
+  useEffect(() => { if (live) profileService.get().then(setProfile).catch(() => {}); }, [live]);
+  const openProfile = () => setProfileDraft(toDraft(profile || { skills: [], targetRoles: [], locations: [], yearsOfExperience: null }));
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      const saved = await profileService.save({
+        skills: splitList(profileDraft.skills), targetRoles: splitList(profileDraft.targetRoles),
+        locations: splitList(profileDraft.locations), yearsOfExperience: profileDraft.years === "" ? null : Number(profileDraft.years),
+      });
+      setProfile(saved); setProfileDraft(null); setReload((n) => n + 1);
+      toast("Profile saved. Match scores updated.");
+    } catch {
+      toast("Couldn't save your profile. Check the fields and try again.", "error");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   useEffect(() => { jobService.getUserState().then(setUser).catch(() => {}); }, []);
   useEffect(() => { const t = setTimeout(() => setDebounced(q), 200); return () => clearTimeout(t); }, [q]);
@@ -52,7 +79,7 @@ export default function JobsPage() {
       .then((d) => !cancelled && setData(d))
       .catch(() => !cancelled && setError(true));
     return () => { cancelled = true; };
-  }, [debounced, filters, sort, page]);
+  }, [debounced, filters, sort, page, reload]);
 
   const activeCount = useMemo(
     () => filters.workModes.length + filters.types.length + filters.countries.length + filters.skills.length + (filters.minSalaryUsd ? 1 : 0) + (filters.maxYears !== null ? 1 : 0) + (filters.matchOnly ? 1 : 0),
@@ -94,10 +121,19 @@ export default function JobsPage() {
         <Select id="sort" value={sort} onChange={(e) => setSort(e.target.value)} className="h-9 w-[130px] text-[13px]">
           <option value="match">Best match</option><option value="recent">Most recent</option><option value="salary">Salary</option><option value="title">Title A–Z</option>
         </Select>
+        {live && profile?.complete && <Button variant="outline" onClick={openProfile}><Sparkles className="w-3.5 h-3.5" />Profile</Button>}
         <Button variant="outline" onClick={() => { setDraft(filters); setFiltersOpen(true); }}>
           <SlidersHorizontal className="w-3.5 h-3.5" />Filters{activeCount > 0 && <span className="ml-1 text-[11px] bg-[#141414] text-white rounded-full px-1.5">{activeCount}</span>}
         </Button>
       </PageHeader>
+
+      {live && profile && !profile.complete && (
+        <div className="mx-4 sm:mx-6 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#E7E7E7] bg-[#FAFAFA] px-4 py-3 text-[13px]">
+          <Sparkles className="w-4 h-4 text-[#EBAA20]" aria-hidden="true" />
+          <span className="flex-1 min-w-[200px]">Add your skills and target roles to see how well each job matches you.</span>
+          <Button size="sm" onClick={openProfile}>Set up matching</Button>
+        </div>
+      )}
 
       {/* Desktop table */}
       <div className="hidden lg:block overflow-x-auto">
@@ -158,6 +194,30 @@ export default function JobsPage() {
         <span>{data ? (data.total ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, data.total)} of ${data.total} roles (demo data)` : "0 roles") : "Loading…"}</span>
         {data && <Pagination page={page} total={data.total} pageSize={PAGE_SIZE} onChange={setPage} />}
       </div>
+
+      <Dialog open={!!profileDraft} onClose={() => setProfileDraft(null)} title="Matching profile" side width={420}
+        footer={<>
+          <Button variant="ghost" onClick={() => setProfileDraft(null)}>Cancel</Button>
+          <Button onClick={saveProfile} disabled={savingProfile || !profileDraft?.skills.trim()}>{savingProfile ? "Saving…" : "Save profile"}</Button>
+        </>}>
+        {profileDraft && (
+          <div className="flex flex-col gap-5">
+            <p className="text-[13px] text-[#707070]">Used only to estimate Match % on jobs. Separate items with commas.</p>
+            <Field label="Skills" htmlFor="pf-skills" hint="e.g. Python, FastAPI, PostgreSQL">
+              <Input id="pf-skills" value={profileDraft.skills} onChange={(e) => setProfileDraft({ ...profileDraft, skills: e.target.value })} />
+            </Field>
+            <Field label="Target roles" htmlFor="pf-roles" hint="e.g. Backend Engineer">
+              <Input id="pf-roles" value={profileDraft.targetRoles} onChange={(e) => setProfileDraft({ ...profileDraft, targetRoles: e.target.value })} />
+            </Field>
+            <Field label="Years of experience" htmlFor="pf-years">
+              <Input id="pf-years" type="number" min={0} max={50} step={0.5} value={profileDraft.years} onChange={(e) => setProfileDraft({ ...profileDraft, years: e.target.value })} />
+            </Field>
+            <Field label="Preferred locations" htmlFor="pf-locs" hint="e.g. India, Remote">
+              <Input id="pf-locs" value={profileDraft.locations} onChange={(e) => setProfileDraft({ ...profileDraft, locations: e.target.value })} />
+            </Field>
+          </div>
+        )}
+      </Dialog>
 
       <Dialog open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters" side width={400}
         footer={<>

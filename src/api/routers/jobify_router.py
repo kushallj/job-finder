@@ -10,17 +10,19 @@ they always have a real user row.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from src.api.contract import scoped
 from src.auth.dependencies import get_current_user
 from src.database import get_db
-from src.models import Job, User, UserJob
+from src.models import CandidateProfile, Job, User, UserJob
 from src.services import jobify_jobs as jj
 
 router = APIRouter(prefix="/api", tags=["Jobify"])
@@ -60,6 +62,60 @@ def get_subscription(user: User = Depends(get_current_user)) -> Dict[str, Any]:
         "creditsRemaining": user.credits_balance or 0,
         "renewsAt": user.current_period_end.isoformat() if user.current_period_end else None,
     }
+
+
+# --- matching profile ------------------------------------------------------------
+# Feeds match % (src/services/jobify_jobs.match_score). Stored on CandidateProfile so the
+# portfolio/resume features share one profile per user.
+
+class MatchProfile(BaseModel):
+    skills: List[str] = Field(default_factory=list, max_length=50)
+    targetRoles: List[str] = Field(default_factory=list, max_length=20)
+    yearsOfExperience: Optional[float] = Field(default=None, ge=0, le=50)
+    locations: List[str] = Field(default_factory=list, max_length=20)
+
+    @field_validator("skills", "targetRoles", "locations")
+    @classmethod
+    def _clean(cls, v: List[str]) -> List[str]:
+        out = []
+        for item in v:
+            item = " ".join(str(item).split())[:60]
+            if item and item.lower() not in (x.lower() for x in out):
+                out.append(item)
+        return out
+
+
+def _profile_out(profile: Optional[CandidateProfile]) -> Dict[str, Any]:
+    if profile is None:
+        data = MatchProfile()
+    else:
+        data = MatchProfile(skills=jj._json_list(profile.skills), targetRoles=jj._json_list(profile.target_roles),
+                            yearsOfExperience=profile.years_of_experience,
+                            locations=jj._json_list(profile.target_locations))
+    out = data.model_dump()
+    out["complete"] = bool(data.skills)  # skills carry 60% of match; the minimum for a useful score
+    return out
+
+
+@router.get("/me/profile")
+def get_profile(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+    return _profile_out(jj.profile_for(db, user))
+
+
+@router.put("/me/profile")
+def put_profile(body: MatchProfile, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+    profile = jj.profile_for(db, user)
+    if profile is None:
+        profile = CandidateProfile(user_identifier=user.clerk_user_id or f"user_{user.id}",
+                                   full_name=user.full_name or user.email, email=user.email)
+        db.add(profile)
+    profile.skills = json.dumps(body.skills)
+    profile.target_roles = json.dumps(body.targetRoles)
+    profile.years_of_experience = body.yearsOfExperience
+    profile.target_locations = json.dumps(body.locations)
+    db.commit()
+    db.refresh(profile)
+    return _profile_out(profile)
 
 
 # --- jobs ----------------------------------------------------------------------

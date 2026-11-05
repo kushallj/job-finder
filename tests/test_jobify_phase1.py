@@ -180,3 +180,29 @@ def test_sparse_job_degrades_gracefully():
     ui = jj.to_ui_job(Job(id=7, title="Engineer"))
     assert (ui["salary"], ui["experience"], ui["workMode"], ui["skills"], ui["postedDaysAgo"]) == \
         ("Not disclosed", "Not specified", "Onsite", [], 0)
+
+# --- matching profile ----------------------------------------------------------------
+
+def test_profile_empty_then_saved_drives_match(client, clerk_auth, jobs):
+    h = _auth(clerk_auth)
+    assert client.get("/api/me/profile", headers=h).json() == {
+        "skills": [], "targetRoles": [], "yearsOfExperience": None, "locations": [], "complete": False}
+    saved = client.put("/api/me/profile", headers=h, json={
+        "skills": [" Python ", "python", "FastAPI"], "targetRoles": ["Python Engineer"],
+        "yearsOfExperience": 6, "locations": ["India"]}).json()
+    assert saved["skills"] == ["Python", "FastAPI"] and saved["complete"] is True
+    assert client.get("/api/me/profile", headers=h).json() == saved
+    top = client.get("/api/jobs", headers=h, params={"sort": "match"}).json()["items"][0]
+    assert top["title"] == "Senior Python Engineer" and top["match"] > 80
+
+
+def test_profile_validation(client, clerk_auth):
+    h = _auth(clerk_auth)
+    res = client.put("/api/me/profile", headers=h, json={"skills": ["x"], "yearsOfExperience": -1})
+    assert res.status_code == 422 and res.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert client.put("/api/me/profile", headers=h, json={"skills": ["s"] * 51}).status_code == 422
+
+
+def test_profile_is_per_user(client, clerk_auth):
+    client.put("/api/me/profile", headers=_auth(clerk_auth, "a"), json={"skills": ["go"]})
+    assert client.get("/api/me/profile", headers=_auth(clerk_auth, "b")).json()["skills"] == []
