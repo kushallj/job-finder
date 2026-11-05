@@ -922,22 +922,26 @@ app.include_router(jobify_router)
 cors_origins_list = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 if settings.frontend_url and settings.frontend_url not in cors_origins_list:
     cors_origins_list.append(settings.frontend_url)
-cors_origins_list.extend([
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-])
+_is_production = settings.env.lower() == "production"
+if not _is_production:
+    cors_origins_list.extend([
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ])
 cors_kwargs = {
     "allow_origins": list(dict.fromkeys(cors_origins_list)),
     "allow_credentials": True,
     "allow_methods": ["*"],
     "allow_headers": ["*"],
 }
-if settings.env.lower() != "production":
-    cors_kwargs["allow_origin_regex"] = r"https?://.*"
+if not _is_production:
+    # Any local port for dev tooling. Never a wildcard: with allow_credentials, an
+    # "any origin" regex lets every website call a reachable dev/staging API as the visitor.
+    cors_kwargs["allow_origin_regex"] = r"https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?"
 
 app.add_middleware(CORSMiddleware, **cors_kwargs)
 

@@ -132,3 +132,14 @@ def test_scoped_hides_other_users_rows(test_db):
 def test_scoped_refuses_models_without_user_id(test_db):
     with pytest.raises(TypeError):
         scoped(test_db.query(Job), Job, User(id=1))
+
+
+def test_cors_allows_local_dev_but_not_other_origins():
+    from main import app
+
+    client = TestClient(app)
+    pre = {"Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "authorization"}
+    ok = client.options("/api/jobs", headers={"Origin": "http://localhost:3000", **pre})
+    assert ok.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    evil = client.options("/api/jobs", headers={"Origin": "https://evil.example.com", **pre})
+    assert evil.headers.get("access-control-allow-origin") not in ("https://evil.example.com", "*")
