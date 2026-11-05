@@ -112,6 +112,15 @@ class Application(Base):
     status = Column(String(50), default="pending")  # saved, ready, applied, interview, offer, negotiation, accepted, rejected
     applied_at = Column(DateTime)
 
+    # Jobify card fields (jobify/src/services/applicationService.js). Manual cards have no
+    # job_id, so company/position live here; events/offer are JSON the UI replaces wholesale.
+    company = Column(String(500), nullable=True)
+    position = Column(String(500), nullable=True)
+    notes = Column(Text, nullable=True)
+    source = Column(String(50), nullable=True)  # manual | job | email
+    events_json = Column(Text, nullable=True)   # [{id, title, at}]
+    offer_json = Column(Text, nullable=True)    # {salary, deadline} or null
+
     # Kanban Board & Priority Positioning
     kanban_stage = Column(String(50), default="applied", index=True)
     kanban_order = Column(Integer, default=0)

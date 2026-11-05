@@ -95,6 +95,10 @@ app.conf.update(
             "task": "src.tasks.run_full_pipeline",
             "schedule": crontab(minute="0", hour="*/2"),
         },
+        "jobify-ghosted-sweep-daily": {
+            "task": "src.tasks.sweep_ghosted_applications",
+            "schedule": crontab(minute="15", hour="3"),
+        },
     },
 )
 
@@ -425,3 +429,15 @@ if __name__ == "__main__":
         task_id = run_full_pipeline.delay()
         print(f"Dispatched. Task ID: {task_id}")
         print("Usage: python -m src.tasks [pipeline|email|scrape <query>]")
+
+
+@app.task(name="src.tasks.sweep_ghosted_applications")
+def sweep_ghosted_applications() -> int:
+    """Jobify board: move cards with no inbound email for 30 days from applied to ghosted."""
+    from src.database import SessionLocal
+    from src.services.jobify_applications import sweep_ghosted
+
+    with SessionLocal() as db:
+        moved = sweep_ghosted(db)
+    log.info("[ghosted] moved %d application(s) to ghosted", moved)
+    return moved

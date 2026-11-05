@@ -82,6 +82,9 @@ class MockJWKClient:
 @pytest.fixture
 def clerk_test_db(monkeypatch):
     """Isolated in-memory SQLite database for Clerk auth and webhook testing."""
+    # Independent of the developer's .env (CLERK_ISSUER / CLERK_AUTHORIZED_PARTIES may be set).
+    monkeypatch.setattr(settings, "clerk_issuer", None)
+    monkeypatch.setattr(settings, "clerk_authorized_parties", "")
     test_engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},

@@ -80,6 +80,13 @@ def init_db():
             existing_apps = {c["name"] for c in inspector.get_columns("applications")}
             app_additions = {
                 "user_id": "INTEGER",
+                # Jobify card fields (alembic f9feca078a08)
+                "company": "VARCHAR(500)",
+                "position": "VARCHAR(500)",
+                "notes": "TEXT",
+                "source": "VARCHAR(50)",
+                "events_json": "TEXT",
+                "offer_json": "TEXT",
                 "ats_detected": "VARCHAR(100)",
                 "customized_resume_path": "TEXT",
                 "cover_letter_path": "TEXT",

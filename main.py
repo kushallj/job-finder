@@ -914,6 +914,8 @@ except Exception as e:
 # product UI depends on it, so an import error should stop startup, not hide it.
 from src.api.routers.jobify_router import router as jobify_router
 app.include_router(jobify_router)
+from src.api.routers.jobify_applications_router import router as jobify_applications_router
+app.include_router(jobify_applications_router)
 
 
 

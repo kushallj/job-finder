@@ -99,7 +99,7 @@ export default function JobsPage() {
   const apply = async (job) => {
     try {
       const s = await jobService.markApplied(job.id);
-      await applicationService.create({ company: job.company, position: job.title, subject: "Marked as applied in Jobify", sender: "", source: "job" });
+      await applicationService.create({ company: job.company, position: job.title, subject: "Marked as applied in Jobify", sender: "", source: "job", ...(isLive() && { jobId: Number(job.id) }) });
       setUser({ ...s });
       toast("Marked as applied and added to Applications. No application was sent to the company.");
     } catch {

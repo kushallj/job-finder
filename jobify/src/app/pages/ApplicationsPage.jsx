@@ -50,7 +50,10 @@ export default function ApplicationsPage() {
   const [conn, setConn] = useState(() => applicationService.getConnection());
   const [eventDraft, setEventDraft] = useState({ title: "", at: "" });
 
-  const load = useCallback(async () => setApps(await applicationService.list()), []);
+  const load = useCallback(async () => {
+    try { setApps(await applicationService.list()); }
+    catch { setApps((prev) => prev || []); toast("Couldn't load applications. Try again.", "error"); }
+  }, [toast]);
   useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
@@ -64,10 +67,19 @@ export default function ApplicationsPage() {
     const a = apps.find((x) => x.id === id);
     if (!a || a.stage === stage) return;
     setApps(apps.map((x) => (x.id === id ? { ...x, stage } : x)));
-    await applicationService.update(id, { stage });
-    toast(`Moved ${a.company} to ${STAGES.find((s) => s.id === stage).label}.`);
+    try {
+      await applicationService.update(id, { stage });
+      toast(`Moved ${a.company} to ${STAGES.find((s) => s.id === stage).label}.`);
+    } catch {
+      setApps((cur) => cur.map((x) => (x.id === id ? { ...x, stage: a.stage } : x)));
+      toast(`Couldn't move ${a.company}. Try again.`, "error");
+    }
   };
-  const patch = async (id, p) => { await applicationService.update(id, p); load(); };
+  const patch = async (id, p) => {
+    try { await applicationService.update(id, p); }
+    catch { toast("Couldn't save that change. Try again.", "error"); }
+    load();
+  };
 
   const submit = async () => {
     const e = {};
@@ -75,9 +87,13 @@ export default function ApplicationsPage() {
     if (!form.position.trim()) e.position = "Position is required";
     setErrors(e);
     if (Object.keys(e).length) return;
-    if (form.id) { await applicationService.update(form.id, form); toast("Application updated."); }
-    else { await applicationService.create(form); toast("Application added."); }
-    setForm(null); load();
+    try {
+      if (form.id) { await applicationService.update(form.id, form); toast("Application updated."); }
+      else { await applicationService.create(form); toast("Application added."); }
+      setForm(null); load();
+    } catch {
+      toast("Couldn't save the application. Check the fields and try again.", "error");
+    }
   };
 
   const connect = async () => {
@@ -192,7 +208,11 @@ export default function ApplicationsPage() {
       </Dialog>
 
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} title="Delete application?" message={`${deleting?.position} at ${deleting?.company} will be removed.`}
-        onConfirm={async () => { await applicationService.remove(deleting.id); setDeleting(null); setDetailId(null); load(); toast("Application deleted."); }} />
+        onConfirm={async () => {
+          try { await applicationService.remove(deleting.id); toast("Application deleted."); setDetailId(null); }
+          catch { toast("Couldn't delete the application. Try again.", "error"); }
+          setDeleting(null); load();
+        }} />
     </div>
   );
 }
