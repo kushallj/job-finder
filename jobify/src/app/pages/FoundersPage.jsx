@@ -107,7 +107,7 @@ export default function FoundersPage() {
                     <Avatar label={f.initials} size={32} />
                     <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">{f.name}</div><div className="text-[11.5px] text-[#707070]">{f.role}</div>
                       {unlocked && (f.email
-                        ? <span className="text-[11.5px] flex items-center gap-1 flex-wrap"><a href={`mailto:${f.email}`} className="text-[#2685E8] inline-flex items-center gap-1 hover:underline"><Mail className="w-3 h-3" />{f.email}</a>{f.emailVerified === false && <span className="text-[#8A5300]" title="Built from the name and company domain; not confirmed. It may bounce.">· likely email (unverified)</span>}</span>
+                        ? <span className="text-[11.5px] flex items-center gap-1 flex-wrap"><a href={`mailto:${f.email}`} className="text-[#2685E8] inline-flex items-center gap-1 hover:underline"><Mail className="w-3 h-3" />{f.email}</a></span>
                         : <div className="text-[11.5px] text-[#707070] flex items-center gap-1"><Mail className="w-3 h-3" />{live ? "No email on file" : "No email in demo data"}</div>)}</div>
                     {f.linkedin && <a href={f.linkedin} target="_blank" rel="noreferrer noopener" aria-label={`${f.name} on LinkedIn`} className="w-7 h-7 rounded-md bg-[#0A66C2]/10 text-[#0A66C2] flex items-center justify-center"><Linkedin className="w-3.5 h-3.5" /></a>}
                     {f.x && <a href={f.x} target="_blank" rel="noreferrer noopener" aria-label={`${f.name} on X`} className="w-7 h-7 rounded-md bg-[#141414]/10 text-[#141414] flex items-center justify-center"><XIcon /></a>}
