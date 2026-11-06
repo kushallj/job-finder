@@ -93,20 +93,21 @@ export default function FoundersPage() {
                     {co.hiring && <Badge tone="success">Hiring</Badge>}
                     <div className="flex gap-1">
                       <button type="button" aria-pressed={saved} aria-label={saved ? `Unsave ${co.name}` : `Save ${co.name}`} onClick={() => toggleSaved(co)} className="w-8 h-7 rounded-md border border-[#E7E7E7] flex items-center justify-center hover:bg-[#F4F4F4]"><Heart className={cn("w-3.5 h-3.5", saved && "fill-[#DC4C5C] text-[#DC4C5C]")} /></button>
-                      <Button size="sm" variant="outline" className="h-7 text-[12px]" onClick={() => unlock(co)} disabled={unlocked}>{unlocked ? <><Unlock className="w-3 h-3" />Unlocked</> : <><Unlock className="w-3 h-3" />Unlock · {UNLOCK_COST} credits</>}</Button>
+                      {co.founders.length > 0 && <Button size="sm" variant="outline" className="h-7 text-[12px]" onClick={() => unlock(co)} disabled={unlocked}>{unlocked ? <><Unlock className="w-3 h-3" />Unlocked</> : <><Unlock className="w-3 h-3" />Unlock · {UNLOCK_COST} credits</>}</Button>}
                     </div>
                   </div>
                 </div>
                 <p className="mt-3 text-[13px] text-[#444]">{co.description}</p>
                 <p className="mt-2 text-[11.5px] text-[#888]">{co.industry}</p>
               </div>
+              {co.founders.length === 0 && <p className="border-t border-[#F0F0F0] px-4 py-2.5 text-[12px] text-[#888]">Founders not on file yet.</p>}
               <ul className="border-t border-[#F0F0F0]">
                 {shown.map((f) => (
                   <li key={f.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-[#F7F7F7] last:border-0">
                     <Avatar label={f.initials} size={32} />
                     <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">{f.name}</div><div className="text-[11.5px] text-[#707070]">{f.role}</div>
                       {unlocked && (f.email
-                        ? <a href={`mailto:${f.email}`} className="text-[11.5px] text-[#2685E8] flex items-center gap-1 hover:underline"><Mail className="w-3 h-3" />{f.email}</a>
+                        ? <span className="text-[11.5px] flex items-center gap-1 flex-wrap"><a href={`mailto:${f.email}`} className="text-[#2685E8] inline-flex items-center gap-1 hover:underline"><Mail className="w-3 h-3" />{f.email}</a>{f.emailVerified === false && <span className="text-[#8A5300]" title="Built from the name and company domain; not confirmed. It may bounce.">· likely email (unverified)</span>}</span>
                         : <div className="text-[11.5px] text-[#707070] flex items-center gap-1"><Mail className="w-3 h-3" />{live ? "No email on file" : "No email in demo data"}</div>)}</div>
                     {f.linkedin && <a href={f.linkedin} target="_blank" rel="noreferrer noopener" aria-label={`${f.name} on LinkedIn`} className="w-7 h-7 rounded-md bg-[#0A66C2]/10 text-[#0A66C2] flex items-center justify-center"><Linkedin className="w-3.5 h-3.5" /></a>}
                     {f.x && <a href={f.x} target="_blank" rel="noreferrer noopener" aria-label={`${f.name} on X`} className="w-7 h-7 rounded-md bg-[#141414]/10 text-[#141414] flex items-center justify-center"><XIcon /></a>}

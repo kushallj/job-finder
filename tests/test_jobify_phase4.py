@@ -184,3 +184,70 @@ def test_saved_toggle_explicit_and_isolation(client, clerk_auth, data):
     assert client.put(f"/api/me/founders/{cid}/saved", headers=a, json={"saved": True}).json()["saved"] == [cid]
     assert client.get("/api/me/founders/state", headers=b).json()["saved"] == []
     assert client.put("/api/me/founders/99999/saved", headers=a).status_code == 404
+
+# --- imported repo datasets (src/vc_intelligence/import_founder_data.py) --------------------------
+
+def test_import_real_repo_datasets_idempotent_and_honest(db_session):
+    from sqlalchemy import func
+    from src.vc_intelligence.import_founder_data import run_import
+
+    first = run_import(db_session)
+    assert first["companies_created"] > 1500 and first["founders_created"] > 700
+    assert first["placeholders_skipped"] > 0
+    second = run_import(db_session)
+    assert second["companies_created"] == 0 and second["founders_created"] == 0       # idempotent
+    names = [n for (n,) in db_session.query(CompanyFounder.full_name)]
+    assert not any(n.lower().endswith(" founder") for n in names)                    # placeholders never imported
+    assert db_session.query(CompanyFounder).filter(CompanyFounder.email_verified == True).count() == 0  # noqa: E712
+    dup = (db_session.query(PortfolioCompany.domain).filter(PortfolioCompany.domain.isnot(None))
+           .group_by(PortfolioCompany.domain).having(func.count() > 1).count())
+    assert dup == 0
+
+
+def test_placeholder_detection_and_email_confidence():
+    from src.vc_intelligence.import_founder_data import email_confidence, is_placeholder
+
+    assert is_placeholder("Reevo Founder", "founder@reevo.com", None)
+    assert is_placeholder("Jane Doe", "hello@x.com", None)
+    assert is_placeholder("Jane Doe", "jane@x.com", "https://linkedin.com/company/x")
+    assert not is_placeholder("Kevin Tian", "kevin.tian@doppel.com", "https://linkedin.com/in/ktian00")
+    assert email_confidence("Kevin Tian", "kevin.tian@doppel.com") == 0.3   # pure name pattern = guess
+    assert email_confidence("Kevin Tian", "kt@doppel.com") == 0.5
+
+
+def test_stored_location_wins_and_companies_with_founders_first(client, clerk_auth, db_session, data):
+    data["stripe"].location = "San Francisco, United States"
+    data["stripe"].jobs_count = 12
+    db_session.commit()
+    items = _list(client, _auth(clerk_auth))["items"]
+    stripe = next(c for c in items if c["name"] == "Stripe")
+    assert (stripe["country"], stripe["location"], stripe["hiring"]) == ("USA", "San Francisco, United States", True)
+    assert [bool(c["founders"]) for c in items] == sorted([bool(c["founders"]) for c in items], reverse=True)
+
+
+def test_cannot_unlock_company_without_founders(client, clerk_auth, data):
+    h = _auth(clerk_auth)
+    res = client.post(f"/api/founders/{data['stripe'].id}/unlock", headers=h)
+    assert res.status_code == 409 and res.json()["error"]["code"] == "NO_FOUNDERS"
+    assert client.get("/api/me/subscription", headers=h).json()["creditsRemaining"] == 50
+
+
+def test_unlocked_emails_are_flagged_unverified(client, clerk_auth, data):
+    body = client.post(f"/api/founders/{data['fresh'].id}/unlock", headers=_auth(clerk_auth)).json()
+    assert all(f["emailVerified"] is False for f in body["company"]["founders"])
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("San Francisco, United States", "USA"), ("France, European Union, United Kingdom · Oct 15, 2026", "UK"),
+    ("Singapore / Asia", "Singapore"), ("US", "USA"), ("Global", None), ("2026", None), ("Remote", None),
+    ("Auckland, New Zealand and growing fast!", "New Zealand"), ("Offices in Melbourne and Sydney.", None)])
+def test_normalize_country(raw, expected):
+    assert jf.normalize_country(raw) == expected
+
+
+def test_import_keeps_catalog_industries(db_session):
+    from src.vc_intelligence.import_founder_data import run_import
+
+    run_import(db_session)
+    notion = db_session.query(PortfolioCompany).filter(PortfolioCompany.domain == "makenotion.com").one()
+    assert json.loads(notion.industry_tags) and "Productivity" in json.loads(notion.industry_tags)

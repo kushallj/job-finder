@@ -9,8 +9,10 @@ Rules:
   - Founder emails are returned ONLY for companies the current user has unlocked.
   - Unlocking costs CREDIT_COSTS["founder_unlock"], is charged once per user+company,
     and is atomic (credit_service.deduct_credits uses SELECT ... FOR UPDATE).
-  - PortfolioCompany has no location column: country comes from the domain's ccTLD or the
+  - Country comes from the stored location (startups.gallery), else the domain's ccTLD or the
     VC firm's country focus, else "Unknown" (never guessed).
+  - Scraped founder emails are pattern guesses: they're returned with emailVerified=false so the
+    UI can label them; companies with no founders on file can't be unlocked (nothing to sell).
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ import json
 import re
 from typing import Any, Dict, Iterable, List, Optional, Set
 
+from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -29,6 +32,8 @@ from src.services.credit_service import CREDIT_COSTS, add_credits, deduct_credit
 UNLOCK_ACTION = "founder_unlock"
 MAX_SCAN = 5000  # companies filtered in Python (country/hiring are derived, not columns)
 
+_COUNTRY_ALIASES = {"united states": "USA", "us": "USA", "usa": "USA", "united kingdom": "UK", "uk": "UK",
+                    "england": "UK", "united arab emirates": "UAE"}
 _CCTLD = {"in": "India", "uk": "UK", "de": "Germany", "fr": "France", "sg": "Singapore", "ca": "Canada",
           "au": "Australia", "ng": "Nigeria", "ke": "Kenya", "br": "Brazil", "jp": "Japan", "nl": "Netherlands",
           "ie": "Ireland", "es": "Spain", "se": "Sweden", "il": "Israel", "id": "Indonesia", "ae": "UAE", "us": "USA"}
@@ -50,15 +55,60 @@ def _tags(raw: Optional[str]) -> List[str]:
     return [t.strip() for t in re.split(r"[,;|]", raw) if t.strip()]
 
 
+_NOT_A_COUNTRY = {"", "remote", "global", "worldwide", "international", "anywhere"}
+
+
+# Accepted filter values. Scraped locations contain prose ("New Zealand and growing fast!"),
+# so anything not in this list is searched for a known name, else dropped.
+_KNOWN_PLACES = [
+    "USA", "UK", "UAE", "India", "China", "Japan", "Singapore", "Indonesia", "Vietnam", "Thailand", "Malaysia",
+    "Philippines", "South Korea", "Taiwan", "Hong Kong", "Australia", "New Zealand", "Canada", "Mexico", "Brazil",
+    "Argentina", "Chile", "Colombia", "Peru", "Germany", "France", "Spain", "Italy", "Portugal", "Netherlands",
+    "Belgium", "Switzerland", "Austria", "Ireland", "Sweden", "Norway", "Denmark", "Finland", "Poland", "Estonia",
+    "Lithuania", "Latvia", "Czech Republic", "Hungary", "Romania", "Greece", "Turkey", "Israel", "Saudi Arabia",
+    "Qatar", "Egypt", "Nigeria", "Kenya", "South Africa", "Ghana", "Rwanda", "Pakistan", "Bangladesh", "Sri Lanka",
+    "Nepal", "Armenia", "Ukraine", "Luxembourg", "Iceland",
+    # regions used by VC firms
+    "Europe", "Africa", "LatAm", "Southeast Asia", "Middle East",
+]
+_KNOWN_LOWER = {p.lower(): p for p in _KNOWN_PLACES}
+_ALL_NAMES = sorted(list(_KNOWN_LOWER) + list(_COUNTRY_ALIASES), key=len, reverse=True)
+
+
+def normalize_country(value: Optional[str]) -> Optional[str]:
+    """'San Francisco, United States' -> 'USA'; 'X, Y · Oct 15, 2026' -> 'Y'; 'Singapore / Asia' -> 'Singapore'."""
+    text = (value or "").split("·")[0].strip()
+    if not text:
+        return None
+    v = text.split(",")[-1].split("/")[0].strip().rstrip(".!")
+    if v.lower() in _NOT_A_COUNTRY:
+        return None
+    if v.lower() in _COUNTRY_ALIASES:
+        return _COUNTRY_ALIASES[v.lower()]
+    if v.lower() in _KNOWN_LOWER:
+        return _KNOWN_LOWER[v.lower()]
+    # Free text: take the last known place mentioned anywhere in the location.
+    low = f" {text.lower()} "
+    best = None
+    for name in _ALL_NAMES:
+        idx = low.rfind(f" {name}")
+        if idx >= 0 and low[idx + len(name) + 1:idx + len(name) + 2] in (" ", ",", ".", "!", "/", ")"):
+            if best is None or idx > best[0]:
+                best = (idx, name)
+    if best is None:
+        return None
+    return _COUNTRY_ALIASES.get(best[1]) or _KNOWN_LOWER[best[1]]
+
+
 def country_of(company: PortfolioCompany, firm: Optional[VCFirm]) -> str:
+    from_location = normalize_country(company.location)
+    if from_location:
+        return from_location
     host = (company.domain or re.sub(r"^https?://", "", company.website or "")).split("/")[0].lower()
     tld = host.rsplit(".", 1)[-1] if "." in host else ""
     if tld in _CCTLD:
         return _CCTLD[tld]
-    focus = (firm.country_focus or "").strip() if firm else ""
-    if focus and focus.lower() not in ("global", "worldwide", "international"):
-        return focus
-    return "Unknown"
+    return normalize_country(firm.country_focus if firm else None) or "Unknown"
 
 
 def _initials(name: str) -> str:
@@ -77,6 +127,7 @@ def founder_ui(f: CompanyFounder, unlocked: bool) -> Dict[str, Any]:
     }
     if unlocked:
         out["email"] = f.email or None
+        out["emailVerified"] = bool(f.email_verified)
     return out
 
 
@@ -89,11 +140,11 @@ def company_ui(company: PortfolioCompany, founders: List[CompanyFounder], firm: 
         "id": str(company.id),
         "name": company.name,
         "website": website,
-        "location": country if country != "Unknown" else "",
+        "location": (company.location or "").split("·")[0].strip() or (country if country != "Unknown" else ""),
         "country": country,
         "industry": tags[0] if tags else "Other",
         "description": company.description or "",
-        "hiring": hiring,
+        "hiring": hiring or bool(company.jobs_count),
         "founders": [founder_ui(f, unlocked) for f in founders],
     }
 
@@ -130,8 +181,10 @@ def load_companies(db: Session, user: User, ids: Optional[List[int]] = None) -> 
     hiring = hiring_names(db, [c.name for c in companies])
     unlocked = {r.company_id for r in db.query(FounderUnlock).filter(FounderUnlock.user_id == user.id,
                                                                       FounderUnlock.company_id.in_(cids))}
-    return [company_ui(c, founders.get(c.id, []), firms.get(c.vc_firm_id), c.name.lower() in hiring, c.id in unlocked)
-            for c in companies]
+    out = [company_ui(c, founders.get(c.id, []), firms.get(c.vc_firm_id), c.name.lower() in hiring, c.id in unlocked)
+           for c in companies]
+    out.sort(key=lambda c: (not c["founders"], c["name"].lower()))  # companies with founders first
+    return out
 
 
 def search(items: List[Dict[str, Any]], q: str, country: str, industry: str, hiring_only: bool) -> List[Dict[str, Any]]:
@@ -156,6 +209,8 @@ def unlock(db: Session, user: User, company_id: int) -> Dict[str, Any]:
     """Charge once and record the unlock. Returns {cost, already}. Raises HTTP 402 via credit_service."""
     if db.query(FounderUnlock.id).filter(FounderUnlock.user_id == user.id, FounderUnlock.company_id == company_id).first():
         return {"cost": 0, "already": True}
+    if not db.query(CompanyFounder.id).filter(CompanyFounder.company_id == company_id).first():
+        raise HTTPException(409, {"code": "NO_FOUNDERS", "message": "No founders on file for this company yet"})
     cost = unlock_cost()
     deduct_credits(db, user.id, cost, UNLOCK_ACTION, reference_id=f"company:{company_id}",
                    notes="Unlocked founder contacts")  # commits; 402 if not enough credits

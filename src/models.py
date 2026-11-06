@@ -486,6 +486,11 @@ class PortfolioCompany(Base):
     funding_stage = Column(String(100), nullable=True)  # Seed, Early Stage, Series A, Growth
     industry_tags = Column(Text, default="[]")  # JSON array string
     careers_url = Column(String(500), nullable=True)
+    # Jobify Founders: real location/funding/hiring from startups.gallery & registries (import_founder_data.py)
+    location = Column(String(255), nullable=True)
+    funding_summary = Column(String(500), nullable=True)
+    investors = Column(Text, nullable=True)  # JSON list
+    jobs_count = Column(Integer, nullable=True)
     last_scraped_at = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -508,6 +513,8 @@ class CompanyFounder(Base):
     title = Column(String(255), nullable=True)  # Co-Founder & CEO, Founder & CTO, etc.
     email = Column(String(255), nullable=True, index=True)
     email_confidence = Column(Float, default=0.0)  # 0.0 to 1.0 confidence
+    # True only when the address was confirmed (e.g. bounce-checked); scraped datasets are pattern guesses.
+    email_verified = Column(Boolean, default=False, nullable=True)
     linkedin_url = Column(String(500), nullable=True)
     twitter_handle = Column(String(100), nullable=True)
     bio = Column(Text, nullable=True)

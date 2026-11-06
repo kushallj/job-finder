@@ -146,6 +146,15 @@ def init_db():
                 for name, ddl in _adds.items():
                     if name not in _existing:
                         conn.execute(_text(f"ALTER TABLE mailbox_accounts ADD COLUMN {name} {ddl}"))
+        for _table, _adds in (("portfolio_companies", {"location": "VARCHAR(255)", "funding_summary": "VARCHAR(500)",
+                                                       "investors": "TEXT", "jobs_count": "INTEGER"}),
+                              ("company_founders", {"email_verified": "BOOLEAN"})):
+            if _table in _insp.get_table_names():
+                _existing = {c["name"] for c in _insp.get_columns(_table)}
+                with engine.begin() as conn:
+                    for name, ddl in _adds.items():
+                        if name not in _existing:
+                            conn.execute(_text(f"ALTER TABLE {_table} ADD COLUMN {name} {ddl}"))
         if "inbound_recruiter_messages" in _insp.get_table_names():
             _existing = {c["name"] for c in _insp.get_columns("inbound_recruiter_messages")}
             _adds = {"direction": "VARCHAR(10)", "is_read": "BOOLEAN", "in_reply_to": "VARCHAR(500)",

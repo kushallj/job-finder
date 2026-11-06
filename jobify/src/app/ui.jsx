@@ -140,6 +140,19 @@ export function ConfirmDialog({ open, title, message, confirmLabel = "Delete", o
   );
 }
 
+// First, last and the pages around the current one; null marks a gap ("…").
+// Rendering every page broke the layout with real data (198 pages on Founders).
+function pageWindow(page, pages) {
+  if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
+  const keep = new Set([1, pages, page - 1, page, page + 1].filter((n) => n >= 1 && n <= pages));
+  const out = [];
+  [...keep].sort((a, b) => a - b).forEach((n, i, arr) => {
+    if (i > 0 && n - arr[i - 1] > 1) out.push(null);
+    out.push(n);
+  });
+  return out;
+}
+
 export function Pagination({ page, total, pageSize, onChange }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   if (pages <= 1) return null;
@@ -147,10 +160,13 @@ export function Pagination({ page, total, pageSize, onChange }) {
   return (
     <nav aria-label="Pagination" className="flex items-center gap-1">
       <button type="button" aria-label="Previous page" className={btn} disabled={page === 1} onClick={() => onChange(page - 1)}><ChevronLeft className="w-4 h-4" /></button>
-      {Array.from({ length: pages }, (_, i) => i + 1).map((n) => (
-        <button key={n} type="button" aria-current={n === page ? "page" : undefined} onClick={() => onChange(n)}
-          className={cn(btn, n === page && "bg-[#141414] text-white hover:bg-[#141414]")}>{n}</button>
-      ))}
+      {pageWindow(page, pages).map((n, i) =>
+        n === null ? (
+          <span key={`gap-${i}`} className="w-8 h-8 flex items-center justify-center text-[13px] text-[#A0A0A0]" aria-hidden="true">…</span>
+        ) : (
+          <button key={n} type="button" aria-current={n === page ? "page" : undefined} onClick={() => onChange(n)}
+            className={cn(btn, n === page && "bg-[#141414] text-white hover:bg-[#141414]")}>{n}</button>
+        ))}
       <button type="button" aria-label="Next page" className={btn} disabled={page === pages} onClick={() => onChange(page + 1)}><ChevronRight className="w-4 h-4" /></button>
     </nav>
   );
