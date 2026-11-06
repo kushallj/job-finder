@@ -92,6 +92,29 @@ class UserJob(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class FounderUnlock(Base):
+    """A user paid credits to see a portfolio company's founder contact details (Jobify Founders)."""
+    __tablename__ = "founder_unlocks"
+    __table_args__ = (UniqueConstraint("user_id", "company_id", name="uq_founder_unlocks_user_company"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("portfolio_companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    credits_spent = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SavedFounderCompany(Base):
+    """Per-user saved portfolio companies (Jobify Founders heart button)."""
+    __tablename__ = "saved_founder_companies"
+    __table_args__ = (UniqueConstraint("user_id", "company_id", name="uq_saved_founder_companies_user_company"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("portfolio_companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Application(Base):
     __tablename__ = "applications"
     

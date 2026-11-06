@@ -930,6 +930,8 @@ from src.api.routers.jobify_gmail_router import router as jobify_gmail_router
 app.include_router(jobify_gmail_router)
 from src.api.routers.jobify_inbox_router import router as jobify_inbox_router
 app.include_router(jobify_inbox_router)
+from src.api.routers.jobify_founders_router import router as jobify_founders_router
+app.include_router(jobify_founders_router)
 
 
 
@@ -1035,14 +1037,11 @@ async def trace_middleware(request: Request, call_next):
             exc_info=True,
         )
         
-        # Return error response with trace ID for client debugging
+        # Same {error:{code,message}} envelope as every other error (src/api/contract.py),
+        # so the frontend can always read error.code; trace_id lets support find the log line.
+        from src.api.contract import error_payload
         return JSONResponse(
-            {
-                "detail": "Internal server error",
-                "trace_id": tid,
-                "path": request.url.path,
-                "method": request.method,
-            },
+            error_payload(500, "An internal server error occurred. Please try again later.", trace_id=tid),
             status_code=500,
             headers={"X-Trace-ID": tid},
         )

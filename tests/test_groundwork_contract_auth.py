@@ -102,6 +102,26 @@ def test_402_maps_to_credits_required(contract_client):
     assert err["balance"] == 2
 
 
+def test_unhandled_server_error_uses_contract_envelope(clerk_auth):
+    from main import app
+    from fastapi import APIRouter
+
+    router = APIRouter()
+
+    @router.get("/api/__boom")
+    def boom():
+        raise RuntimeError("secret internals 10.0.0.5")
+
+    app.include_router(router)
+    try:
+        res = TestClient(app, raise_server_exceptions=False).get("/api/__boom", headers=clerk_auth.headers())
+        body = res.json()
+        assert res.status_code == 500 and body["error"]["code"] == "INTERNAL_ERROR" and body["error"]["trace_id"]
+        assert "10.0.0.5" not in res.text
+    finally:
+        app.router.routes = [r for r in app.router.routes if getattr(r, "path", "") != "/api/__boom"]
+
+
 def test_validation_error_uses_contract_envelope(contract_client):
     res = contract_client.get("/typed", params={"n": "abc"})
     assert res.status_code == 422

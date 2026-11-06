@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Search, Briefcase, MapPin, ExternalLink, Unlock, Heart, Linkedin, Mail, Users } from "lucide-react";
 import { founderService } from "../../services/founderService.js";
-import { FOUNDER_COUNTRIES, FOUNDER_INDUSTRIES, UNLOCK_COST } from "../../mocks/founders.js";
+import { isLive } from "../../lib/apiClient.js";
 import { useApp } from "../AppProvider.jsx";
 import { Avatar, Badge, Button, EmptyState, PageHeader, Pagination, Select, Skeleton } from "../ui.jsx";
 import { cn } from "../../lib/utils.js";
@@ -18,29 +18,46 @@ export default function FoundersPage() {
   const [hiringOnly, setHiringOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
-  const [state, setState] = useState(() => founderService.getState());
+  const [state, setState] = useState({ saved: [], unlocked: [] });
   const [expanded, setExpanded] = useState({});
+  const live = isLive();
+  const [facets, setFacets] = useState({ countries: [], industries: [], unlockCost: 5 });
+  const UNLOCK_COST = facets.unlockCost;
+  useEffect(() => {
+    founderService.getState().then(setState).catch(() => {});
+    founderService.facets().then(setFacets).catch(() => {});
+  }, []);
 
   useEffect(() => { const t = setTimeout(() => setDq(q), 200); return () => clearTimeout(t); }, [q]);
   useEffect(() => setPage(1), [dq, country, industry, hiringOnly]);
   useEffect(() => {
     let c = false;
     setData(null);
-    founderService.list({ q: dq, country, industry, hiringOnly, page, pageSize: PAGE_SIZE }).then((d) => !c && setData(d));
+    founderService.list({ q: dq, country, industry, hiringOnly, page, pageSize: PAGE_SIZE })
+      .then((d) => !c && setData(d))
+      .catch(() => { if (!c) { setData({ items: [], total: 0, page, pageSize: PAGE_SIZE }); toast("Couldn't load founders. Try again.", "error"); } });
     return () => { c = true; };
   }, [dq, country, industry, hiringOnly, page]);
 
-  const unlock = (co) => {
-    const r = founderService.unlock(co.id, credits);
+  const unlock = async (co) => {
+    let r;
+    try { r = await founderService.unlock(co.id, credits); }
+    catch { return toast("Couldn't unlock right now. Try again.", "error"); }
     if (!r.ok) return toast(plan ? "Not enough credits to unlock." : "Choose a plan to get credits.", "error");
     if (r.cost) spendCredits(r.cost);
     setState({ ...r.state });
-    toast(`Unlocked ${co.name} (demo). No real contact data is provided.`);
+    // Live: the server returns the company again, now with founder emails.
+    if (r.company) setData((d) => d && { ...d, items: d.items.map((x) => (x.id === r.company.id ? r.company : x)) });
+    toast(live ? `Unlocked ${co.name}. Contact details are now visible.` : `Unlocked ${co.name} (demo). No real contact data is provided.`);
+  };
+  const toggleSaved = async (co) => {
+    try { setState({ ...(await founderService.toggleSaved(co.id)) }); }
+    catch { toast("Couldn't update saved companies.", "error"); }
   };
 
   return (
     <div className="min-h-full">
-      <PageHeader icon={Users} title="Startup Founders" sub={<span className="text-[12.5px] text-[#707070] hidden md:inline">The people behind the startups (demo data)</span>}>
+      <PageHeader icon={Users} title="Startup Founders" sub={<span className="text-[12.5px] text-[#707070] hidden md:inline">The people behind the startups{live ? "" : " (demo data)"}</span>}>
         <span className="text-[12px] text-[#707070]">{credits} credits</span>
       </PageHeader>
 
@@ -50,8 +67,8 @@ export default function FoundersPage() {
           <input aria-label="Search founders and companies" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search founders, companies, industries…"
             className="w-full h-10 rounded-lg border border-[#E7E7E7] pl-9 pr-3 text-[13.5px] focus:outline-none focus:border-[#161616]" />
         </div>
-        <Select aria-label="Country" value={country} onChange={(e) => setCountry(e.target.value)} className="w-[150px]"><option value="">All countries</option>{FOUNDER_COUNTRIES.map((c) => <option key={c}>{c}</option>)}</Select>
-        <Select aria-label="Industry" value={industry} onChange={(e) => setIndustry(e.target.value)} className="w-[160px]"><option value="">All industries</option>{FOUNDER_INDUSTRIES.map((c) => <option key={c}>{c}</option>)}</Select>
+        <Select aria-label="Country" value={country} onChange={(e) => setCountry(e.target.value)} className="w-[150px]"><option value="">All countries</option>{facets.countries.map((c) => <option key={c}>{c}</option>)}</Select>
+        <Select aria-label="Industry" value={industry} onChange={(e) => setIndustry(e.target.value)} className="w-[160px]"><option value="">All industries</option>{facets.industries.map((c) => <option key={c}>{c}</option>)}</Select>
         <Button variant={hiringOnly ? "primary" : "outline"} className="h-10" aria-pressed={hiringOnly} onClick={() => setHiringOnly(!hiringOnly)}><Briefcase className="w-3.5 h-3.5" />Hiring</Button>
       </div>
 
@@ -75,7 +92,7 @@ export default function FoundersPage() {
                   <div className="flex flex-col items-end gap-1.5">
                     {co.hiring && <Badge tone="success">Hiring</Badge>}
                     <div className="flex gap-1">
-                      <button type="button" aria-pressed={saved} aria-label={saved ? `Unsave ${co.name}` : `Save ${co.name}`} onClick={() => { setState({ ...founderService.toggleSaved(co.id) }); }} className="w-8 h-7 rounded-md border border-[#E7E7E7] flex items-center justify-center hover:bg-[#F4F4F4]"><Heart className={cn("w-3.5 h-3.5", saved && "fill-[#DC4C5C] text-[#DC4C5C]")} /></button>
+                      <button type="button" aria-pressed={saved} aria-label={saved ? `Unsave ${co.name}` : `Save ${co.name}`} onClick={() => toggleSaved(co)} className="w-8 h-7 rounded-md border border-[#E7E7E7] flex items-center justify-center hover:bg-[#F4F4F4]"><Heart className={cn("w-3.5 h-3.5", saved && "fill-[#DC4C5C] text-[#DC4C5C]")} /></button>
                       <Button size="sm" variant="outline" className="h-7 text-[12px]" onClick={() => unlock(co)} disabled={unlocked}>{unlocked ? <><Unlock className="w-3 h-3" />Unlocked</> : <><Unlock className="w-3 h-3" />Unlock · {UNLOCK_COST} credits</>}</Button>
                     </div>
                   </div>
@@ -88,8 +105,10 @@ export default function FoundersPage() {
                   <li key={f.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-[#F7F7F7] last:border-0">
                     <Avatar label={f.initials} size={32} />
                     <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">{f.name}</div><div className="text-[11.5px] text-[#707070]">{f.role}</div>
-                      {unlocked && <div className="text-[11.5px] text-[#707070] flex items-center gap-1"><Mail className="w-3 h-3" />No email in demo data</div>}</div>
-                    <a href={f.linkedin} target="_blank" rel="noreferrer noopener" aria-label={`${f.name} on LinkedIn`} className="w-7 h-7 rounded-md bg-[#0A66C2]/10 text-[#0A66C2] flex items-center justify-center"><Linkedin className="w-3.5 h-3.5" /></a>
+                      {unlocked && (f.email
+                        ? <a href={`mailto:${f.email}`} className="text-[11.5px] text-[#2685E8] flex items-center gap-1 hover:underline"><Mail className="w-3 h-3" />{f.email}</a>
+                        : <div className="text-[11.5px] text-[#707070] flex items-center gap-1"><Mail className="w-3 h-3" />{live ? "No email on file" : "No email in demo data"}</div>)}</div>
+                    {f.linkedin && <a href={f.linkedin} target="_blank" rel="noreferrer noopener" aria-label={`${f.name} on LinkedIn`} className="w-7 h-7 rounded-md bg-[#0A66C2]/10 text-[#0A66C2] flex items-center justify-center"><Linkedin className="w-3.5 h-3.5" /></a>}
                     {f.x && <a href={f.x} target="_blank" rel="noreferrer noopener" aria-label={`${f.name} on X`} className="w-7 h-7 rounded-md bg-[#141414]/10 text-[#141414] flex items-center justify-center"><XIcon /></a>}
                   </li>
                 ))}
