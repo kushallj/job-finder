@@ -36,7 +36,8 @@ def _back_to_app(**params: str) -> RedirectResponse:
 
 @router.get("")
 def get_connection(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
-    return gs.connection_state(gs.mailbox_for(db, user))
+    # `available`: whether this server can offer Gmail at all (OAuth client configured).
+    return {**gs.connection_state(gs.mailbox_for(db, user)), "available": gs.configured()}
 
 
 @router.post("/connect")

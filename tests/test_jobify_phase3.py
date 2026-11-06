@@ -117,7 +117,7 @@ def _card(db, user, company, stage="applied", **kw):
 # --- connect -----------------------------------------------------------------------------
 
 def test_state_shape_when_not_connected(client, clerk_auth, google):
-    assert client.get("/api/gmail", headers=_auth(clerk_auth)).json() == {"status": "not_connected", "email": None, "lastSync": None, "nextScan": None}
+    assert client.get("/api/gmail", headers=_auth(clerk_auth)).json() == {"status": "not_connected", "email": None, "lastSync": None, "nextScan": None, "available": True}
 
 
 def test_connect_refuses_when_not_configured(client, clerk_auth, monkeypatch):

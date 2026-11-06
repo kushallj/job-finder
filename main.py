@@ -928,6 +928,8 @@ from src.api.routers.jobify_applications_router import router as jobify_applicat
 app.include_router(jobify_applications_router)
 from src.api.routers.jobify_gmail_router import router as jobify_gmail_router
 app.include_router(jobify_gmail_router)
+from src.api.routers.jobify_inbox_router import router as jobify_inbox_router
+app.include_router(jobify_inbox_router)
 
 
 

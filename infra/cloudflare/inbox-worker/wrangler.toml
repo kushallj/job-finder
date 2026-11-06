@@ -1,0 +1,9 @@
+# Deploy: npx wrangler deploy   (from this folder)
+# Secret: npx wrangler secret put INBOUND_WEBHOOK_SECRET   (same value as the API's .env)
+name = "jobify-inbox"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+INBOUND_URL = "https://api.yourdomain.com/api/inbound/email"
+MAX_BYTES = "10485760"

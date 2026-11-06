@@ -551,6 +551,11 @@ class InboundRecruiterMessage(Base):
     new_kanban_stage = Column(String(50), nullable=True)
     auto_advanced = Column(Boolean, default=True)
     
+    # Jobify inbox: direction in|out, read state, threading, sender authentication (SPF/DKIM/DMARC).
+    direction = Column(String(10), default="in", nullable=True)
+    is_read = Column(Boolean, default=False, nullable=True)
+    in_reply_to = Column(String(500), nullable=True)
+    sender_verified = Column(Boolean, nullable=True)
     message_id = Column(String(255), nullable=True)
     thread_id = Column(String(255), nullable=True)
     received_at = Column(DateTime, default=datetime.utcnow)

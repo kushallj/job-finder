@@ -49,6 +49,7 @@ PUBLIC_EXACT_PATHS: Set[str] = {
     "/api/auth/webhook/clerk",
     "/api/auth/clerk/webhook",
     "/api/gmail/callback",  # Google OAuth redirect; protected by the signed `state`
+    "/api/inbound/email",   # Cloudflare Email Worker delivery; protected by HMAC signature
 }
 
 PUBLIC_PREFIXES = (

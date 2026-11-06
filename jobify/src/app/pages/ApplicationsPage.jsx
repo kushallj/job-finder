@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, RefreshCw, Unplug, Plus, Mail, Calendar, MessageSquare, LayoutPanelTop, Trash2, Plug } from "lucide-react";
+import { Search, RefreshCw, Unplug, Plus, Mail, Calendar, MessageSquare, LayoutPanelTop, Trash2, Plug, Copy, Inbox } from "lucide-react";
 import { applicationService } from "../../services/applicationService.js";
+import { inboxService } from "../../services/inboxService.js";
+import InboxPanel from "../InboxPanel.jsx";
 import { STAGES } from "../../mocks/applications.js";
 import { uid } from "../../lib/storage.js";
 import { isLive } from "../../lib/apiClient.js";
@@ -60,6 +62,15 @@ export default function ApplicationsPage() {
   const live = isLive();
   const [conn, setConn] = useState(NO_CONN);
   const refreshConn = useCallback(() => applicationService.getConnection().then(setConn).catch(() => {}), []);
+  // Job-hunt inbox: the user's Jobify address; recruiter replies to it move cards automatically.
+  const [inbox, setInbox] = useState(null);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const refreshInbox = useCallback(() => inboxService.getInbox().then(setInbox).catch(() => {}), []);
+  useEffect(() => { refreshInbox(); }, [refreshInbox]);
+  const copyAddress = async () => {
+    try { await navigator.clipboard.writeText(inbox.address); toast("Job email copied. Use it on your applications."); }
+    catch { toast(inbox.address); }
+  };
   useEffect(() => {
     refreshConn();
     // Returning from Google's consent screen.
@@ -154,22 +165,28 @@ export default function ApplicationsPage() {
     <div className="min-h-full">
       <PageHeader icon={LayoutPanelTop} title="Applications"
         sub={<>
-          <Badge tone={STATUS_TONE[conn.status]}>{live && conn.status === "connected" ? "Gmail connected" : STATUS_LABEL[conn.status]}</Badge>
+          {(!live || conn.available) && <Badge tone={STATUS_TONE[conn.status]}>{live && conn.status === "connected" ? "Gmail connected" : STATUS_LABEL[conn.status]}</Badge>}
           {connected && <span className="text-[12px] text-[#707070] hidden xl:inline">{conn.email} · Last sync {conn.lastSync ? fmt(conn.lastSync) : "never"} · Next scan {conn.nextScan ? fmt(conn.nextScan) : "n/a"}</span>}
         </>}>
         <div className="relative">
           <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A0A0A0]" aria-hidden="true" />
           <input aria-label="Search applications" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="h-9 w-[160px] sm:w-[200px] rounded-lg border border-[#E7E7E7] pl-8 pr-3 text-[13px] focus:outline-none focus:border-[#161616]" />
         </div>
+        {inbox?.address && (
+          <>
+            <Button variant="outline" onClick={copyAddress} title="Use this address on applications"><Copy className="w-3.5 h-3.5" /><span className="hidden lg:inline max-w-[220px] truncate">{inbox.address}</span><span className="lg:hidden">Job email</span></Button>
+            <Button variant="outline" onClick={() => setInboxOpen(true)}><Inbox className="w-3.5 h-3.5" />Inbox{inbox.unread > 0 && <span className="ml-1 text-[11px] bg-[#2685E8] text-white rounded-full px-1.5">{inbox.unread}</span>}</Button>
+          </>
+        )}
         <Button variant="outline" onClick={() => { setErrors({}); setForm({ ...blank }); }}><Plus className="w-3.5 h-3.5" />Add</Button>
-        {connected ? (
+        {(!live || conn.available) && (connected ? (
           <>
             <Button disabled={conn.status === "syncing"} onClick={() => sync(false)}><RefreshCw className={cn("w-3.5 h-3.5", conn.status === "syncing" && "animate-spin")} />Sync</Button>
             <Button variant="outline" onClick={disconnect}><Unplug className="w-3.5 h-3.5" />Disconnect</Button>
           </>
         ) : (
           <Button disabled={conn.status === "pending"} onClick={connect}><Plug className="w-3.5 h-3.5" />{live ? "Connect Gmail" : "Connect Gmail (demo)"}</Button>
-        )}
+        ))}
         {conn.status === "failed" && <Button variant="outline" onClick={() => sync(false)}>Retry sync</Button>}
       </PageHeader>
 
@@ -248,6 +265,7 @@ export default function ApplicationsPage() {
         )}
       </Dialog>
 
+      <InboxPanel open={inboxOpen} onClose={() => setInboxOpen(false)} sending={!!inbox?.sending} onChanged={() => { refreshInbox(); load(); }} />
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} title="Delete application?" message={`${deleting?.position} at ${deleting?.company} will be removed.`}
         onConfirm={async () => {
           try { await applicationService.remove(deleting.id); toast("Application deleted."); setDetailId(null); }

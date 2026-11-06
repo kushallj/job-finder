@@ -150,6 +150,20 @@ class Settings(BaseSettings):
     gmail_sync_lookback_days: int = 30
     gmail_sync_max_messages: int = 50
 
+    # Jobify job-hunt inbox: every user gets name.xxxx@INBOX_DOMAIN. Inbound mail arrives via a
+    # Cloudflare Email Worker (infra/cloudflare/inbox-worker) that POSTs the raw message to
+    # /api/inbound/email signed with INBOUND_WEBHOOK_SECRET. Replies go out over plain SMTP
+    # (any provider's free tier: Brevo, Resend, SES...).
+    inbox_domain: Optional[str] = None
+    inbound_webhook_secret: Optional[str] = None
+    inbound_max_bytes: int = 10 * 1024 * 1024
+    inbox_smtp_host: Optional[str] = None
+    inbox_smtp_port: int = 587
+    inbox_smtp_username: Optional[str] = None
+    inbox_smtp_password: Optional[str] = None
+    inbox_smtp_starttls: bool = True
+    inbox_daily_send_limit: int = 50
+
     @property
     def clerk_authorized_parties_list(self) -> List[str]:
         return [p.strip().rstrip("/") for p in self.clerk_authorized_parties.split(",") if p.strip()]

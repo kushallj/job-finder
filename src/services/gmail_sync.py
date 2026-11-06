@@ -20,7 +20,6 @@ import base64
 import re
 import secrets
 import time
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from email.utils import parseaddr
 from typing import Any, Dict, List, Optional
@@ -34,6 +33,7 @@ from src.api.contract import iso_utc
 from src.config import settings
 from src.models import Application, InboundRecruiterMessage, MailboxAccount, User
 from src.services.inbound_email_classifier import InboundEmailIntentClassifier
+from src.services.mail_ingest import ParsedMessage, ingest_message, match_application  # noqa: F401  (re-exported)
 
 GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 SCOPES = f"openid email {GMAIL_SCOPE}"
@@ -45,13 +45,6 @@ GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 STATE_TTL_SECONDS = 600
 SYNC_INTERVAL = timedelta(days=1)
 MAX_BODY_CHARS = 20_000
-
-# Classifier target_stage -> Jobify board stage. None keeps the current stage.
-STAGE_MAP = {"offer": "offer", "rejected": "rejected", "take_home": "interview",
-             "technical_interview": "interview", "interview": "interview", "screening": "interview"}
-# Email may only move a card forward; a later "interview" mail must not undo an offer.
-STAGE_RANK = {"ghosted": 0, "applied": 0, "interview": 1, "offer": 2, "rejected": 2}
-
 
 class GmailError(Exception):
     def __init__(self, code: str, message: str, status: int = 400):
@@ -242,18 +235,6 @@ def _body_text(part: Dict[str, Any]) -> str:
     return (plain or [t for t in texts if t] or [""])[0]
 
 
-@dataclass
-class ParsedMessage:
-    id: str
-    thread_id: str
-    sender_email: str
-    sender_name: str
-    subject: str
-    snippet: str
-    body: str
-    received_at: datetime
-
-
 def parse_message(raw: Dict[str, Any]) -> ParsedMessage:
     name, addr = parseaddr(_header(raw, "From"))
     ts = int(raw.get("internalDate", "0") or 0) / 1000
@@ -263,36 +244,6 @@ def parse_message(raw: Dict[str, Any]) -> ParsedMessage:
         body=_body_text(raw.get("payload", {}))[:MAX_BODY_CHARS],
         received_at=datetime.utcfromtimestamp(ts) if ts else datetime.utcnow(),
     )
-
-
-# --- matching (scoped to one user) ------------------------------------------------------
-
-_GENERIC_DOMAINS = {"gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "yahoo.com", "icloud.com",
-                    "greenhouse.io", "lever.co", "ashbyhq.com", "workday.com", "myworkday.com", "smartrecruiters.com"}
-
-
-def _slug(s: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
-
-
-def match_application(apps: List[Application], msg: ParsedMessage) -> Optional[Application]:
-    """Best match among the user's own applications, or None (message is then discarded)."""
-    for app in apps:
-        if app.recruiter_email and app.recruiter_email.lower() == msg.sender_email:
-            return app
-    domain = msg.sender_email.rsplit("@", 1)[-1] if "@" in msg.sender_email else ""
-    domain_slug = _slug(domain.split(".")[-2] if domain.count(".") >= 1 else domain)
-    text = f"{msg.subject} {msg.sender_name} {msg.snippet}".lower()
-    best = None
-    for app in apps:
-        company = (app.company or "").strip()
-        if len(_slug(company)) < 3:
-            continue
-        if domain and domain not in _GENERIC_DOMAINS and _slug(company) in (domain_slug, _slug(domain)):
-            return app
-        if re.search(rf"\b{re.escape(company.lower())}\b", text):
-            best = best or app
-    return best
 
 
 # --- sync -------------------------------------------------------------------------------------
@@ -317,28 +268,11 @@ def sync_mailbox(db: Session, mb: MailboxAccount, client: GoogleClient, now: Opt
         for msg_id in ids:
             if msg_id in seen:
                 continue
-            msg = parse_message(client.get_message(access, msg_id))
-            app = match_application(apps, msg)
-            if app is None:
-                continue  # unrelated mail: never stored
-            result = classifier.classify(msg.subject, msg.body)
-            prev = (app.kanban_stage or "applied").lower()
-            target = STAGE_MAP.get(result.target_stage or "")
-            moved = bool(target and target != prev and STAGE_RANK.get(target, 0) > STAGE_RANK.get(prev, 0))
-            if moved:
-                app.kanban_stage = target
-                advanced += 1
-            app.last_email_received_at = max(filter(None, [app.last_email_received_at, msg.received_at]))
-            app.email_subject = msg.subject or app.email_subject
-            app.recruiter_email = app.recruiter_email or msg.sender_email
-            db.add(InboundRecruiterMessage(
-                mailbox_id=mb.id, application_id=app.id, job_id=app.job_id, sender_email=msg.sender_email,
-                sender_name=msg.sender_name, recipient_email=mb.email_address, subject=msg.subject,
-                snippet=msg.snippet, body_text=msg.body, classified_intent=result.intent,
-                confidence_score=result.confidence, previous_kanban_stage=prev,
-                new_kanban_stage=target if moved else prev, auto_advanced=moved,
-                message_id=msg.id, thread_id=msg.thread_id, received_at=msg.received_at))
-            stored += 1
+            row = ingest_message(db, mb, parse_message(client.get_message(access, msg_id)), apps, classifier,
+                                 store_unmatched=False)  # personal inbox: unrelated mail is never stored
+            if row is not None:
+                stored += 1
+                advanced += int(bool(row.auto_advanced))
         mb.total_messages_scanned = (mb.total_messages_scanned or 0) + len(ids)
         mb.total_advancements = (mb.total_advancements or 0) + advanced
         mb.last_sync_at, mb.next_scan_at = now, now + SYNC_INTERVAL

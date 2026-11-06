@@ -146,6 +146,14 @@ def init_db():
                 for name, ddl in _adds.items():
                     if name not in _existing:
                         conn.execute(_text(f"ALTER TABLE mailbox_accounts ADD COLUMN {name} {ddl}"))
+        if "inbound_recruiter_messages" in _insp.get_table_names():
+            _existing = {c["name"] for c in _insp.get_columns("inbound_recruiter_messages")}
+            _adds = {"direction": "VARCHAR(10)", "is_read": "BOOLEAN", "in_reply_to": "VARCHAR(500)",
+                     "sender_verified": "BOOLEAN"}
+            with engine.begin() as conn:
+                for name, ddl in _adds.items():
+                    if name not in _existing:
+                        conn.execute(_text(f"ALTER TABLE inbound_recruiter_messages ADD COLUMN {name} {ddl}"))
 
     # Local dev superuser: opt-in only (SEED_DEV_ADMIN=true + DEV_ADMIN_PASSWORD), never in
     # production. It used to be seeded unconditionally with a public password, which made
