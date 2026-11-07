@@ -31,7 +31,13 @@ from src.services.portfolio_rag_service import PortfolioRAGService, cosine_simil
 from src.services.github_activity_service import GitHubActivityService
 from src.services.portfolio_service import PortfolioService
 from src.attention.embeddings import DenseSemanticEmbedder
-from main import app
+from fastapi import FastAPI
+from src.api.routers.portfolio_router import router as legacy_portfolio_router
+
+# The legacy router is no longer mounted on main.app (Jobify Phase 5 owns /api/portfolio);
+# its RAG/heatmap behaviour is still exercised on a standalone app.
+app = FastAPI()
+app.include_router(legacy_portfolio_router)
 
 
 @pytest.fixture

@@ -892,12 +892,9 @@ except Exception as e:
 # Legacy /api/mailbox (simulated inbox) is not mounted: its matcher is not user-scoped, so
 # /simulate-inbound let one user move another user's cards. Real Gmail: jobify_gmail_router.
 
-try:
-    from src.api.routers.portfolio_router import router as portfolio_router
-    app.include_router(portfolio_router)
-    log.info("Loaded portfolio_router successfully")
-except Exception as e:
-    log.warning(f"Could not load portfolio_router: {e}")
+# Legacy /api/portfolio/{username} (+ /chat, /github-activity, /seed) is not mounted: it served
+# CandidateProfile data with no publish step and auto-seeded a personal profile on public chat.
+# Jobify portfolio (draft/publish, public = published snapshot only): jobify_portfolio_router.
 
 try:
     from src.api.routers.telegram_connector_router import router as telegram_connector_router
@@ -932,6 +929,8 @@ from src.api.routers.jobify_inbox_router import router as jobify_inbox_router
 app.include_router(jobify_inbox_router)
 from src.api.routers.jobify_founders_router import router as jobify_founders_router
 app.include_router(jobify_founders_router)
+from src.api.routers.jobify_portfolio_router import router as jobify_portfolio_router
+app.include_router(jobify_portfolio_router)
 
 
 

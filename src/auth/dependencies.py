@@ -52,6 +52,8 @@ PUBLIC_EXACT_PATHS: Set[str] = {
     "/api/inbound/email",   # Cloudflare Email Worker delivery; protected by HMAC signature
 }
 
+_PORTFOLIO_PRIVATE_SEGMENTS = {"username-available", "publish", "regenerate"}
+
 PUBLIC_PREFIXES = (
     "/static/",
     "/assets/",
@@ -71,16 +73,15 @@ def is_public_path(path: str, method: str = "GET") -> bool:
         if path.startswith(prefix):
             return True
 
-    # Public portfolio viewing & GitHub heatmap (excluding administrative /seed)
-    if method == "GET" and path.startswith("/api/portfolio/") and not path.endswith("/seed"):
-        return True
+    # Public Jobify portfolio: GET /api/portfolio/{username} (published snapshot only). One path
+    # segment, and not one of the owner's static routes (those are reserved usernames).
+    if method == "GET" and path.startswith("/api/portfolio/"):
+        segment = path[len("/api/portfolio/"):].rstrip("/")
+        if segment and "/" not in segment and segment not in _PORTFOLIO_PRIVATE_SEGMENTS:
+            return True
 
     # Public startups.gallery exploration & status endpoints
     if method == "GET" and path.startswith("/api/startups-gallery"):
-        return True
-
-    # Public recruiter chatbot on hosted candidate portfolio
-    if method == "POST" and path.startswith("/api/portfolio/") and path.endswith("/chat"):
         return True
 
     return False

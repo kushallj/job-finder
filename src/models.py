@@ -115,6 +115,23 @@ class SavedFounderCompany(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Portfolio(Base):
+    """A user's Jobify portfolio. `content` is the editable draft; `published_content` is the
+    snapshot taken at publish time and is the only thing the public endpoint serves."""
+    __tablename__ = "portfolios"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    username = Column(String(24), nullable=True, unique=True, index=True)
+    status = Column(String(16), nullable=False, default="draft")  # draft | published
+    content = Column(Text, nullable=False, default="{}")
+    published_content = Column(Text, nullable=True)
+    snapshot_at = Column(DateTime, nullable=True)  # last regenerate
+    published_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Application(Base):
     __tablename__ = "applications"
     

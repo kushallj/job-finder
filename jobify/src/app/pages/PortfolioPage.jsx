@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { AppWindow, Eye, Copy, ExternalLink, EyeOff, Sparkles, FileText, Github, User, Code2, Briefcase, GraduationCap, Trophy, FlaskConical, Globe, Plus, Trash2, ArrowUp, ArrowDown, Pencil, X, Loader2 } from "lucide-react";
 import { portfolioService } from "../../services/portfolioService.js";
 import { uid } from "../../lib/storage.js";
@@ -86,24 +86,37 @@ function Preview({ p }) {
 
 export default function PortfolioPage() {
   const { toast } = useApp();
-  const [p, setP] = useState(() => portfolioService.get());
+  const [p, setP] = useState(null);
+  const [loadError, setLoadError] = useState(false);
   const [saved, setSaved] = useState(true);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [tab, setTab] = useState("identity");
   const [preview, setPreview] = useState(null); // "draft" | "visitor"
   const [skill, setSkill] = useState("");
-  const [uname, setUname] = useState(p.username || "");
+  const [uname, setUname] = useState("");
   const [unameState, setUnameState] = useState(null);
   const [busy, setBusy] = useState(null);
   const [errors, setErrors] = useState({});
   const [confirmRegen, setConfirmRegen] = useState(false);
-  const first = useRef(true);
+  const isLive = portfolioService.isLive();
 
+  const load = async () => {
+    setLoadError(false);
+    try { const x = await portfolioService.get(); setP(x); setUname(x.username || ""); }
+    catch { setLoadError(true); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const [retry, setRetry] = useState(0);
   const update = (fn) => { setP((cur) => fn(cur)); setSaved(false); };
   useEffect(() => {
-    if (first.current) { first.current = false; return; }
-    const t = setTimeout(async () => { await portfolioService.saveDraft(p); setSaved(true); }, 600);
+    if (saved || !p) return; // only autosave real edits, not loads or server responses
+    const t = setTimeout(async () => {
+      try { await portfolioService.saveDraft(p); setSaved(true); setSaveFailed(false); setRetry(0); }
+      catch { setSaveFailed(true); setRetry((n) => n + 1); } // re-run this effect: retry without waiting for another edit
+    }, retry ? 5000 : 600);
     return () => clearTimeout(t);
-  }, [p]);
+  }, [p, saved, retry]);
 
   useEffect(() => {
     if (!uname) return setUnameState(null);
@@ -111,6 +124,19 @@ export default function PortfolioPage() {
     const t = setTimeout(async () => setUnameState(await portfolioService.checkUsername(uname)), 350);
     return () => clearTimeout(t);
   }, [uname]);
+
+  if (!p) {
+    return (
+      <div className="min-h-full">
+        <PageHeader icon={AppWindow} title="Portfolio" />
+        <div className="max-w-[830px] mx-auto p-6 text-center text-[13px] text-[#707070]">
+          {loadError
+            ? <div className="flex flex-col items-center gap-3"><p>Couldn't load your portfolio.</p><Button variant="outline" onClick={load}>Try again</Button></div>
+            : <span className="inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Loading portfolio…</span>}
+        </div>
+      </div>
+    );
+  }
 
   const live = p.status === "published";
   const url = `https://${p.username || uname || "username"}.${baseHost}`;
@@ -129,15 +155,37 @@ export default function PortfolioPage() {
     if (!validateContact()) return toast("Fix the highlighted fields first.", "error");
     if (unameState?.available !== true) return toast("Choose an available username.", "error");
     setBusy("publish");
-    setP(await portfolioService.publish(p, uname));
+    try {
+      setP(await portfolioService.publish(p, uname));
+      setSaved(true);
+      toast(isLive ? "Published. Your public page goes live once portfolio hosting is set up." : "Published in demo mode. No public site is actually hosted.");
+    } catch (e) {
+      toast(e?.message || "Publishing failed.", "error");
+    }
     setBusy(null);
-    toast("Published in demo mode. No public site is actually hosted.");
+  };
+
+  const unpublish = async () => {
+    try { setP(await portfolioService.unpublish(p)); toast("Unpublished."); }
+    catch (e) { toast(e?.message || "Unpublishing failed.", "error"); }
   };
 
   const regenerate = async () => {
     setConfirmRegen(false); setBusy("regen");
-    try { setP(await portfolioService.regenerate(p)); toast("Preview regenerated (simulated)."); }
-    catch { toast("Regeneration failed (simulated).", "error"); }
+    try {
+      const next = await portfolioService.regenerate(p);
+      // Fixed-order signature of what regenerate can fill (key order differs between client and server objects).
+      const sig = (x) => JSON.stringify([
+        ...["fullName", "firstName", "jobTitle", "bio"].map((k) => x.identity[k]), x.identity.skills.length,
+        x.contact.email, x.contact.website, x.socials.github, x.socials.linkedin, x.projects.length, x.experience.length,
+      ]);
+      const changed = sig(next) !== sig(p);
+      setP(next);
+      setSaved(true);
+      toast(!isLive ? "Preview regenerated (simulated)."
+        : changed ? "Filled empty fields from your profile."
+        : next.sources?.resume ? "Nothing new to add: your profile's details are already here." : "Nothing to add yet. Save your matching profile on the Jobs page first.");
+    } catch { toast(isLive ? "Regeneration failed." : "Regeneration failed (simulated).", "error"); }
     setBusy(null);
   };
 
@@ -149,7 +197,7 @@ export default function PortfolioPage() {
 
   return (
     <div className="min-h-full">
-      <PageHeader icon={AppWindow} title="Portfolio" sub={<Badge tone={saved ? "success" : "warning"}>{saved ? "Saved" : "Saving…"}</Badge>}>
+      <PageHeader icon={AppWindow} title="Portfolio" sub={<Badge tone={saveFailed ? "danger" : saved ? "success" : "warning"}>{saveFailed ? "Not saved" : saved ? "Saved" : "Saving…"}</Badge>}>
         <Button variant="outline" onClick={() => setPreview("draft")}><Eye className="w-3.5 h-3.5" />Preview draft</Button>
         <Button variant="outline" disabled={!live} onClick={() => setPreview("visitor")}><Eye className="w-3.5 h-3.5" />Preview</Button>
       </PageHeader>
@@ -163,10 +211,10 @@ export default function PortfolioPage() {
 
         {live && (
           <div className="rounded-xl border border-[#BEE8D6] bg-[#EAF8F2] p-4 flex flex-wrap items-center gap-3">
-            <div className="mr-auto"><div className="text-[13.5px] font-medium">Portfolio is live (demo)</div><div className="text-[12px] font-mono text-[#444] break-all">{url}</div></div>
+            <div className="mr-auto"><div className="text-[13.5px] font-medium">{isLive ? "Portfolio is published" : "Portfolio is live (demo)"}</div><div className="text-[12px] font-mono text-[#444] break-all">{url}</div></div>
             <Button variant="outline" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(url); toast("Link copied."); } catch { toast("Copy failed.", "error"); } }}><Copy className="w-3.5 h-3.5" />Copy</Button>
             <Button variant="outline" size="sm" onClick={() => setPreview("visitor")}><ExternalLink className="w-3.5 h-3.5" />Open</Button>
-            <Button variant="danger" size="sm" onClick={async () => { setP(await portfolioService.unpublish(p)); toast("Unpublished."); }}><EyeOff className="w-3.5 h-3.5" />Unpublish</Button>
+            <Button variant="danger" size="sm" onClick={unpublish}><EyeOff className="w-3.5 h-3.5" />Unpublish</Button>
           </div>
         )}
 
@@ -174,15 +222,15 @@ export default function PortfolioPage() {
           <section className={card} aria-label="Source freshness">
             <h2 className="text-[14px] font-semibold">Source freshness</h2><p className="text-[12px] text-[#707070] mb-3">What the current portfolio is grounded in.</p>
             <ul className="flex flex-col gap-2 text-[12.5px]">
-              <li className="flex items-center gap-2 rounded-lg border border-[#E7E7E7] p-2.5"><FileText className="w-4 h-4 text-[#707070]" /><span className="flex-1">Resume <span className="block text-[11px] text-[#888]">Demo fixture · {p.sources.resume}</span></span><Button size="sm" variant="outline" onClick={() => setTab("identity")}>Review</Button></li>
+              <li className="flex items-center gap-2 rounded-lg border border-[#E7E7E7] p-2.5"><FileText className="w-4 h-4 text-[#707070]" /><span className="flex-1">Resume <span className="block text-[11px] text-[#888]">{isLive ? (p.sources.resume ? `Matching profile · ${new Date(p.sources.resume).toLocaleDateString()}` : "No profile saved yet") : `Demo fixture · ${p.sources.resume}`}</span></span><Button size="sm" variant="outline" onClick={() => setTab("identity")}>Review</Button></li>
               <li className="flex items-center gap-2 rounded-lg border border-[#E7E7E7] p-2.5"><Github className="w-4 h-4 text-[#707070]" /><span className="flex-1">GitHub <span className="block text-[11px] text-[#888]">{p.socials.github ? "Link saved, not analysed" : "Not connected"}</span></span><Button size="sm" variant="outline" onClick={() => setTab("socials")}>Review</Button></li>
               <li className="flex items-center gap-2 rounded-lg border border-[#E7E7E7] p-2.5"><Sparkles className="w-4 h-4 text-[#707070]" /><span className="flex-1">Portfolio snapshot <span className="block text-[11px] text-[#888]">{p.sources.snapshot ? new Date(p.sources.snapshot).toLocaleString() : "Not generated yet"}</span></span></li>
             </ul>
-            <p className="text-[11px] text-[#888] mt-2">Resume parsing and GitHub analysis arrive with the backend.</p>
+            <p className="text-[11px] text-[#888] mt-2">{isLive ? "Resume parsing and GitHub analysis aren't available yet." : "Resume parsing and GitHub analysis arrive with the backend."}</p>
           </section>
           <section className={card} aria-label="Regenerate">
             <div className="flex items-center"><h2 className="text-[14px] font-semibold">Regenerate</h2>{live && <Badge tone="success" className="ml-auto">Published</Badge>}</div>
-            <p className="text-[12px] text-[#707070] mb-3">AI reads your resume and GitHub to build content (simulated in this build).</p>
+            <p className="text-[12px] text-[#707070] mb-3">{isLive ? "Fills empty fields from your saved profile. Your edits are kept." : "AI reads your resume and GitHub to build content (simulated in this build)."}</p>
             <Button className="w-full" disabled={busy === "regen"} onClick={() => setConfirmRegen(true)}>{busy === "regen" ? <><Loader2 className="w-4 h-4 animate-spin" />Regenerating…</> : <><Sparkles className="w-4 h-4" />Regenerate</>}</Button>
           </section>
         </div>
@@ -246,7 +294,7 @@ export default function PortfolioPage() {
 
         <section className={card} aria-label="Publish">
           <h2 className="text-[14px] font-semibold flex items-center gap-1.5"><Eye className="w-4 h-4" />Publish</h2>
-          <p className="text-[12px] text-[#707070] mb-3">Publishing claims yourname.{baseHost} (demo only).</p>
+          <p className="text-[12px] text-[#707070] mb-3">{isLive ? "Publishing claims your username and snapshots this draft for your public page. Later edits stay private until you publish again." : `Publishing claims yourname.${baseHost} (demo only).`}</p>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-mono text-[12px] text-[#707070]">https://</span>
             <Input aria-label="Username" className="w-[180px]" value={uname} onChange={(e) => setUname(e.target.value.toLowerCase())} placeholder="username" />
