@@ -146,6 +146,9 @@ data/resume_v*.pdf
 data/workday_resumes/
 scratch/
 data/applications.md
+data/resume.txt
+data/resume_*.txt
+data/resume.pdf
 data/outreach_queue.json
 celerybeat-schedule
 celerybeat.pid
@@ -164,7 +167,7 @@ job311/
 # Configuration Files
 # ===============================
 config/*
-!config/profile.yml
+# profile.yml is personal data: kept local, never committed
 !config/target_companies.yml
 !config/boolean_queries.yml
 .blackboxcli/
