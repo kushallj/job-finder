@@ -107,6 +107,13 @@ class Settings(BaseSettings):
     env: str = "development"
     log_level: str = "INFO"
     auto_send_emails: bool = False  # Human-in-the-loop review gate by default
+    # Shared Jobify job catalog (src/tasks.refresh_job_catalog). Celery beat runs it at
+    # minute catalog_refresh_minute of each hour in catalog_refresh_hours_utc (crontab
+    # syntax). Default 02:30 + 14:30 UTC = 08:00 + 20:00 IST.
+    catalog_refresh_hours_utc: str = "2,14"
+    catalog_refresh_minute: int = 30
+    # Comma-separated job-board title searches; empty = the defaults in src/tasks.py.
+    catalog_queries: str = ""
     # Jobify chat (src/services/chat_providers.py). Comma-separated fallback chain, tried in
     # order until one starts replying, e.g. "ollama" (dev) or "openrouter,hf". "echo" = stub.
     chat_provider: str = "echo"

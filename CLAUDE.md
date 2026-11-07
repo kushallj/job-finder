@@ -102,7 +102,7 @@ Job sources (JobSpy, Adzuna, Careerjet, USAJobs, ATS boards, Firecrawl)
 | Models / DB | `src/models.py` (`User.clerk_user_id` exists), `src/database.py`, `alembic/` (only `b4686927ddeb_initial_schema`) |
 | Billing / credits | `billing_router.py` + `billing_service.py` (Stripe; webhook paths also reserved for Dodo), `credit_service.py` (`CREDIT_COSTS`, `SELECT … FOR UPDATE`) |
 | AI providers | `src/ai/unified_ai_service.py`: cascade Ollama → Gemini → OpenAI/Anthropic/Groq. Ollama isn't available on PaaS |
-| Background | `src/tasks.py`. Procfile: `api`, `worker` (concurrency 4), `beat` (exactly one), `flower` :5555 (internal only) |
+| Background | `src/tasks.py`. Procfile: `api`, `worker` (concurrency 4), `beat` (exactly one), `flower` :5555 (internal only). Beat: `refresh_job_catalog` twice daily (`CATALOG_REFRESH_HOURS_UTC`, default 08:00 + 20:00 IST; queries from `CATALOG_QUERIES`) scrapes into the shared `Job` table only; Gmail sync hourly; ghosted sweep daily. **No scheduled task may send email** (`tests/test_catalog_refresh.py`). `run_full_pipeline` (single-candidate) and `send_outreach` (honours `AUTO_SEND_EMAILS`) are manual only. `render.yaml`/`fly.toml` don't run worker/beat yet |
 | CLI | `src/cli.py`: tracker, verify, dedup, normalize, digest, pipeline, drafts, send, skip, status, scan, process-async, vc-seed-100, vc-scrape-*, vc-cron |
 | Deploy | `Dockerfile`, `docker-compose{,.dev,.prod}.yml` (postgres, redis, api, celery_worker/beat/flower, telegram_daemon, frontend, ollama), `render.yaml`, `fly.toml` |
 | CI | `.github/workflows/deploy-frontend.yml`, `security-scan.yml`. No backend test CI yet |
