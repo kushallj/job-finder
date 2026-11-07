@@ -16,7 +16,7 @@ from urllib.parse import quote_plus
 import httpx
 
 from src.config import settings
-from src.tier1_companies import get_tier1_company
+from src.company_sources.registries.tier1_companies import get_tier1_company
 
 logger = logging.getLogger(__name__)
 

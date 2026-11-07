@@ -11,13 +11,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.services.base_company_miner import (
+from src.company_sources.miners.base_company_miner import (
     MAX_OUTREACH_PER_COMPANY,
     ROLE_PATTERNS,
     BaseCompanyMiner,
     get_role_priority,
 )
-from src.sp500_registry import SP500_REGISTRY, SP500Company
+from src.company_sources.registries.sp500_registry import SP500_REGISTRY, SP500Company
 
 logger = logging.getLogger("sp500_miner")
 logger.setLevel(logging.INFO)

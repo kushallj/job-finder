@@ -11,13 +11,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.services.base_company_miner import (
+from src.company_sources.miners.base_company_miner import (
     MAX_OUTREACH_PER_COMPANY,
     ROLE_PATTERNS,
     BaseCompanyMiner,
     get_role_priority,
 )
-from src.shark_tank_us_startups import SHARK_TANK_US_REGISTRY, SharkTankUSStartup
+from src.company_sources.registries.shark_tank_us_startups import SHARK_TANK_US_REGISTRY, SharkTankUSStartup
 
 logger = logging.getLogger("shark_tank_us_miner")
 logger.setLevel(logging.INFO)

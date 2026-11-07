@@ -2,13 +2,13 @@
 Unit tests for Suniel Shetty Shows & Portfolio Startups Registry & Outreach Engine.
 """
 import pytest
-from src.suniel_shetty_startups import (
+from src.company_sources.registries.suniel_shetty_startups import (
     SUNIEL_SHETTY_STARTUPS_REGISTRY,
     get_all_suniel_shetty_startups,
     filter_by_show,
     filter_by_shetty_category,
 )
-from src.suniel_shetty_miner import (
+from src.company_sources.miners.suniel_shetty_miner import (
     SunielShettyMiner,
     get_role_priority,
     MAX_OUTREACH_PER_COMPANY,

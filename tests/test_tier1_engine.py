@@ -1,6 +1,6 @@
 import pytest
 import httpx
-from src.tier1_companies import TIER1_REGISTRY, get_tier1_company
+from src.company_sources.registries.tier1_companies import TIER1_REGISTRY, get_tier1_company
 from src.referral_engine import generate_referral_xray_queries, compose_referral_request, search_company_referral_contacts
 from src.scrapers.tier1_career_scraper import Tier1CareerScraper
 

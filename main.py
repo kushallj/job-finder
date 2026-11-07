@@ -48,12 +48,12 @@ from src.models import Application, Job, OutreachRecord, Contact, User
 from src.lifecycle import next_action, require_transition, normalize_status, sort_actions, KNOWN_STATUSES
 from src.job_data_providers import JobDataAPIClient, AIDevBoardClient, FantasticJobsClient, ArbeitnowClient, CareerjetClient, USAJobsClient, search_all
 from src.resume_parser import SharpAPIResumeParser
-from src.tier1_companies import TIER1_REGISTRY, get_tier1_company
+from src.company_sources.registries.tier1_companies import TIER1_REGISTRY, get_tier1_company
 from src.scrapers.tier1_career_scraper import Tier1CareerScraper
 from src.referral_engine import generate_referral_xray_queries, search_company_referral_contacts, compose_referral_request
-from src.indian_app_startups import INDIAN_APP_STARTUPS, get_indian_app_startup, filter_indian_startups
+from src.company_sources.registries.indian_app_startups import INDIAN_APP_STARTUPS, get_indian_app_startup, filter_indian_startups
 from src.scrapers.indian_app_startups_scraper import IndianAppStartupsScraper
-from src.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, get_fintech_festival_company, filter_fintech_festival_companies
+from src.company_sources.registries.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, get_fintech_festival_company, filter_fintech_festival_companies
 from src.scrapers.fintech_festival_scraper import FinTechFestivalScraper
 from src.autonomous_job_crawler import autonomous_crawler, extract_tech_tags_and_seniority
 from src.config import settings
@@ -4421,9 +4421,9 @@ async def trigger_crawler_single_pass(payload: CrawlerSinglePassRequest = Crawle
 async def get_enterprise_crawler_metrics():
     """Returns enterprise-grade metrics for CTO / VC pitch: tech stack distribution, remote ratio, salary benchmarks."""
     from collections import Counter
-    from src.tier1_companies import TIER1_REGISTRY
-    from src.indian_app_startups import INDIAN_APP_STARTUPS
-    from src.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY
+    from src.company_sources.registries.tier1_companies import TIER1_REGISTRY
+    from src.company_sources.registries.indian_app_startups import INDIAN_APP_STARTUPS
+    from src.company_sources.registries.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY
 
     db = SessionLocal()
     try:
@@ -4484,7 +4484,7 @@ async def trigger_fintech_decision_maker_mining(
     payload: FinTechMineRequest = FinTechMineRequest()
 ):
     """Triggers autonomous mining of technical & executive decision makers across 150+ FinTech Fest companies."""
-    from src.fintech_decision_maker_miner import fintech_miner
+    from src.company_sources.miners.fintech_decision_maker_miner import fintech_miner
     try:
         # Run asynchronous sweep in background
         asyncio.create_task(fintech_miner.run_full_gff_decision_maker_sweep(auto_send=payload.auto_send))
@@ -4541,7 +4541,7 @@ async def get_mined_fintech_decision_makers(
 @app.post("/api/fintech/auto-outreach", tags=["fintech-decision-makers"])
 async def trigger_fintech_auto_outreach(limit: int = Query(default=20, ge=1, le=100)):
     """Dispatches hyper-personalized cold outreach emails to pending discovered decision makers."""
-    from src.fintech_decision_maker_miner import fintech_miner, DecisionMakerContact
+    from src.company_sources.miners.fintech_decision_maker_miner import fintech_miner, DecisionMakerContact
     db = SessionLocal()
     sent_count = 0
     errors = 0
@@ -4593,7 +4593,7 @@ async def trigger_fintech_auto_outreach(limit: int = Query(default=20, ge=1, le=
 @app.get("/api/fintech/miner-status", tags=["fintech-decision-makers"])
 async def get_fintech_miner_status():
     """Returns real-time telemetry, worker state, and event logs for the GFF decision maker engine."""
-    from src.fintech_decision_maker_miner import fintech_miner
+    from src.company_sources.miners.fintech_decision_maker_miner import fintech_miner
     return {
         "status": "running" if fintech_miner.is_running else "idle",
         "total_mined": fintech_miner.total_mined,
@@ -4622,7 +4622,7 @@ async def get_accelerator_companies(
     stage: Optional[str] = Query(default=None),
 ):
     """Lists startups from Y Combinator, Surge by Peak XV, Accel Atoms, Antler, Techstars, and Blume Ventures."""
-    from src.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator, filter_by_category
+    from src.company_sources.registries.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator, filter_by_category
     startups = ACCELERATORS_REGISTRY
     if accelerator:
         startups = filter_by_accelerator(accelerator)
@@ -4640,8 +4640,8 @@ async def get_accelerator_companies(
 @app.post("/api/accelerators/sync-jobs", tags=["accelerators"])
 async def sync_accelerator_jobs(payload: AcceleratorSyncRequest = AcceleratorSyncRequest()):
     """Concurrently scrapes live engineering opportunities from YC and accelerator startups."""
-    from src.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator
-    from src.accelerator_miner import accelerator_miner
+    from src.company_sources.registries.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator
+    from src.company_sources.miners.accelerator_miner import accelerator_miner
     startups = ACCELERATORS_REGISTRY
     if payload.accelerator:
         startups = filter_by_accelerator(payload.accelerator)
@@ -4662,8 +4662,8 @@ async def sync_accelerator_jobs(payload: AcceleratorSyncRequest = AcceleratorSyn
 @app.post("/api/accelerators/mine-and-outreach", tags=["accelerators"])
 async def mine_and_outreach_accelerator_startups(payload: AcceleratorOutreachRequest = AcceleratorOutreachRequest()):
     """Mines founders & CTOs across accelerator startups and dispatches cold outreach (strictly <= 2/company)."""
-    from src.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator
-    from src.accelerator_miner import accelerator_miner
+    from src.company_sources.registries.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator
+    from src.company_sources.miners.accelerator_miner import accelerator_miner
     startups = ACCELERATORS_REGISTRY
     if payload.accelerator:
         startups = filter_by_accelerator(payload.accelerator)
@@ -4701,7 +4701,7 @@ async def get_shark_tank_companies(
     shark: Optional[str] = Query(default=None),
 ):
     """Lists startups from Shark Tank India across Seasons 1, 2, 3, 4, and 5."""
-    from src.shark_tank_india_startups import (
+    from src.company_sources.registries.shark_tank_india_startups import (
         SHARK_TANK_INDIA_REGISTRY,
         filter_by_season,
         filter_by_shark,
@@ -4727,11 +4727,11 @@ async def mine_and_outreach_shark_tank_startups(
     payload: SharkTankOutreachRequest = SharkTankOutreachRequest()
 ):
     """Mines founders & CTOs across Shark Tank India startups and dispatches outreach (strictly <= 2/company)."""
-    from src.shark_tank_india_startups import (
+    from src.company_sources.registries.shark_tank_india_startups import (
         SHARK_TANK_INDIA_REGISTRY,
         filter_by_season,
     )
-    from src.shark_tank_miner import shark_tank_miner
+    from src.company_sources.miners.shark_tank_miner import shark_tank_miner
 
     startups = SHARK_TANK_INDIA_REGISTRY
     if payload.season:
@@ -4772,7 +4772,7 @@ async def get_shark_tank_us_companies(
     shark: Optional[str] = Query(default=None),
 ):
     """Lists startups from Shark Tank US across Seasons 1 to 16."""
-    from src.shark_tank_us_startups import (
+    from src.company_sources.registries.shark_tank_us_startups import (
         SHARK_TANK_US_REGISTRY,
         filter_by_season_us,
         filter_by_shark_us,
@@ -4798,11 +4798,11 @@ async def mine_and_outreach_shark_tank_us_startups(
     payload: SharkTankUSOutreachRequest = SharkTankUSOutreachRequest()
 ):
     """Mines founders & CTOs across US Shark Tank startups and dispatches outreach (strictly <= 2/company)."""
-    from src.shark_tank_us_startups import (
+    from src.company_sources.registries.shark_tank_us_startups import (
         SHARK_TANK_US_REGISTRY,
         filter_by_season_us,
     )
-    from src.shark_tank_us_miner import shark_tank_us_miner
+    from src.company_sources.miners.shark_tank_us_miner import shark_tank_us_miner
 
     startups = SHARK_TANK_US_REGISTRY
     if payload.season:
@@ -4842,7 +4842,7 @@ async def get_suniel_shetty_companies(
     category: Optional[str] = Query(default=None),
 ):
     """Lists startups from Suniel Shetty's shows ('Bharat Ke Super Founders', 'Horses Stable') & portfolio."""
-    from src.suniel_shetty_startups import (
+    from src.company_sources.registries.suniel_shetty_startups import (
         SUNIEL_SHETTY_STARTUPS_REGISTRY,
         filter_by_show,
         filter_by_shetty_category,
@@ -4865,11 +4865,11 @@ async def mine_and_outreach_suniel_shetty_startups(
     payload: SunielShettyOutreachRequest = SunielShettyOutreachRequest()
 ):
     """Mines founders & CTOs across Suniel Shetty show startups and dispatches outreach (strictly <= 2/company)."""
-    from src.suniel_shetty_startups import (
+    from src.company_sources.registries.suniel_shetty_startups import (
         SUNIEL_SHETTY_STARTUPS_REGISTRY,
         filter_by_show,
     )
-    from src.suniel_shetty_miner import suniel_shetty_miner
+    from src.company_sources.miners.suniel_shetty_miner import suniel_shetty_miner
 
     startups = SUNIEL_SHETTY_STARTUPS_REGISTRY
     if payload.show:
@@ -4908,7 +4908,7 @@ async def get_nifty500_companies(
     search: Optional[str] = Query(default=None),
 ):
     """Lists official enterprise companies from the NSE Nifty 500 index (500 companies)."""
-    from src.nifty500_registry import (
+    from src.company_sources.registries.nifty500_registry import (
         get_all_nifty500_companies,
         filter_by_industry,
         search_by_keyword,
@@ -4935,11 +4935,11 @@ async def mine_and_outreach_nifty500_companies(
     payload: Nifty500OutreachRequest = Nifty500OutreachRequest()
 ):
     """Mines tech decision makers across Nifty 500 enterprises and dispatches outreach (strictly <= 2/company)."""
-    from src.nifty500_registry import (
+    from src.company_sources.registries.nifty500_registry import (
         get_all_nifty500_companies,
         filter_by_industry,
     )
-    from src.nifty500_miner import nifty500_miner
+    from src.company_sources.miners.nifty500_miner import nifty500_miner
 
     companies = get_all_nifty500_companies()
     target_ind = payload.sector
@@ -4979,7 +4979,7 @@ async def get_sp500_companies(
     search: Optional[str] = Query(default=None),
 ):
     """Lists official constituent corporations from the US S&P 500 index (503 companies)."""
-    from src.sp500_registry import (
+    from src.company_sources.registries.sp500_registry import (
         get_all_sp500_companies,
         filter_by_sector,
         filter_by_sub_industry,
@@ -5008,11 +5008,11 @@ async def mine_and_outreach_sp500_companies(
     payload: SP500OutreachRequest = SP500OutreachRequest()
 ):
     """Mines tech decision makers across S&P 500 giants and dispatches outreach (strictly <= 2/company)."""
-    from src.sp500_registry import (
+    from src.company_sources.registries.sp500_registry import (
         get_all_sp500_companies,
         filter_by_sector,
     )
-    from src.sp500_miner import sp500_miner
+    from src.company_sources.miners.sp500_miner import sp500_miner
 
     companies = get_all_sp500_companies()
     if payload.sector:

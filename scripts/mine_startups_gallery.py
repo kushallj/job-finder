@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.database import SessionLocal, init_db
 from src.models import Contact, StartupsGalleryCompanyRecord
-from src.startups_gallery_miner import startups_gallery_miner
+from src.company_sources.miners.startups_gallery_miner import startups_gallery_miner
 
 
 def print_status():

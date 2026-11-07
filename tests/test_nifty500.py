@@ -2,7 +2,7 @@
 Unit tests for Official Nifty 500 Database (500 NSE Companies) & Outreach Engine.
 """
 import pytest
-from src.nifty500_registry import (
+from src.company_sources.registries.nifty500_registry import (
     get_all_nifty500_companies,
     filter_by_industry,
     filter_by_sector,
@@ -10,7 +10,7 @@ from src.nifty500_registry import (
     search_by_keyword,
     get_industry_breakdown,
 )
-from src.nifty500_miner import (
+from src.company_sources.miners.nifty500_miner import (
     Nifty500Miner,
     get_role_priority,
     MAX_OUTREACH_PER_COMPANY,

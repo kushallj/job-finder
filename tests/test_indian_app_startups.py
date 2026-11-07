@@ -1,6 +1,6 @@
 import pytest
 import httpx
-from src.indian_app_startups import (
+from src.company_sources.registries.indian_app_startups import (
     INDIAN_APP_STARTUPS,
     get_indian_app_startup,
     filter_indian_startups,

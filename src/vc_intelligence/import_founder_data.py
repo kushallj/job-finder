@@ -40,12 +40,12 @@ REPO = Path(__file__).resolve().parents[2]
 GENERIC_LOCAL_PARTS = {"founder", "founders", "hello", "hi", "contact", "info", "team", "support", "admin",
                        "careers", "jobs", "press", "sales", "office"}
 REGISTRIES = [  # (module, variable, source firm name)
-    ("src.shark_tank_india_startups", "SHARK_TANK_INDIA_REGISTRY", "Shark Tank India"),
-    ("src.shark_tank_us_startups", "SHARK_TANK_US_REGISTRY", "Shark Tank US"),
-    ("src.suniel_shetty_startups", "SUNIEL_SHETTY_STARTUPS_REGISTRY", "Suniel Shetty Portfolio"),
-    ("src.accelerators_registry", "ACCELERATORS_REGISTRY", "Accelerator Portfolios"),
-    ("src.indian_app_startups", "INDIAN_APP_STARTUPS", "Indian App Startups"),
-    ("src.fintech_festival_companies", "FINTECH_FESTIVAL_REGISTRY", "Global Fintech Fest"),
+    ("src.company_sources.registries.shark_tank_india_startups", "SHARK_TANK_INDIA_REGISTRY", "Shark Tank India"),
+    ("src.company_sources.registries.shark_tank_us_startups", "SHARK_TANK_US_REGISTRY", "Shark Tank US"),
+    ("src.company_sources.registries.suniel_shetty_startups", "SUNIEL_SHETTY_STARTUPS_REGISTRY", "Suniel Shetty Portfolio"),
+    ("src.company_sources.registries.accelerators_registry", "ACCELERATORS_REGISTRY", "Accelerator Portfolios"),
+    ("src.company_sources.registries.indian_app_startups", "INDIAN_APP_STARTUPS", "Indian App Startups"),
+    ("src.company_sources.registries.fintech_festival_companies", "FINTECH_FESTIVAL_REGISTRY", "Global Fintech Fest"),
 ]
 
 

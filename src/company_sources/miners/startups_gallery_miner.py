@@ -30,13 +30,13 @@ load_dotenv()
 
 from src.database import SessionLocal
 from src.models import Contact, OutreachRecord, StartupsGalleryCompanyRecord
-from src.services.base_company_miner import (
+from src.company_sources.miners.base_company_miner import (
     MAX_OUTREACH_PER_COMPANY,
     ROLE_PATTERNS,
     BaseCompanyMiner,
     get_role_priority,
 )
-from src.startups_gallery_registry import (
+from src.company_sources.registries.startups_gallery_registry import (
     STARTUPS_GALLERY_REGISTRY,
     StartupsGalleryCompany,
     get_all_startups_gallery_companies,

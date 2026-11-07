@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, patch
 
 from src.database import SessionLocal, init_db
 from src.models import Contact, StartupsGalleryCompanyRecord
-from src.startups_gallery_miner import (
+from src.company_sources.miners.startups_gallery_miner import (
     StartupsGalleryMiner,
     startups_gallery_miner,
 )
-from src.startups_gallery_registry import (
+from src.company_sources.registries.startups_gallery_registry import (
     filter_by_category,
     filter_by_location,
     get_all_startups_gallery_companies,

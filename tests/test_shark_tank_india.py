@@ -2,14 +2,14 @@
 Unit tests for Shark Tank India Startups Registry & Outreach Engine.
 """
 import pytest
-from src.shark_tank_india_startups import (
+from src.company_sources.registries.shark_tank_india_startups import (
     SHARK_TANK_INDIA_REGISTRY,
     get_all_shark_tank_startups,
     filter_by_season,
     filter_by_shark,
     filter_by_category,
 )
-from src.shark_tank_miner import (
+from src.company_sources.miners.shark_tank_miner import (
     SharkTankMiner,
     get_role_priority,
     MAX_OUTREACH_PER_COMPANY,

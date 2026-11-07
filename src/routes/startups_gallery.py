@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field
 
 from src.database import SessionLocal
 from src.models import Contact, StartupsGalleryCompanyRecord
-from src.startups_gallery_miner import startups_gallery_miner
-from src.startups_gallery_registry import get_category_breakdown
+from src.company_sources.miners.startups_gallery_miner import startups_gallery_miner
+from src.company_sources.registries.startups_gallery_registry import get_category_breakdown
 
 router = APIRouter(prefix="/api/startups-gallery", tags=["startups-gallery"])
 

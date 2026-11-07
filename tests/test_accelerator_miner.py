@@ -2,13 +2,13 @@
 Unit tests for Y Combinator & Global Accelerators Sourcing and Outreach Engine.
 """
 import pytest
-from src.accelerators_registry import (
+from src.company_sources.registries.accelerators_registry import (
     ACCELERATORS_REGISTRY,
     get_all_accelerator_startups,
     filter_by_accelerator,
     filter_by_category,
 )
-from src.accelerator_miner import (
+from src.company_sources.miners.accelerator_miner import (
     AcceleratorMiner,
     get_role_priority,
     MAX_OUTREACH_PER_COMPANY,

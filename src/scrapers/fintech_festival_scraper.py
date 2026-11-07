@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from src.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, FinTechFestivalCompany, get_fintech_festival_company
+from src.company_sources.registries.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, FinTechFestivalCompany, get_fintech_festival_company
 from src.job_data_providers import normalize_job
 
 logger = logging.getLogger(__name__)

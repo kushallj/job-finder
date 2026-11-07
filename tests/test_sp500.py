@@ -2,7 +2,7 @@
 Unit tests for Official S&P 500 Database (503 US Constituents) & Outreach Engine.
 """
 import pytest
-from src.sp500_registry import (
+from src.company_sources.registries.sp500_registry import (
     get_all_sp500_companies,
     filter_by_sector,
     filter_by_sub_industry,
@@ -10,7 +10,7 @@ from src.sp500_registry import (
     search_by_keyword,
     get_sector_breakdown,
 )
-from src.sp500_miner import (
+from src.company_sources.miners.sp500_miner import (
     SP500Miner,
     get_role_priority,
     MAX_OUTREACH_PER_COMPANY,

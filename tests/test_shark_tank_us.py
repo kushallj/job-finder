@@ -2,14 +2,14 @@
 Unit tests for Shark Tank US Startups Registry & Outreach Engine.
 """
 import pytest
-from src.shark_tank_us_startups import (
+from src.company_sources.registries.shark_tank_us_startups import (
     SHARK_TANK_US_REGISTRY,
     get_all_shark_tank_us_startups,
     filter_by_season_us,
     filter_by_shark_us,
     filter_by_category_us,
 )
-from src.shark_tank_us_miner import (
+from src.company_sources.miners.shark_tank_us_miner import (
     SharkTankUSMiner,
     get_role_priority,
     MAX_OUTREACH_PER_COMPANY,

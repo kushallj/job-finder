@@ -14,10 +14,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.accelerators_registry import ACCELERATORS_REGISTRY, AcceleratorStartup
+from src.company_sources.registries.accelerators_registry import ACCELERATORS_REGISTRY, AcceleratorStartup
 from src.database import SessionLocal
 from src.models import Job
-from src.services.base_company_miner import (
+from src.company_sources.miners.base_company_miner import (
     MAX_OUTREACH_PER_COMPANY,
     ROLE_PATTERNS,
     BaseCompanyMiner,

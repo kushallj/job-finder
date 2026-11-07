@@ -11,8 +11,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.nifty500_registry import NIFTY_500_REGISTRY, Nifty500Company
-from src.services.base_company_miner import (
+from src.company_sources.registries.nifty500_registry import NIFTY_500_REGISTRY, Nifty500Company
+from src.company_sources.miners.base_company_miner import (
     MAX_OUTREACH_PER_COMPANY,
     ROLE_PATTERNS,
     BaseCompanyMiner,

@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from src.tier1_companies import TIER1_REGISTRY, Tier1Company, get_tier1_company
+from src.company_sources.registries.tier1_companies import TIER1_REGISTRY, Tier1Company, get_tier1_company
 from src.job_data_providers import normalize_job
 
 logger = logging.getLogger(__name__)

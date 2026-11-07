@@ -1,5 +1,5 @@
 """
-src/services/base_company_miner.py
+src/company_sources/miners/base_company_miner.py
 Shared base class and utilities for autonomous catalog miners (S&P 500, Nifty 500,
 Shark Tank, Accelerators, Fintech Festival).
 Implements the DRY principle by unifying role priority ranking, corporate email synthesis,

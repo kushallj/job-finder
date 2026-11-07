@@ -34,10 +34,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.database import SessionLocal
-from src.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, FinTechFestivalCompany
+from src.company_sources.registries.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, FinTechFestivalCompany
 from src.models import Contact, OutreachRecord
 
-from src.services.base_company_miner import (
+from src.company_sources.miners.base_company_miner import (
     MAX_OUTREACH_PER_COMPANY,
     ROLE_PATTERNS,
     BaseCompanyMiner,

@@ -12,13 +12,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.services.base_company_miner import (
+from src.company_sources.miners.base_company_miner import (
     MAX_OUTREACH_PER_COMPANY,
     ROLE_PATTERNS,
     BaseCompanyMiner,
     get_role_priority,
 )
-from src.suniel_shetty_startups import SUNIEL_SHETTY_STARTUPS_REGISTRY, SunielShettyStartup
+from src.company_sources.registries.suniel_shetty_startups import SUNIEL_SHETTY_STARTUPS_REGISTRY, SunielShettyStartup
 
 logger = logging.getLogger("suniel_shetty_miner")
 logger.setLevel(logging.INFO)

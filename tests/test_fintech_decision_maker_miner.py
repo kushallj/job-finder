@@ -2,11 +2,11 @@
 Unit tests for FinTech Decision Maker Mining and Autonomous Outreach Engine
 """
 import pytest
-from src.fintech_decision_maker_miner import (
+from src.company_sources.miners.fintech_decision_maker_miner import (
     FinTechDecisionMakerMiner,
     DecisionMakerContact,
 )
-from src.fintech_festival_companies import FinTechFestivalCompany
+from src.company_sources.registries.fintech_festival_companies import FinTechFestivalCompany
 
 
 def test_email_synthesis_and_phone_extraction():
@@ -63,7 +63,7 @@ async def test_search_company_decision_makers_mock():
             assert c.title is not None
 
 def test_role_priority_ranking():
-    from src.fintech_decision_maker_miner import get_role_priority
+    from src.company_sources.miners.fintech_decision_maker_miner import get_role_priority
     assert get_role_priority("Founder & CEO") == 1
     assert get_role_priority("Chief Technology Officer") == 1
     assert get_role_priority("VP of Engineering") == 2
@@ -73,5 +73,5 @@ def test_role_priority_ranking():
 
 
 def test_max_outreach_per_company_constant():
-    from src.fintech_decision_maker_miner import MAX_OUTREACH_PER_COMPANY
+    from src.company_sources.miners.fintech_decision_maker_miner import MAX_OUTREACH_PER_COMPANY
     assert MAX_OUTREACH_PER_COMPANY == 2

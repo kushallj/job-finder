@@ -25,9 +25,9 @@ from src.config import settings
 from src.database import SessionLocal
 from src.models import Job
 from src.job_data_providers import normalize_job, USAJobsClient, CareerjetClient, FantasticJobsClient, ArbeitnowClient, AIDevBoardClient, JobDataAPIClient
-from src.tier1_companies import TIER1_REGISTRY, Tier1Company, get_tier1_company
-from src.indian_app_startups import INDIAN_APP_STARTUPS, IndianAppStartup
-from src.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, FinTechFestivalCompany
+from src.company_sources.registries.tier1_companies import TIER1_REGISTRY, Tier1Company, get_tier1_company
+from src.company_sources.registries.indian_app_startups import INDIAN_APP_STARTUPS, IndianAppStartup
+from src.company_sources.registries.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, FinTechFestivalCompany
 from src.scrapers.tier1_career_scraper import Tier1CareerScraper
 from src.scrapers.indian_app_startups_scraper import IndianAppStartupsScraper
 from src.scrapers.fintech_festival_scraper import FinTechFestivalScraper

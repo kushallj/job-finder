@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from src.indian_app_startups import INDIAN_APP_STARTUPS, IndianAppStartup, get_indian_app_startup
+from src.company_sources.registries.indian_app_startups import INDIAN_APP_STARTUPS, IndianAppStartup, get_indian_app_startup
 from src.job_data_providers import normalize_job
 
 logger = logging.getLogger(__name__)

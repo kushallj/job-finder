@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("sp500_registry")
 
-CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "sp500_official.csv"
+CSV_PATH = Path(__file__).resolve().parents[3] / "data" / "sp500_official.csv"
 
 # Domain mapping for top tech & financial titans
 KNOWN_DOMAINS: Dict[str, str] = {
