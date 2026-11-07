@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import (
+    Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func, text,
+)
 from sqlalchemy.orm import DeclarativeBase, relationship
 from datetime import datetime
 
@@ -50,6 +52,11 @@ class CreditTransaction(Base):
 
 class Job(Base):
     __tablename__ = "jobs"
+    __table_args__ = (
+        # Jobify list: WHERE expired_at IS NULL ORDER BY fetched_at DESC (partial index).
+        Index("ix_jobs_active_fetched_at", "fetched_at",
+              postgresql_where=text("expired_at IS NULL"), sqlite_where=text("expired_at IS NULL")),
+    )
     
     id = Column(Integer, primary_key=True)
     job_id = Column(String(255), unique=True, nullable=False)
@@ -78,6 +85,10 @@ class Job(Base):
     
     # Relationships
     applications = relationship("Application", back_populates="job")
+
+# Founders "hiring" check matches company names case-insensitively (expression index).
+Index("ix_jobs_company_lower", func.lower(Job.company))
+
 
 class UserJob(Base):
     """Per-user state on a shared Job row (Jobify saved / applied). Jobs stay a shared catalog."""
@@ -135,6 +146,7 @@ class Portfolio(Base):
 class ChatConversation(Base):
     """A Jobify chat thread (ask | agent mode)."""
     __tablename__ = "chat_conversations"
+    __table_args__ = (Index("ix_chat_conversations_user_updated", "user_id", "updated_at"),)
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -167,6 +179,7 @@ class ChatMessage(Base):
 
 class Application(Base):
     __tablename__ = "applications"
+    __table_args__ = (Index("ix_applications_user_created", "user_id", "created_at"),)
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
@@ -611,6 +624,10 @@ class MailboxAccount(Base):
 class InboundRecruiterMessage(Base):
     """Audit log of incoming recruiter messages classified and auto-advanced through the pipeline."""
     __tablename__ = "inbound_recruiter_messages"
+    __table_args__ = (
+        Index("ix_inbound_mailbox_message_id", "mailbox_id", "message_id"),  # dedupe on ingest
+        Index("ix_inbound_mailbox_received", "mailbox_id", "received_at"),   # inbox list
+    )
 
     id = Column(Integer, primary_key=True)
     mailbox_id = Column(Integer, ForeignKey("mailbox_accounts.id"), nullable=True, index=True)
