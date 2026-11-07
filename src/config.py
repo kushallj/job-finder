@@ -107,6 +107,9 @@ class Settings(BaseSettings):
     env: str = "development"
     log_level: str = "INFO"
     auto_send_emails: bool = False  # Human-in-the-loop review gate by default
+    # Jobify chat (src/services/chat_providers.py). "echo" until an LLM is chosen.
+    chat_provider: str = "echo"
+    chat_echo_delay_ms: int = 40  # per streamed word, so Stop is testable against the stub
 
 
     # Sender identity (used in outreach emails, cover letters, etc.)

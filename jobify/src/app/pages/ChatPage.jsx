@@ -20,6 +20,8 @@ export default function ChatPage() {
   const [mode, setMode] = useState("agent");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [streaming, setStreaming] = useState("");
+  const isLive = chatService.isLive();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [renaming, setRenaming] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -30,7 +32,7 @@ export default function ChatPage() {
   useEffect(() => { refresh(); }, [refresh]);
 
   const active = convs?.find((c) => c.id === activeId) || null;
-  useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [active?.messages.length, busy]);
+  useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [active?.messages.length, busy, streaming]);
 
   const send = async (override) => {
     const msg = (override ?? text).trim();
@@ -42,19 +44,23 @@ export default function ChatPage() {
       setActiveId(id);
     }
     setText("");
+    setStreaming("");
     setBusy(true);
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     // optimistic render of the user message
     setConvs((cs) => cs && cs.map((c) => (c.id === id ? { ...c, messages: [...c.messages, { id: "pending", role: "user", content: msg }] } : c)));
     try {
-      await chatService.sendMessage(id, msg, mode, { signal: ctrl.signal });
-      spendCredits(CREDIT_COST);
+      await chatService.sendMessage(id, msg, mode, { signal: ctrl.signal, onDelta: (t) => setStreaming((s) => s + t) });
     } catch (e) {
-      if (e.name !== "AbortError") toast("Something went wrong (simulated).", "error");
-      else toast("Generation stopped.");
+      if (e.name === "AbortError") toast("Generation stopped.");
+      else if (e.status === 402) toast(plan ? "Not enough AI credits this month." : "Choose a plan to get AI credits.", "error");
+      else if (!isLive) toast("Something went wrong (simulated).", "error");
+      else toast(`${e.message || "The assistant could not reply."}${e.refunded ? " Your credits were refunded." : ""}`, "error");
     } finally {
+      spendCredits(CREDIT_COST); // live: refetches the server balance (charges and refunds); demo: local count
       setBusy(false);
+      setStreaming("");
       refresh();
     }
   };
@@ -98,7 +104,7 @@ export default function ChatPage() {
                 </button>
               ))}
             </div>
-            <DemoNotice><span className="block mt-4">Replies are simulated. No AI service is called and no email is sent.</span></DemoNotice>
+            <DemoNotice><span className="block mt-4">{isLive ? "Replies come from a test stub until an AI model is connected. Nothing is sent without your approval." : "Replies are simulated. No AI service is called and no email is sent."}</span></DemoNotice>
           </div>
         ) : (
           <div className="max-w-[720px] mx-auto px-4 py-6 flex flex-col gap-5">
@@ -108,7 +114,7 @@ export default function ChatPage() {
                   <p className="whitespace-pre-wrap">{m.content}</p>
                   {m.role === "assistant" && (
                     <div className="mt-2 flex items-center gap-1 text-[#707070]">
-                      <span className="text-[11px] mr-2">Simulated reply</span>
+                      <span className="text-[11px] mr-2">{m.demo ? "Simulated reply" : m.provider === "echo" ? "Test reply (no AI model connected)" : ""}{m.status === "stopped" ? " · Stopped" : ""}</span>
                       <button type="button" onClick={() => copy(m.content)} aria-label="Copy reply" className="w-7 h-7 rounded-md hover:bg-white flex items-center justify-center"><Copy className="w-3.5 h-3.5" /></button>
                       {i === messages.length - 1 && !busy && <button type="button" onClick={retry} aria-label="Retry" className="w-7 h-7 rounded-md hover:bg-white flex items-center justify-center"><RotateCcw className="w-3.5 h-3.5" /></button>}
                     </div>
@@ -116,7 +122,9 @@ export default function ChatPage() {
                 </div>
               </div>
             ))}
-            {busy && <div className="flex"><Skeleton className="h-10 w-48 rounded-2xl" /></div>}
+            {busy && (streaming
+              ? <div className="flex justify-start"><div className="max-w-[85%] rounded-2xl px-4 py-2.5 text-[13.5px] leading-relaxed bg-[#F4F4F4]"><p className="whitespace-pre-wrap">{streaming}</p></div></div>
+              : <div className="flex"><Skeleton className="h-10 w-48 rounded-2xl" /></div>)}
             <div ref={endRef} />
           </div>
         )}

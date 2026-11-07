@@ -132,6 +132,39 @@ class Portfolio(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ChatConversation(Base):
+    """A Jobify chat thread (ask | agent mode)."""
+    __tablename__ = "chat_conversations"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(120), nullable=False, default="New chat")
+    mode = Column(String(16), nullable=False, default="agent")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    messages = relationship("ChatMessage", back_populates="conversation", cascade="all, delete-orphan",
+                            order_by="ChatMessage.id")
+
+
+class ChatMessage(Base):
+    """One turn in a chat. Assistant rows record which provider produced them and whether the
+    user stopped generation (`status`), so partial replies are kept honestly."""
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True)
+    conversation_id = Column(Integer, ForeignKey("chat_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(16), nullable=False)  # user | assistant
+    content = Column(Text, nullable=False, default="")
+    mode = Column(String(16), nullable=True)
+    status = Column(String(16), nullable=False, default="complete")  # complete | stopped | error
+    provider = Column(String(64), nullable=True)
+    usage = Column(Text, nullable=True)  # JSON from the provider (tokens), when it reports any
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    conversation = relationship("ChatConversation", back_populates="messages")
+
+
 class Application(Base):
     __tablename__ = "applications"
     

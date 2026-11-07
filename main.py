@@ -931,6 +931,8 @@ from src.api.routers.jobify_founders_router import router as jobify_founders_rou
 app.include_router(jobify_founders_router)
 from src.api.routers.jobify_portfolio_router import router as jobify_portfolio_router
 app.include_router(jobify_portfolio_router)
+from src.api.routers.jobify_chat_router import router as jobify_chat_router
+app.include_router(jobify_chat_router)
 
 
 
