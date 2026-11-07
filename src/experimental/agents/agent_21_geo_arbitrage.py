@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from src.agents.base import BaseAgent, AgentResult, AgentContext
-from src.services.geo_arbitrage_service import GeoArbitrageService
+from src.experimental.services.geo_arbitrage_service import GeoArbitrageService
 
 logger = logging.getLogger("nexus.agents.geo_arbitrage")
 

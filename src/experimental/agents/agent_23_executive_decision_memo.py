@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from src.agents.base import BaseAgent, AgentResult, AgentContext
-from src.services.executive_decision_memo import ExecutiveDecisionMemoService
+from src.experimental.services.executive_decision_memo import ExecutiveDecisionMemoService
 
 logger = logging.getLogger("nexus.agents.executive_decision_memo")
 

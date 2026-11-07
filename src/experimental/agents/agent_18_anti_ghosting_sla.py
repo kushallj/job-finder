@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from src.agents.base import BaseAgent, AgentResult, AgentContext
-from src.services.anti_ghosting_service import AntiGhostingService
+from src.experimental.services.anti_ghosting_service import AntiGhostingService
 
 logger = logging.getLogger("nexus.agents.anti_ghosting_sla")
 

@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from src.agents.base import BaseAgent, AgentResult, AgentContext
-from src.services.proof_of_work_fabricator import ProofOfWorkFabricatorService
+from src.experimental.services.proof_of_work_fabricator import ProofOfWorkFabricatorService
 
 logger = logging.getLogger("nexus.agents.proof_of_work_fabricator")
 

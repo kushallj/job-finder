@@ -5920,7 +5920,7 @@ async def get_labor_market_intelligence(
 # Sprint 1: Interviewer Cognitive Profiler & Offer Arbitrage War-Room
 # ═══════════════════════════════════════════════════════════════════════════
 
-from src.services.interviewer_profiler import InterviewerProfilerService
+from src.experimental.services.interviewer_profiler import InterviewerProfilerService
 from src.services.offer_arbitrage import OfferArbitrageService, CompensationOffer
 
 class InterviewerProfileRequest(BaseModel):
@@ -6022,11 +6022,11 @@ def generate_voice_scorecard(req: VoiceScorecardRequest) -> Dict[str, Any]:
 # Sprint 3: Proof-of-Work Fabricator & Anti-Ghosting SLA Radar Endpoints
 # ═══════════════════════════════════════════════════════════════════════════
 
-from src.services.proof_of_work_fabricator import (
+from src.experimental.services.proof_of_work_fabricator import (
     ProofOfWorkFabricatorService,
     FabricatePoWRequest,
 )
-from src.services.anti_ghosting_service import (
+from src.experimental.services.anti_ghosting_service import (
     AntiGhostingService,
     EscalationRequest,
 )
@@ -6073,24 +6073,24 @@ def synthesize_anti_ghosting_escalation(req: EscalationRequest) -> Dict[str, Any
 # Sprint 4: Frontier AI Arbitrage Radar & Executive Decision Memo Endpoints
 # ═══════════════════════════════════════════════════════════════════════════
 
-from src.services.frontier_ai_radar import (
+from src.experimental.services.frontier_ai_radar import (
     FrontierAiRadarService,
     BenchmarkRequest,
 )
-from src.services.executive_decision_memo import (
+from src.experimental.services.executive_decision_memo import (
     ExecutiveDecisionMemoService,
     SynthesizeMemoRequest,
 )
 
-from src.services.reverse_headhunter_service import (
+from src.experimental.services.reverse_headhunter_service import (
     ReverseHeadhunterService,
     PitchPackRequest,
 )
-from src.services.geo_arbitrage_service import (
+from src.experimental.services.geo_arbitrage_service import (
     GeoArbitrageService,
     PppCalculationRequest,
 )
-from src.services.web3_bounty_harvester import (
+from src.experimental.services.web3_bounty_harvester import (
     Web3BountyHarvesterService,
     BountyProposalRequest,
 )
@@ -6190,15 +6190,15 @@ def synthesize_web3_bounty_proposal(req: BountyProposalRequest) -> Dict[str, Any
 
 # ── Sprint 6 Endpoints: System Design Whiteboard, Executive Outreach & Sandbox ─
 
-from src.services.system_design_whiteboard import (
+from src.experimental.services.system_design_whiteboard import (
     SystemDesignWhiteboardService,
     WhiteboardRequest,
 )
-from src.services.executive_outreach_service import (
+from src.experimental.services.executive_outreach_service import (
     ExecutiveOutreachService,
     ExecutiveCampaignRequest,
 )
-from src.services.sandbox_simulation_service import (
+from src.experimental.services.sandbox_simulation_service import (
     SandboxSimulationService,
     SimulationRequest,
 )

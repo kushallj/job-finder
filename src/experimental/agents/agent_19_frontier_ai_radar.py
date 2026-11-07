@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from src.agents.base import BaseAgent, AgentResult, AgentContext
-from src.services.frontier_ai_radar import FrontierAiRadarService
+from src.experimental.services.frontier_ai_radar import FrontierAiRadarService
 
 logger = logging.getLogger("nexus.agents.frontier_ai_radar")
 

@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from src.agents.base import BaseAgent, AgentResult, AgentContext
-from src.services.interviewer_profiler import InterviewerProfilerService
+from src.experimental.services.interviewer_profiler import InterviewerProfilerService
 
 logger = logging.getLogger("nexus.agents.interviewer_profiler")
 

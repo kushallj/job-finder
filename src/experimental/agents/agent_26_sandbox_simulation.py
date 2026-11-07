@@ -9,7 +9,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from src.agents.base import BaseAgent, AgentResult, AgentContext
-from src.services.sandbox_simulation_service import SandboxSimulationService
+from src.experimental.services.sandbox_simulation_service import SandboxSimulationService
 
 logger = logging.getLogger("nexus.agents.sandbox_simulation")
 

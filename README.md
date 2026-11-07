@@ -14,7 +14,8 @@ job-finder/
 ├── src/                 Backend: models, auth, routers, services, scrapers, agents
 │   ├── api/routers/     jobify_* (the product API), ops (admin), agents, auth, billing, legacy
 │   ├── services/        Jobify business logic (jobs, applications, inbox, founders, portfolio, chat)
-│   ├── agents/          26 target-company agents + orchestrator.py
+│   ├── agents/          core agents 1-15 + orchestrator.py
+│   ├── experimental/    agents 16-26 + their services (unwired; audit before use)
 │   ├── auth/            Clerk RS256 + legacy HS256 JWT verification
 │   ├── company_sources/ registries/ (curated company lists) + miners/ (careers/contact miners)
 │   ├── models.py        SQLAlchemy models    database.py  engine/session

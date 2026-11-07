@@ -6,10 +6,10 @@ test_sprint4_features.py — Unit & Integration tests for Sprint 4:
 import pytest
 from fastapi.testclient import TestClient
 from main import app
-from src.services.frontier_ai_radar import FrontierAiRadarService
-from src.agents.agent_19_frontier_ai_radar import FrontierAiRadarAgent
-from src.services.executive_decision_memo import ExecutiveDecisionMemoService
-from src.agents.agent_23_executive_decision_memo import ExecutiveDecisionMemoAgent
+from src.experimental.services.frontier_ai_radar import FrontierAiRadarService
+from src.experimental.agents.agent_19_frontier_ai_radar import FrontierAiRadarAgent
+from src.experimental.services.executive_decision_memo import ExecutiveDecisionMemoService
+from src.experimental.agents.agent_23_executive_decision_memo import ExecutiveDecisionMemoAgent
 
 client = TestClient(app)
 

@@ -28,8 +28,8 @@ from src.database import SessionLocal, init_db
 from src.models import Job
 from src.autonomous_job_crawler import extract_tech_tags_and_seniority
 from src.attention.service import attention_service
-from src.services.proof_of_work_fabricator import ProofOfWorkFabricatorService
-from src.services.system_design_whiteboard import SystemDesignWhiteboardService
+from src.experimental.services.proof_of_work_fabricator import ProofOfWorkFabricatorService
+from src.experimental.services.system_design_whiteboard import SystemDesignWhiteboardService
 from src.telegram_bot.godfather_bot import GodfatherBot
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

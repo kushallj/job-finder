@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from src.agents.base import BaseAgent, AgentResult, AgentContext
-from src.services.web3_bounty_harvester import Web3BountyHarvesterService
+from src.experimental.services.web3_bounty_harvester import Web3BountyHarvesterService
 
 logger = logging.getLogger("nexus.agents.web3_bounty_harvester")
 

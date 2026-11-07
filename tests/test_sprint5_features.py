@@ -7,12 +7,12 @@ test_sprint5_features.py — Unit & Integration tests for Sprint 5:
 import pytest
 from fastapi.testclient import TestClient
 from main import app
-from src.services.reverse_headhunter_service import ReverseHeadhunterService
-from src.agents.agent_20_reverse_headhunter import ReverseHeadhunterAgent
-from src.services.geo_arbitrage_service import GeoArbitrageService
-from src.agents.agent_21_geo_arbitrage import GeoArbitrageAgent
-from src.services.web3_bounty_harvester import Web3BountyHarvesterService
-from src.agents.agent_22_web3_bounty_harvester import Web3BountyHarvesterAgent
+from src.experimental.services.reverse_headhunter_service import ReverseHeadhunterService
+from src.experimental.agents.agent_20_reverse_headhunter import ReverseHeadhunterAgent
+from src.experimental.services.geo_arbitrage_service import GeoArbitrageService
+from src.experimental.agents.agent_21_geo_arbitrage import GeoArbitrageAgent
+from src.experimental.services.web3_bounty_harvester import Web3BountyHarvesterService
+from src.experimental.agents.agent_22_web3_bounty_harvester import Web3BountyHarvesterAgent
 
 client = TestClient(app)
 

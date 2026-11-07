@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from src.agents.base import BaseAgent, AgentResult, AgentContext
-from src.services.reverse_headhunter_service import ReverseHeadhunterService
+from src.experimental.services.reverse_headhunter_service import ReverseHeadhunterService
 
 logger = logging.getLogger("nexus.agents.reverse_headhunter")
 

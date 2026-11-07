@@ -7,10 +7,10 @@ test_sprint3_features.py — Unit & Integration tests for Sprint 3:
 import pytest
 from fastapi.testclient import TestClient
 from main import app
-from src.services.proof_of_work_fabricator import ProofOfWorkFabricatorService
-from src.agents.agent_17_proof_of_work_fabricator import ProofOfWorkFabricatorAgent
-from src.services.anti_ghosting_service import AntiGhostingService
-from src.agents.agent_18_anti_ghosting_sla import AntiGhostingAgent
+from src.experimental.services.proof_of_work_fabricator import ProofOfWorkFabricatorService
+from src.experimental.agents.agent_17_proof_of_work_fabricator import ProofOfWorkFabricatorAgent
+from src.experimental.services.anti_ghosting_service import AntiGhostingService
+from src.experimental.agents.agent_18_anti_ghosting_sla import AntiGhostingAgent
 
 client = TestClient(app)
 

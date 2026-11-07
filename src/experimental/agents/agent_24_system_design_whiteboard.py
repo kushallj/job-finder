@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from src.agents.base import BaseAgent, AgentResult, AgentContext
-from src.services.system_design_whiteboard import SystemDesignWhiteboardService
+from src.experimental.services.system_design_whiteboard import SystemDesignWhiteboardService
 
 logger = logging.getLogger("nexus.agents.system_design_whiteboard")
 

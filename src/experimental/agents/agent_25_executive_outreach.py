@@ -9,7 +9,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from src.agents.base import BaseAgent, AgentResult, AgentContext
-from src.services.executive_outreach_service import ExecutiveOutreachService
+from src.experimental.services.executive_outreach_service import ExecutiveOutreachService
 
 logger = logging.getLogger("nexus.agents.executive_outreach")
 
