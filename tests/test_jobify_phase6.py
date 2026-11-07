@@ -306,6 +306,52 @@ def test_fallback_records_the_provider_that_answered_and_usage(client, clerk_aut
     assert row.content == "real answer" and json.loads(row.usage) == {"total_tokens": 9}
 
 
+def test_prompt_is_grounded_in_own_profile_only(client, clerk_auth, db_session):
+    from main import app
+    from src.models import Application
+
+    a, b = _auth(clerk_auth, "a"), _auth(clerk_auth, "b")
+    client.put("/api/me/profile", headers=a, json={"skills": ["React", "TypeScript"], "targetRoles": ["Frontend Engineer"],
+                                                   "yearsOfExperience": 3, "locations": ["Remote"]})
+    p = client.get("/api/portfolio", headers=a).json()
+    p["identity"].update(fullName="Asha Rao", jobTitle="Frontend Engineer")
+    p["projects"] = [{"title": "Gridline", "subtitle": "https://grid.dev", "description": "Virtualised grid, 1M rows"}]
+    client.put("/api/portfolio", headers=a, json=p)
+    ua = _user(db_session, "a")
+    db_session.add(Application(user_id=ua.id, company="Razorpay", position="SDE 2", kanban_stage="interview",
+                               notes="PRIVATE: recruiter said salary cap 30L"))
+    db_session.commit()
+
+    provider = ScriptedProvider(["ok"])
+    app.dependency_overrides[chat_provider] = lambda: provider
+    _send(client, a, _new(client, a)["id"], "draft an email")
+    system = provider.prompts[-1][0]["content"]
+    for fact in ("Asha Rao", "Frontend Engineer", "react", "typescript", "Years of experience: 3", "Remote",
+                 "Gridline", "1M rows", "Razorpay — SDE 2 (interview)"):
+        assert fact in system, fact
+    assert "PRIVATE" not in system and "salary cap" not in system
+    assert "never invent" in system.lower()
+
+    _send(client, b, _new(client, b)["id"], "who am I?")
+    system_b = provider.prompts[-1][0]["content"]
+    assert "Asha" not in system_b and "Razorpay" not in system_b and "none saved yet" in system_b
+
+
+def test_rate_limit_is_429_and_not_charged(client, clerk_auth, db_session, monkeypatch):
+    h = _auth(clerk_auth)
+    c = _new(client, h)
+    monkeypatch.setattr(settings, "chat_rate_per_minute", 2)
+    assert _send(client, h, c["id"], "1").status_code == 200
+    assert _send(client, h, c["id"], "2").status_code == 200
+    db_session.expire_all()
+    before = _user(db_session).credits_balance
+    r = _send(client, h, c["id"], "3")
+    assert r.status_code == 429 and r.json()["error"]["code"] == "RATE_LIMITED" and r.headers["retry-after"] == "60"
+    db_session.expire_all()
+    assert _user(db_session).credits_balance == before
+    assert db_session.query(ChatMessage).filter(ChatMessage.role == "user").count() == 2
+
+
 def test_echo_provider_streams_words():
     async def run():
         return [c async for c in cp.EchoProvider(0).stream([{"role": "user", "content": "a b"}], mode="ask")]

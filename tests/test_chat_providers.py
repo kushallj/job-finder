@@ -146,3 +146,13 @@ def test_config_chain(monkeypatch):
 
     monkeypatch.setattr(settings, "chat_provider", "")
     assert cp.get_chat_provider().name == "echo"
+
+
+def test_reasoning_setting(monkeypatch):
+    monkeypatch.setattr(settings, "chat_provider", "ollama")
+    monkeypatch.setattr(settings, "chat_reasoning", False)
+    p = cp.get_chat_provider()
+    assert p.extra_body["reasoning_effort"] == "none" and p.max_tokens == settings.chat_max_tokens
+    monkeypatch.setattr(settings, "chat_reasoning", True)
+    p = cp.get_chat_provider()
+    assert "reasoning_effort" not in p.extra_body and p.max_tokens == settings.chat_reasoning_max_tokens

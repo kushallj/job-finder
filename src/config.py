@@ -111,6 +111,14 @@ class Settings(BaseSettings):
     # order until one starts replying, e.g. "ollama" (dev) or "openrouter,hf". "echo" = stub.
     chat_provider: str = "echo"
     chat_echo_delay_ms: int = 40  # per streamed word, so Stop is testable against the stub
+    # Per-user send limits: protect shared free-tier quotas (OpenRouter :free is per account).
+    chat_rate_per_minute: int = 6
+    chat_rate_per_day: int = 150
+    # Let thinking models reason before answering (always hidden from users). Off = fast but weaker at
+    # maths and at refusing "add a fake claim" requests (measured with scripts/chat_eval.py on qwen3:8b).
+    # Turn on for hosted GPU providers; reasoning tokens count against chat_reasoning_max_tokens.
+    chat_reasoning: bool = False
+    chat_reasoning_max_tokens: int = 4096
     chat_max_tokens: int = 1024
     chat_temperature: float = 0.4
     chat_timeout_s: float = 60.0  # max wait for the next chunk

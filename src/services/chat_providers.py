@@ -46,11 +46,19 @@ _NO_INVENTION = (
     " Never invent facts about the user: no made-up employers, projects, results, metrics or numbers. "
     "Use only what the user has told you. Where a draft needs a detail you don't have, write a bracketed "
     "placeholder such as [a project you shipped] or [measurable result] for the user to fill in."
+    " If the user asks you to add claims that aren't in their profile, especially ones they suggest are "
+    "exaggerated or unverifiable, don't write them in: say in one sentence that you'll only state what they can "
+    "back up, then offer an honest alternative built from their real profile. Such claims stay out for the rest of "
+    "the conversation, even in later drafts. Never write anything implying recruiters won't check. Never invent "
+    "contact details (emails, phone numbers): use placeholders."
+    " Write plain text with no Markdown (no **bold**, # headings or tables): replies are shown as-is and "
+    "drafts get pasted straight into email or LinkedIn."
 )
 SYSTEM_PROMPTS = {
     "ask": "You are Jobify's job-search assistant. Answer concisely and only from facts you are given." + _NO_INVENTION,
     "agent": ("You are Jobify's job-search agent. You may research and draft outreach, but you never send "
-              "anything: every email is returned as a draft for the user to review and approve." + _NO_INVENTION),
+              "anything: every email is returned as a draft for the user to review and approve. If asked to send, "
+              "say plainly that you can't send messages and that they can copy the draft." + _NO_INVENTION),
 }
 
 
@@ -229,18 +237,19 @@ class FallbackProvider:
 # --- configuration ---------------------------------------------------------------------------
 
 def _common() -> Dict[str, Any]:
-    return {"timeout_s": settings.chat_timeout_s, "max_tokens": settings.chat_max_tokens,
-            "temperature": settings.chat_temperature}
+    # Reasoning tokens count against max_tokens, so thinking needs a bigger budget.
+    max_tokens = settings.chat_reasoning_max_tokens if settings.chat_reasoning else settings.chat_max_tokens
+    return {"timeout_s": settings.chat_timeout_s, "max_tokens": max_tokens, "temperature": settings.chat_temperature}
 
 
 def _ollama() -> Optional[ChatProvider]:
     if not settings.chat_ollama_model:
         return None
-    # Ollama counts reasoning against max_tokens; "none" disables qwen3-style thinking.
+    extra: Dict[str, Any] = {"stream_options": {"include_usage": True}}
+    if not settings.chat_reasoning:
+        extra["reasoning_effort"] = "none"  # disables qwen3-style thinking on Ollama
     return OpenAICompatibleProvider(name="ollama", base_url=settings.chat_ollama_base_url,
-                                    model=settings.chat_ollama_model,
-                                    extra_body={"reasoning_effort": "none",
-                                                "stream_options": {"include_usage": True}}, **_common())
+                                    model=settings.chat_ollama_model, extra_body=extra, **_common())
 
 
 def _openrouter() -> Optional[ChatProvider]:
@@ -287,6 +296,9 @@ def get_chat_provider() -> ChatProvider:
     return chain[0] if len(chain) == 1 else FallbackProvider(chain)
 
 
-def build_prompt(history: List[Message], mode: str, max_turns: int = 20) -> List[Message]:
-    """System prompt for the mode + the most recent turns (keeps requests bounded)."""
-    return [{"role": "system", "content": SYSTEM_PROMPTS.get(mode, SYSTEM_PROMPTS["ask"])}] + history[-max_turns:]
+def build_prompt(history: List[Message], mode: str, max_turns: int = 20, context: str = "") -> List[Message]:
+    """System prompt for the mode (+ the user's profile facts) + the most recent turns."""
+    system = SYSTEM_PROMPTS.get(mode, SYSTEM_PROMPTS["ask"])
+    if context:
+        system += "\n\n" + context
+    return [{"role": "system", "content": system}] + history[-max_turns:]

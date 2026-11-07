@@ -40,7 +40,10 @@ export default function ChatPage() {
     if (credits < CREDIT_COST) return toast(plan ? "Not enough AI credits this month." : "Choose a plan to get AI credits.", "error");
     let id = activeId;
     if (!id) {
-      id = (await chatService.createConversation(mode)).id;
+      const created = await chatService.createConversation(mode);
+      id = created.id;
+      // Add it locally now: replies can take a while, and the thread must render (and stream) meanwhile.
+      setConvs((cs) => [created, ...(cs || []).filter((c) => c.id !== id)]);
       setActiveId(id);
     }
     setText("");
@@ -49,7 +52,11 @@ export default function ChatPage() {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     // optimistic render of the user message
-    setConvs((cs) => cs && cs.map((c) => (c.id === id ? { ...c, messages: [...c.messages, { id: "pending", role: "user", content: msg }] } : c)));
+    setConvs((cs) => cs && cs.map((c) => (c.id === id ? {
+      ...c,
+      title: c.messages.length === 0 && c.title === "New chat" ? msg.slice(0, 48) : c.title, // the server titles it the same way
+      messages: [...c.messages, { id: "pending", role: "user", content: msg }],
+    } : c)));
     try {
       await chatService.sendMessage(id, msg, mode, { signal: ctrl.signal, onDelta: (t) => setStreaming((s) => s + t) });
     } catch (e) {
@@ -114,7 +121,7 @@ export default function ChatPage() {
                   <p className="whitespace-pre-wrap">{m.content}</p>
                   {m.role === "assistant" && (
                     <div className="mt-2 flex items-center gap-1 text-[#707070]">
-                      <span className="text-[11px] mr-2">{m.demo ? "Simulated reply" : m.provider === "echo" ? "Test reply (no AI model connected)" : ""}{m.status === "stopped" ? " · Stopped" : ""}</span>
+                      <span className="text-[11px] mr-2">{[m.demo ? "Simulated reply" : m.provider === "echo" ? "Test reply (no AI model connected)" : "", m.mode === "agent" && !m.demo ? "Draft · not sent" : "", m.status === "stopped" ? "Stopped" : ""].filter(Boolean).join(" · ")}</span>
                       <button type="button" onClick={() => copy(m.content)} aria-label="Copy reply" className="w-7 h-7 rounded-md hover:bg-white flex items-center justify-center"><Copy className="w-3.5 h-3.5" /></button>
                       {i === messages.length - 1 && !busy && <button type="button" onClick={retry} aria-label="Retry" className="w-7 h-7 rounded-md hover:bg-white flex items-center justify-center"><RotateCcw className="w-3.5 h-3.5" /></button>}
                     </div>

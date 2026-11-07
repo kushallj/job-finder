@@ -82,6 +82,28 @@ def create(db: Session, user: User, mode: str) -> ChatConversation:
 
 # --- sending -----------------------------------------------------------------------
 
+def check_rate_limit(db: Session, user: User) -> None:
+    """429 before charging when the user exceeds settings.chat_rate_per_minute / _per_day."""
+    from datetime import timedelta
+
+    from sqlalchemy import func
+
+    from src.config import settings
+
+    def sent_since(delta: timedelta) -> int:
+        return (db.query(func.count(ChatMessage.id))
+                .join(ChatConversation, ChatConversation.id == ChatMessage.conversation_id)
+                .filter(ChatConversation.user_id == user.id, ChatMessage.role == "user",
+                        ChatMessage.created_at >= datetime.utcnow() - delta).scalar() or 0)
+
+    for limit, delta, label, retry in ((settings.chat_rate_per_minute, timedelta(minutes=1), "a minute", 60),
+                                       (settings.chat_rate_per_day, timedelta(days=1), "a day", 3600)):
+        if limit and sent_since(delta) >= limit:
+            raise HTTPException(429, detail={"code": "RATE_LIMITED", "message":
+                                             f"You've sent {limit} messages in {label}. Please wait a little."},
+                                headers={"Retry-After": str(retry)})
+
+
 def accept_message(db: Session, user: User, conv: ChatConversation, content: str, mode: str) -> ChatMessage:
     """Charge, then store the user turn. Raises 402 before anything is stored."""
     deduct_credits(db, user.id, chat_cost(), CHAT_ACTION, reference_id=f"conversation:{conv.id}",

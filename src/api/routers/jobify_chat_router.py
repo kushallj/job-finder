@@ -25,6 +25,7 @@ from src.auth.dependencies import get_current_user
 from src.database import SessionLocal, get_db
 from src.models import ChatConversation, User
 from src.services import jobify_chat as jc
+from src.services.chat_context import build_user_context
 from src.services.chat_providers import ChatProvider, ChatProviderError, build_prompt, get_chat_provider
 
 router = APIRouter(prefix="/api/conversations", tags=["Jobify"])
@@ -116,9 +117,10 @@ async def send_message(conversation_id: int, body: SendBody, request: Request,
                        provider: ChatProvider = Depends(chat_provider),
                        session_factory: Callable[[], Session] = Depends(get_session_factory)) -> StreamingResponse:
     conv = jc.owned(db, user, conversation_id)
+    jc.check_rate_limit(db, user)  # 429, before charging
     user_msg = jc.accept_message(db, user, conv, body.content, body.mode)  # 402 before anything is stored
     db.refresh(conv)
-    prompt = build_prompt(jc.history(conv), body.mode)
+    prompt = build_prompt(jc.history(conv), body.mode, context=build_user_context(db, user))
     events = jc.stream_reply(session_factory=session_factory, provider=provider, user_id=user.id,
                              conversation_id=conv.id, user_message=jc.message_out(user_msg), prompt=prompt,
                              mode=body.mode, is_disconnected=request.is_disconnected)
