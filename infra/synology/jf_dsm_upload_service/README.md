@@ -65,13 +65,13 @@ DEPLOY_API_URL=https://testarea.ddns.net/upload
 npm run dsm:upload
 ```
 
-This runs `client-deploy.mjs` for every `.tar` in `dsm_deploy/docker_images/`.
+This runs `client-deploy.mjs` for every `.tar` in `infra/synology/docker_images/`.
 
 ### Upload a single image
 
 ```bash
-node dsm_deploy/jf_dsm_upload_service/client-deploy.mjs \
-  --file=dsm_deploy/docker_images/jf_api.tar \
+node infra/synology/jf_dsm_upload_service/client-deploy.mjs \
+  --file=infra/synology/docker_images/jf_api.tar \
   --subfolder=kj_job_finder
 ```
 

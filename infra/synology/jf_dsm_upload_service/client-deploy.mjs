@@ -140,7 +140,7 @@ async function uploadFile(localFilePath) {
 }
 
 // -----------------------------------------------------------------------------
-// Execution flow: single file or all files in dsm_deploy/docker_images
+// Execution flow: single file or all files in infra/synology/docker_images
 // -----------------------------------------------------------------------------
 async function main() {
   if (args.file) {
@@ -148,7 +148,7 @@ async function main() {
     process.exit(success ? 0 : 1)
   }
 
-  // Default: Upload all .tar images inside dsm_deploy/docker_images/
+  // Default: Upload all .tar images inside infra/synology/docker_images/
   const scriptDir = path.dirname(new URL(import.meta.url).pathname)
   const imagesDir = path.resolve(scriptDir, '../docker_images')
 

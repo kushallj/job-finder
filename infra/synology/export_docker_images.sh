@@ -5,7 +5,7 @@ set -euo pipefail
 DOCKER_BIN="$(command -v docker || echo "/Applications/Docker.app/Contents/Resources/bin/docker")"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 OUTPUT_DIR="${SCRIPT_DIR}/docker_images"
 mkdir -p "${OUTPUT_DIR}"
 

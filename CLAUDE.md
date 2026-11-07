@@ -96,6 +96,8 @@ Job sources (JobSpy, Adzuna, Careerjet, USAJobs, ATS boards, Firecrawl)
 | Concern | Where |
 |---|---|
 | App bootstrap, most routes | `main.py` (FastAPI, lifespan, CORS ~L920, router includes) |
+| Company lists + miners | `src/company_sources/registries/` (Tier 1, Nifty 500, S&P 500, Shark Tank, accelerators, startups.gallery; data only, no network) and `src/company_sources/miners/` (all built on `base_company_miner`). New registries/miners go here, not flat in `src/` |
+| Repo layout | `scripts/` one-offs (`scripts/dev/start.sh` = local API + Celery + Flower) · `infra/` external deploy assets (`cloudflare/`, `n8n/workflows/`, `synology/`) · `docker/` per-service Dockerfiles |
 | Routers | `src/api/routers/*.py`, `src/vc_intelligence/api.py`, crawler, sidekick, nextraise, workday, startups_gallery |
 | Auth | `src/auth/dependencies.py` (Clerk RS256 via JWKS + auto-provision, HS256 legacy, `require_admin`, `is_public_path`), `jwt_handler.py`, `crypto.py` |
 | Settings | `src/config.py`. `env`, `database_url` (default SQLite `jobs.db`), `cors_origins`, `frontend_url`, `clerk_*`, `default_signup_credits=50`, `auto_send_emails=False`; the default `jwt_secret_key` is blocked when `ENV=production` |

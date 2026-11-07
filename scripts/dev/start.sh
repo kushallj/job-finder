@@ -1,6 +1,6 @@
 #!/bin/bash
 # start.sh — launch the full NEXUS stack
-# Usage: ./start.sh [--no-flower]
+# Usage: ./scripts/dev/start.sh [--no-flower]
 #
 # Starts:
 #   - FastAPI server      (port 8000)
@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PYTHON="$ROOT/.venv/bin/python"
 CELERY="$ROOT/.venv/bin/celery"
 UVICORN="$ROOT/.venv/bin/uvicorn"

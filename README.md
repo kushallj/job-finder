@@ -16,6 +16,7 @@ job-finder/
 │   ├── services/        Jobify business logic (jobs, applications, inbox, founders, portfolio, chat)
 │   ├── agents/          26 target-company agents + orchestrator.py
 │   ├── auth/            Clerk RS256 + legacy HS256 JWT verification
+│   ├── company_sources/ registries/ (curated company lists) + miners/ (careers/contact miners)
 │   ├── models.py        SQLAlchemy models    database.py  engine/session
 │   ├── tasks.py         Celery tasks         cli.py       NEXUS CLI
 │   └── config.py        Pydantic settings (reads .env)
@@ -25,7 +26,10 @@ job-finder/
 ├── data/                resume.txt (personal, git-ignored), tracker, pipeline.md, agent_state.db
 ├── alembic/             migrations: baseline + one revision per Jobify phase
 ├── tests/               pytest suite (≈130 test files)
-├── extension/  sidekick-desktop/  n8n_workflows/  dsm_deploy/   non-core surfaces
+├── scripts/             one-off and ops scripts; dev/ has start.sh (API + Celery + Flower)
+├── infra/               cloudflare/ (inbox worker), n8n/ (workflows), synology/ (NAS deploy)
+├── docker/              per-service Dockerfiles used by docker-compose
+├── extension/  sidekick-desktop/   non-core surfaces
 ├── docker-compose*.yml  Dockerfile  Procfile  render.yaml  fly.toml
 └── README.md  CLAUDE.md
 ```

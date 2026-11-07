@@ -33,4 +33,4 @@ sidekick-desktop/dist/
 *.log
 celerybeat-schedule*
 *.sqlite3
-dsm_deploy/docker_images/
+infra/synology/docker_images/

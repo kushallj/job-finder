@@ -173,7 +173,7 @@ config/*
 .blackboxcli/
 .env
 .env
-dsm_deploy/docker_images
+infra/synology/docker_images
 
 # Node
 node_modules/
@@ -182,3 +182,6 @@ npm-debug.log*
 # Jobify Frontend external repo
 Jobify-frontend/
 data/sample_*_founders.json
+
+# Personal one-off scripts (hardcoded candidate data; never commit)
+create_*_resume_pdf.py

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Start the FastAPI server
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/../.."
 
 echo "🚀 Starting Job Finder API Server..."
 echo "📍 Server will be available at: http://localhost:8000"
