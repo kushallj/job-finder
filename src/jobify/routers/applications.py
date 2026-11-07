@@ -18,7 +18,7 @@ from src.api.contract import scoped
 from src.auth.dependencies import get_current_user
 from src.database import get_db
 from src.models import Application, Job, User
-from src.services import jobify_applications as ja
+from src.jobify.services import applications as ja
 
 router = APIRouter(prefix="/api/applications", tags=["Jobify"])
 

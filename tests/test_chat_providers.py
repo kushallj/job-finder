@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from src.config import settings
-from src.services import chat_providers as cp
+from src.jobify.services import chat_providers as cp
 
 
 def _sse(*chunks, done=True):

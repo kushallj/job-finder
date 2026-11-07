@@ -23,7 +23,7 @@ from src.api.contract import iso_utc, scoped
 from src.auth.dependencies import get_current_user
 from src.database import get_db
 from src.models import CandidateProfile, Job, User, UserJob
-from src.services import jobify_jobs as jj
+from src.jobify.services import jobs as jj
 
 router = APIRouter(prefix="/api", tags=["Jobify"])
 
@@ -65,7 +65,7 @@ def get_subscription(user: User = Depends(get_current_user)) -> Dict[str, Any]:
 
 
 # --- matching profile ------------------------------------------------------------
-# Feeds match % (src/services/jobify_jobs.match_score). Stored on CandidateProfile so the
+# Feeds match % (src/jobify/services/jobs.match_score). Stored on CandidateProfile so the
 # portfolio/resume features share one profile per user.
 
 class MatchProfile(BaseModel):

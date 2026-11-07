@@ -919,19 +919,19 @@ except Exception as e:
 
 # Jobify product API (jobify/docs/INTEGRATION.md). Not wrapped in try/except: the
 # product UI depends on it, so an import error should stop startup, not hide it.
-from src.api.routers.jobify_router import router as jobify_router
+from src.jobify.routers.me_jobs import router as jobify_router
 app.include_router(jobify_router)
-from src.api.routers.jobify_applications_router import router as jobify_applications_router
+from src.jobify.routers.applications import router as jobify_applications_router
 app.include_router(jobify_applications_router)
-from src.api.routers.jobify_gmail_router import router as jobify_gmail_router
+from src.jobify.routers.gmail import router as jobify_gmail_router
 app.include_router(jobify_gmail_router)
-from src.api.routers.jobify_inbox_router import router as jobify_inbox_router
+from src.jobify.routers.inbox import router as jobify_inbox_router
 app.include_router(jobify_inbox_router)
-from src.api.routers.jobify_founders_router import router as jobify_founders_router
+from src.jobify.routers.founders import router as jobify_founders_router
 app.include_router(jobify_founders_router)
-from src.api.routers.jobify_portfolio_router import router as jobify_portfolio_router
+from src.jobify.routers.portfolio import router as jobify_portfolio_router
 app.include_router(jobify_portfolio_router)
-from src.api.routers.jobify_chat_router import router as jobify_chat_router
+from src.jobify.routers.chat import router as jobify_chat_router
 app.include_router(jobify_chat_router)
 from src.api.routers.ops_router import router as ops_router
 app.include_router(ops_router)
@@ -2286,7 +2286,7 @@ async def market_intelligence():
 
 # ── Jobs ──────────────────────────────────────────────────────────────────────
 
-# GET /api/jobs and GET /api/jobs/{job_id} moved to src/api/routers/jobify_router.py (Jobify contract).
+# GET /api/jobs and GET /api/jobs/{job_id} moved to src/jobify/routers/me_jobs.py (Jobify contract).
 
 
 @app.get("/api/jobs/pending-outreach", tags=["jobs"], response_model=PendingOutreachResponse)

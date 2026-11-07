@@ -17,8 +17,8 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from src.models import Application, Portfolio, User
-from src.services import jobify_jobs as jj
-from src.services import jobify_portfolio as jp
+from src.jobify.services import jobs as jj
+from src.jobify.services import portfolio as jp
 
 MAX_CHARS = 4000
 MAX_ITEMS = 6

@@ -9,12 +9,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from src.api.routers.jobify_chat_router import chat_provider, get_session_factory
+from src.jobify.routers.chat import chat_provider, get_session_factory
 from src.config import settings
 from src.database import get_db
 from src.models import Base, ChatConversation, ChatMessage, CreditTransaction, User
-from src.services import chat_providers as cp
-from src.services import jobify_chat as jc
+from src.jobify.services import chat_providers as cp
+from src.jobify.services import chat as jc
 
 
 @pytest.fixture

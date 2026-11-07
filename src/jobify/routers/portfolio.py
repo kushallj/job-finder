@@ -10,7 +10,7 @@ jobify_portfolio_router.py — Phase 5 of the Jobify MVP: Portfolio.
   GET    /api/portfolio/{username}               PUBLIC: published snapshot only, else 404
 
 Static paths are declared before `/{username}`, and those names are reserved usernames.
-Logic: src/services/jobify_portfolio.py.
+Logic: src/jobify/services/portfolio.py.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from src.auth.dependencies import get_current_user
 from src.database import get_db
 from src.models import User
-from src.services import jobify_portfolio as jp
+from src.jobify.services import portfolio as jp
 
 router = APIRouter(prefix="/api/portfolio", tags=["Jobify"])
 

@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from src.database import get_db
 from src.models import Application, Base, InboundRecruiterMessage, Job, User
-from src.services.jobify_applications import sweep_ghosted
+from src.jobify.services.applications import sweep_ghosted
 
 CARD_KEYS = {"id", "company", "position", "stage", "subject", "sender", "date", "messages", "notes", "events", "offer", "source"}
 

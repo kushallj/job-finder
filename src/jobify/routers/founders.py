@@ -8,7 +8,7 @@ jobify_founders_router.py — Phase 4 of the Jobify MVP: Founders + credit unloc
   PUT  /api/me/founders/{id}/saved  { saved?: bool } (no body toggles) -> state
 
 Emails are only ever present on companies the caller has unlocked.
-Logic: src/services/jobify_founders.py.
+Logic: src/jobify/services/founders.py.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from src.auth.dependencies import get_current_user
 from src.database import get_db
 from src.models import PortfolioCompany, SavedFounderCompany, User
-from src.services import jobify_founders as jf
+from src.jobify.services import founders as jf
 
 router = APIRouter(tags=["Jobify"])
 

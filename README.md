@@ -12,8 +12,9 @@ Human-in-the-loop by design: the system drafts, scores, and tracks. It never aut
 job-finder/
 ├── main.py              FastAPI app (≈6.6k lines, ≈170 routes) + router composition
 ├── src/                 Backend: models, auth, routers, services, scrapers, agents
-│   ├── api/routers/     jobify_* (the product API), ops (admin), agents, auth, billing, legacy
-│   ├── services/        Jobify business logic (jobs, applications, inbox, founders, portfolio, chat)
+│   ├── jobify/          the product API: routers/ (one per screen) + services/ (business logic)
+│   ├── api/             contract.py (envelope, paginate, scoped) + routers/ (ops, agents, auth, billing, legacy)
+│   ├── services/        shared services (credits, billing, catalog runs, email classifier) + legacy
 │   ├── agents/          core agents 1-15 + orchestrator.py
 │   ├── experimental/    agents 16-26 + their services (unwired; audit before use)
 │   ├── auth/            Clerk RS256 + legacy HS256 JWT verification

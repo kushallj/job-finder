@@ -35,7 +35,7 @@ from sqlalchemy.orm import Session
 
 from src.api.contract import iso_utc
 from src.models import CandidateExperience, CandidateProject, Portfolio, User
-from src.services import jobify_jobs as jj
+from src.jobify.services import jobs as jj
 
 USERNAME_RE = re.compile(r"^[a-z0-9-]{3,24}$")
 RESERVED = {

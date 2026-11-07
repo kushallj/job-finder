@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 from src.config import settings
 from src.database import get_db
 from src.models import Application, Base, InboundRecruiterMessage, MailboxAccount, User
-from src.services import gmail_sync as gs
+from src.jobify.services import gmail_sync as gs
 
 
 def _msg(mid, sender, subject, body, ts=None):

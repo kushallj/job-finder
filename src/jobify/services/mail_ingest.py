@@ -1,8 +1,8 @@
 """
 mail_ingest.py — one path for recruiter mail, whatever the source.
 
-Used by Gmail sync (src/services/gmail_sync.py) and the Jobify job-hunt inbox
-(src/services/jobify_inbox.py). Matches a message to *the mailbox owner's* applications,
+Used by Gmail sync (src/jobify/services/gmail_sync.py) and the Jobify job-hunt inbox
+(src/jobify/services/inbox.py). Matches a message to *the mailbox owner's* applications,
 classifies it, moves the card forward only, and records it.
 
 Rules:

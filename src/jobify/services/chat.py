@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 
 from src.api.contract import iso_utc
 from src.models import ChatConversation, ChatMessage, User
-from src.services.chat_providers import ChatProvider, ChatProviderError, build_prompt
+from src.jobify.services.chat_providers import ChatProvider, ChatProviderError, build_prompt
 from src.services.credit_service import CREDIT_COSTS, add_credits, deduct_credits
 
 log = logging.getLogger(__name__)

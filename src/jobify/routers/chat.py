@@ -7,7 +7,7 @@ jobify_chat_router.py — Phase 6 of the Jobify MVP: Chat.
   DELETE /api/conversations/{id}              204
   POST   /api/conversations/{id}/messages {content, mode}   text/event-stream (see jobify_chat.py)
 
-The reply comes from settings.chat_provider (src/services/chat_providers.py; "echo" until an
+The reply comes from settings.chat_provider (src/jobify/services/chat_providers.py; "echo" until an
 LLM is chosen). Providers never send anything: agent mode returns drafts only.
 """
 
@@ -24,9 +24,9 @@ from src.api.contract import paginate
 from src.auth.dependencies import get_current_user
 from src.database import SessionLocal, get_db
 from src.models import ChatConversation, User
-from src.services import jobify_chat as jc
-from src.services.chat_context import build_user_context
-from src.services.chat_providers import ChatProvider, ChatProviderError, build_prompt, get_chat_provider
+from src.jobify.services import chat as jc
+from src.jobify.services.chat_context import build_user_context
+from src.jobify.services.chat_providers import ChatProvider, ChatProviderError, build_prompt, get_chat_provider
 
 router = APIRouter(prefix="/api/conversations", tags=["Jobify"])
 

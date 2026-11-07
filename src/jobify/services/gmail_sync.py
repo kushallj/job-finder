@@ -33,7 +33,7 @@ from src.api.contract import iso_utc
 from src.config import settings
 from src.models import Application, InboundRecruiterMessage, MailboxAccount, User
 from src.services.inbound_email_classifier import InboundEmailIntentClassifier
-from src.services.mail_ingest import ParsedMessage, ingest_message, match_application  # noqa: F401  (re-exported)
+from src.jobify.services.mail_ingest import ParsedMessage, ingest_message, match_application  # noqa: F401  (re-exported)
 
 GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 SCOPES = f"openid email {GMAIL_SCOPE}"

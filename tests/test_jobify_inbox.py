@@ -14,7 +14,7 @@ from sqlalchemy.pool import StaticPool
 from src.config import settings
 from src.database import get_db
 from src.models import Application, Base, InboundRecruiterMessage, User
-from src.services import jobify_inbox as ib
+from src.jobify.services import inbox as ib
 
 SECRET = "test-inbound-secret"
 DOMAIN = "mail.jobify.test"

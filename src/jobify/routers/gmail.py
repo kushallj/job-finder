@@ -3,7 +3,7 @@ jobify_gmail_router.py — Phase 3 of the Jobify MVP: real Gmail connection (rea
 
 Contract (jobify/docs/INTEGRATION.md): GET /gmail, POST /gmail/connect (returns an OAuth
 URL; never fakes success), POST /gmail/sync, DELETE /gmail. State shape:
-{ status, email, lastSync, nextScan }. Logic lives in src/services/gmail_sync.py.
+{ status, email, lastSync, nextScan }. Logic lives in src/jobify/services/gmail_sync.py.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from src.auth.dependencies import get_current_user
 from src.config import settings
 from src.database import get_db
 from src.models import User
-from src.services import gmail_sync as gs
+from src.jobify.services import gmail_sync as gs
 
 router = APIRouter(prefix="/api/gmail", tags=["Jobify"])
 

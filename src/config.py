@@ -116,7 +116,7 @@ class Settings(BaseSettings):
     catalog_queries: str = ""
     # GET /api/admin/catalog-runs reports stale when no run succeeded within this window.
     catalog_stale_after_hours: int = 26
-    # Jobify chat (src/services/chat_providers.py). Comma-separated fallback chain, tried in
+    # Jobify chat (src/jobify/services/chat_providers.py). Comma-separated fallback chain, tried in
     # order until one starts replying, e.g. "ollama" (dev) or "openrouter,hf". "echo" = stub.
     chat_provider: str = "echo"
     chat_echo_delay_ms: int = 40  # per streamed word, so Stop is testable against the stub

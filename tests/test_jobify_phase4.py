@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from src.database import get_db
 from src.models import Base, CompanyFounder, CreditTransaction, FounderUnlock, Job, PortfolioCompany, User, VCFirm
-from src.services import jobify_founders as jf
+from src.jobify.services import founders as jf
 
 
 @pytest.fixture

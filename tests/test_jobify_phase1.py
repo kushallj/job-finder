@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from src.database import get_db
 from src.models import Application, Base, CandidateProfile, Job, User
-from src.services import jobify_jobs as jj
+from src.jobify.services import jobs as jj
 
 
 @pytest.fixture

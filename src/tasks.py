@@ -542,7 +542,7 @@ if __name__ == "__main__":
 def sweep_ghosted_applications() -> int:
     """Jobify board: move cards with no inbound email for 30 days from applied to ghosted."""
     from src.database import SessionLocal
-    from src.services.jobify_applications import sweep_ghosted
+    from src.jobify.services.applications import sweep_ghosted
 
     with SessionLocal() as db:
         moved = sweep_ghosted(db)
@@ -556,7 +556,7 @@ def sync_gmail_mailboxes() -> dict:
     from datetime import datetime
     from src.database import SessionLocal
     from src.models import MailboxAccount
-    from src.services import gmail_sync as gs
+    from src.jobify.services import gmail_sync as gs
 
     if not gs.configured():
         return {"skipped": "gmail not configured"}

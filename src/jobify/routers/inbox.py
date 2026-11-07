@@ -7,7 +7,7 @@ jobify_inbox_router.py — the user's job-hunt email address and in-app inbox.
   GET  /api/inbox/messages/{id}      full message (marks it read)
   POST /api/inbox/messages/{id}/reply  { body } -> sent message (explicit user action only)
 
-Logic lives in src/services/jobify_inbox.py.
+Logic lives in src/jobify/services/inbox.py.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from src.auth.dependencies import get_current_user
 from src.config import settings
 from src.database import get_db
 from src.models import InboundRecruiterMessage, MailboxAccount, User
-from src.services import jobify_inbox as ib
+from src.jobify.services import inbox as ib
 
 router = APIRouter(tags=["Jobify"])
 

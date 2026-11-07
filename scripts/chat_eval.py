@@ -19,7 +19,7 @@ import sys
 import time
 from typing import Callable, Dict, List, Optional, Tuple
 
-from src.services import chat_providers as cp
+from src.jobify.services import chat_providers as cp
 
 PERSONA = """USER PROFILE (facts the user entered in Jobify; you may use these and what they say in chat, nothing else):
 Name: Riya Menon
