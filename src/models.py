@@ -786,3 +786,22 @@ class TelegramPushAlertLog(Base):
     job = relationship("Job")
     application = relationship("Application")
 
+
+
+class CatalogRefreshRun(Base):
+    """One scheduled refresh of the shared job catalog (src/tasks.refresh_job_catalog).
+
+    Operational record, not user data: no user_id, read only via the admin endpoint
+    GET /api/admin/catalog-runs. A row left in "running" means the chord callback never
+    fired (worker died, Redis lost the chord); src/services/catalog_runs reports it as stuck.
+    """
+    __tablename__ = "catalog_refresh_runs"
+
+    id = Column(Integer, primary_key=True)
+    task_id = Column(String(64), nullable=True)
+    status = Column(String(16), nullable=False, default="running", index=True)  # running|ok|partial|failed
+    started_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    finished_at = Column(DateTime, nullable=True)
+    queries = Column(Integer, nullable=False, default=0)
+    new_jobs = Column(Integer, nullable=False, default=0)
+    results = Column(Text, nullable=True)  # JSON [{query, stored, error}]

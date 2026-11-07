@@ -209,8 +209,9 @@ def scrape_catalog_query(query: str) -> dict:
 
 
 @app.task(name="src.tasks.catalog_refresh_done")
-def catalog_refresh_done(results: list[dict]) -> dict:
-    """Chord callback: log one summary line per refresh so a silent failure is visible."""
+def catalog_refresh_done(results: list[dict], run_id: int | None = None) -> dict:
+    """Chord callback: log one summary line and close the CatalogRefreshRun row, so a
+    silent failure shows up in GET /api/admin/catalog-runs."""
     results = [r for r in (results or []) if isinstance(r, dict)]
     failed = [r for r in results if r.get("error")]
     summary = {
@@ -218,10 +219,18 @@ def catalog_refresh_done(results: list[dict]) -> dict:
         "new_jobs": sum(int(r.get("stored") or 0) for r in results),
         "failed": [{"query": r["query"], "error": r["error"]} for r in failed],
     }
-    if results and len(failed) == len(results):
+    if not results or len(failed) == len(results):
         log.error("[catalog] refresh FAILED for every query: %s", summary)
     else:
         log.info("[catalog] refresh done: %s", summary)
+    try:
+        from src.database import SessionLocal
+        from src.services import catalog_runs
+
+        with SessionLocal() as db:
+            summary["status"] = catalog_runs.finish_run(db, run_id, results)
+    except Exception as exc:  # noqa: BLE001 - tracking must never fail the refresh
+        log.warning("[catalog] could not record run %s: %s", run_id, exc)
     return summary
 
 
@@ -231,7 +240,23 @@ def refresh_job_catalog() -> str:
     shared Job table. Scrape and store only: no scoring, contact lookup, or email."""
     queries = catalog_queries()
     log.info("[catalog] refresh starting: %d queries", len(queries))
-    result = chord(scrape_catalog_query.s(q) for q in queries)(catalog_refresh_done.s())
+    run_id = None
+    try:
+        from src.database import SessionLocal
+        from src.services import catalog_runs
+
+        with SessionLocal() as db:
+            run_id = catalog_runs.start_run(db, queries)
+    except Exception as exc:  # noqa: BLE001 - scrape anyway; the run just isn't tracked
+        log.warning("[catalog] could not record run start: %s", exc)
+
+    result = chord(scrape_catalog_query.s(q) for q in queries)(catalog_refresh_done.s(run_id=run_id))
+    if run_id is not None:
+        try:
+            with SessionLocal() as db:
+                catalog_runs.set_task_id(db, run_id, result.id)
+        except Exception:  # noqa: BLE001
+            pass
     return result.id
 
 

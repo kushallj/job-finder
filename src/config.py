@@ -114,6 +114,8 @@ class Settings(BaseSettings):
     catalog_refresh_minute: int = 30
     # Comma-separated job-board title searches; empty = the defaults in src/tasks.py.
     catalog_queries: str = ""
+    # GET /api/admin/catalog-runs reports stale when no run succeeded within this window.
+    catalog_stale_after_hours: int = 26
     # Jobify chat (src/services/chat_providers.py). Comma-separated fallback chain, tried in
     # order until one starts replying, e.g. "ollama" (dev) or "openrouter,hf". "echo" = stub.
     chat_provider: str = "echo"
