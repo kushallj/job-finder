@@ -107,9 +107,23 @@ class Settings(BaseSettings):
     env: str = "development"
     log_level: str = "INFO"
     auto_send_emails: bool = False  # Human-in-the-loop review gate by default
-    # Jobify chat (src/services/chat_providers.py). "echo" until an LLM is chosen.
+    # Jobify chat (src/services/chat_providers.py). Comma-separated fallback chain, tried in
+    # order until one starts replying, e.g. "ollama" (dev) or "openrouter,hf". "echo" = stub.
     chat_provider: str = "echo"
     chat_echo_delay_ms: int = 40  # per streamed word, so Stop is testable against the stub
+    chat_max_tokens: int = 1024
+    chat_temperature: float = 0.4
+    chat_timeout_s: float = 60.0  # max wait for the next chunk
+    chat_ollama_base_url: str = "http://localhost:11434/v1"
+    chat_ollama_model: str = "qwen3:8b"
+    openrouter_api_key: Optional[str] = None
+    chat_openrouter_model: str = ""  # e.g. a ":free" Qwen/Kimi id from openrouter.ai/models
+    hf_token: Optional[str] = None
+    chat_hf_model: str = ""  # Hugging Face router model id
+    # Any other OpenAI-compatible API (Alibaba Qwen, Moonshot Kimi, MiniMax, NVIDIA NIM...)
+    chat_custom_base_url: str = ""
+    chat_custom_api_key: Optional[str] = None
+    chat_custom_model: str = ""
 
 
     # Sender identity (used in outreach emails, cover letters, etc.)

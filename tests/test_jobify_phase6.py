@@ -287,6 +287,25 @@ def test_unknown_provider_is_503(client, clerk_auth, monkeypatch, db_session):
     assert _user(db_session).credits_balance == before
 
 
+def test_fallback_records_the_provider_that_answered_and_usage(client, clerk_auth, db_session):
+    import httpx
+    from main import app
+
+    h = _auth(clerk_auth)
+    c = _new(client, h)
+    body = ('data: {"choices":[{"delta":{"content":"real answer"}}]}\n\n'
+            'data: {"choices":[],"usage":{"total_tokens":9}}\n\ndata: [DONE]\n\n')
+    free = cp.OpenAICompatibleProvider(name="openrouter", base_url="http://x/v1", model="m",
+                                       transport=httpx.MockTransport(lambda r: httpx.Response(429)))
+    local = cp.OpenAICompatibleProvider(name="ollama", base_url="http://y/v1", model="m",
+                                        transport=httpx.MockTransport(lambda r: httpx.Response(200, content=body.encode())))
+    app.dependency_overrides[chat_provider] = lambda: cp.FallbackProvider([free, local])
+    ev = _events(_send(client, h, c["id"]).text)
+    assert ev[-1][0] == "done" and ev[-1][1]["message"]["provider"] == "ollama"
+    row = db_session.query(ChatMessage).filter(ChatMessage.role == "assistant").one()
+    assert row.content == "real answer" and json.loads(row.usage) == {"total_tokens": 9}
+
+
 def test_echo_provider_streams_words():
     async def run():
         return [c async for c in cp.EchoProvider(0).stream([{"role": "user", "content": "a b"}], mode="ask")]

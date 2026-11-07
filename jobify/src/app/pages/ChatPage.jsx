@@ -104,7 +104,7 @@ export default function ChatPage() {
                 </button>
               ))}
             </div>
-            <DemoNotice><span className="block mt-4">{isLive ? "Replies come from a test stub until an AI model is connected. Nothing is sent without your approval." : "Replies are simulated. No AI service is called and no email is sent."}</span></DemoNotice>
+            <DemoNotice><span className="block mt-4">{isLive ? "AI replies can be wrong, so check facts before you use them. Nothing is sent without your approval." : "Replies are simulated. No AI service is called and no email is sent."}</span></DemoNotice>
           </div>
         ) : (
           <div className="max-w-[720px] mx-auto px-4 py-6 flex flex-col gap-5">

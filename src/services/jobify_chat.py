@@ -132,8 +132,10 @@ async def stream_reply(
         db = session_factory()
         try:
             now = datetime.utcnow()
+            usage = getattr(provider, "last_usage", None)
             msg = ChatMessage(conversation_id=conversation_id, role="assistant", content=content, mode=mode,
-                              status=status, provider=provider.name, created_at=now)
+                              status=status, provider=provider.name, created_at=now,
+                              usage=json.dumps(usage) if usage else None)
             db.add(msg)
             conv = db.query(ChatConversation).filter(ChatConversation.id == conversation_id).first()
             if conv is not None:
