@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from src.api.contract import iso_utc, scoped
 from src.auth.dependencies import get_current_user
@@ -147,14 +147,14 @@ def list_jobs(
     for skill in skills:  # cheap SQL prefilter; exact match re-checked in filter_and_sort
         query = query.filter(func.lower(Job.tags).like(f"%{skill.strip().lower()}%"))
 
-    rows = query.order_by(Job.fetched_at.desc()).limit(MAX_SCAN_ROWS).all()
-    items = jj.filter_and_sort(
-        rows, jj.profile_for(db, user),
+    # provider_payload / provider_sources are large JSON blobs the list never reads.
+    rows = (query.options(defer(Job.provider_payload), defer(Job.provider_sources))
+            .order_by(Job.fetched_at.desc()).limit(MAX_SCAN_ROWS).all())
+    return jj.list_page(
+        rows, jj.profile_for(db, user), page=page, page_size=pageSize,
         work_modes=workModes, types=types, countries=countries, skills=skills,
         match_only=matchOnly, min_salary_usd=minSalaryUsd, max_years=maxYears, sort=sort,
     )
-    start = (page - 1) * pageSize
-    return {"items": items[start:start + pageSize], "total": len(items), "page": page, "pageSize": pageSize}
 
 
 @router.get("/jobs/{job_id:int}")
