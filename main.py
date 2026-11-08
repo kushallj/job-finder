@@ -46,7 +46,8 @@ from src.job_processor import JobProcessor
 from src.database import init_db, SessionLocal
 from src.models import Application, Job, OutreachRecord, Contact, User
 from src.lifecycle import next_action, require_transition, normalize_status, sort_actions, KNOWN_STATUSES
-from src.job_data_providers import JobDataAPIClient, AIDevBoardClient, FantasticJobsClient, ArbeitnowClient, CareerjetClient, USAJobsClient, search_all
+from src.job_data_providers import AIDevBoardClient
+from src.job_sources import SearchQuery, fetch_jobs, upsert_jobs
 from src.resume_parser import SharpAPIResumeParser
 from src.company_sources.registries.tier1_companies import TIER1_REGISTRY, get_tier1_company
 from src.scrapers.tier1_career_scraper import Tier1CareerScraper
@@ -2209,68 +2210,31 @@ def _to_job_data(j: Job, match_score: Optional[float] = None, application_status
 
 @app.post("/api/providers/sync", tags=["providers"], response_model=ProviderSyncResponse)
 async def sync_external_providers(request: ProviderSyncRequest):
-    """Fetch structured jobs from both providers and upsert into the local catalog."""
-    results = await search_all(query=request.query, location=request.location,
-                               max_age=request.max_age_days, limit=request.limit)
+    """Fetch from every enabled job source (src/job_sources) and upsert into the local catalog."""
+    query = SearchQuery(request.query, location=request.location or "", limit=request.limit,
+                        max_age_days=request.max_age_days)
+    report = await fetch_jobs(query)
+    by_source: Dict[str, list] = {}
+    for rec in report.records:
+        by_source.setdefault(rec.source, []).append(rec)
     source_results: List[ProviderSyncSource] = []
     inserted = updated = 0
     async with db_session() as db:
-        for provider, rows in results.items():
-            ins = upd = 0
-            try:
-                for row in rows:
-                    existing = None
-                    if row.get("provider_id"):
-                        existing = db.query(Job).filter(Job.job_id == row["job_id"]).first()
-                    if existing is None and row.get("url"):
-                        existing = db.query(Job).filter(Job.url == row["url"]).first()
-                    if existing is None:
-                        existing = db.query(Job).filter(Job.title == row["title"], Job.company == row.get("company"), Job.url == row.get("url")).first()
-                    if existing:
-                        current_sources = []
-                        try:
-                            current_sources = json.loads(existing.provider_sources) if existing.provider_sources else []
-                        except Exception:
-                            current_sources = [existing.source] if existing.source else []
-                        current_sources = list(dict.fromkeys([x for x in (current_sources + [provider]) if x]))
-                        existing.provider_sources = json.dumps(current_sources)
-                        existing.title = row["title"]
-                        existing.company = row.get("company") or existing.company
-                        existing.location = row.get("location") or existing.location
-                        existing.description = row.get("description") or existing.description
-                        existing.url = row.get("url") or existing.url
-                        existing.source = provider
-                        existing.posted_date = row.get("posted_date") or existing.posted_date
-                        existing.provider_id = row.get("provider_id") or existing.provider_id
-                        existing.company_website = row.get("company_website") or existing.company_website
-                        existing.salary_min = row.get("salary_min")
-                        existing.salary_max = row.get("salary_max")
-                        existing.salary_currency = row.get("salary_currency")
-                        existing.has_remote = row.get("has_remote")
-                        existing.work_mode = row.get("work_mode")
-                        existing.experience_level = row.get("experience_level")
-                        existing.tags = json.dumps(row.get("tags", []))
-                        existing.expired_at = row.get("expired_at")
-                        existing.provider_payload = json.dumps(row.get("provider_payload", {}), default=str)
-                        upd += 1
-                    else:
-                        db.add(Job(job_id=row["job_id"], title=row["title"], company=row.get("company"),
-                                   location=row.get("location"), description=row.get("description"), url=row.get("url"),
-                                   source=provider, posted_date=row.get("posted_date"), provider_id=row.get("provider_id"),
-                                   company_website=row.get("company_website"), salary_min=row.get("salary_min"), salary_max=row.get("salary_max"),
-                                   salary_currency=row.get("salary_currency"), has_remote=row.get("has_remote"), work_mode=row.get("work_mode"),
-                                   experience_level=row.get("experience_level"), tags=json.dumps(row.get("tags", [])), expired_at=row.get("expired_at"),
-                                   provider_payload=json.dumps(row.get("provider_payload", {}), default=str),
-                                   provider_sources=json.dumps([provider])))
-                        ins += 1
-                db.commit()
-            except Exception as exc:
-                db.rollback()
-                source_results.append(ProviderSyncSource(provider=provider, fetched=len(rows), inserted=0, updated=0, failed=True, error=str(exc)))
+        for src in report.sources:
+            recs = by_source.get(src.name, [])
+            if src.status in ("failed", "timeout"):
+                source_results.append(ProviderSyncSource(provider=src.name, failed=True, error=src.error))
                 continue
-            inserted += ins; updated += upd
-            source_results.append(ProviderSyncSource(provider=provider, fetched=len(rows), inserted=ins, updated=upd))
-    return ProviderSyncResponse(status="success", total_fetched=sum(len(v) for v in results.values()),
+            try:
+                ins, upd = upsert_jobs(db, recs)
+            except Exception as exc:  # noqa: BLE001 - reported per source
+                db.rollback()
+                source_results.append(ProviderSyncSource(provider=src.name, fetched=len(recs), failed=True, error=str(exc)))
+                continue
+            inserted += ins
+            updated += upd
+            source_results.append(ProviderSyncSource(provider=src.name, fetched=len(recs), inserted=ins, updated=upd))
+    return ProviderSyncResponse(status="success", total_fetched=len(report.records),
                                 total_inserted=inserted, total_updated=updated, sources=source_results)
 
 

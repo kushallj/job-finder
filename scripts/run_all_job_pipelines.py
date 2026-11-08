@@ -281,7 +281,9 @@ class MasterPipelineRunner:
         t0 = time.time()
         logger.info("🌐 [7/11] Running Multi-Provider Global Search Engine (AIDevBoard, FantasticJobs, USAJobs)...")
         try:
-            from src.job_data_providers import search_all
+            from dataclasses import asdict
+
+            from src.job_sources import fetch_jobs
             queries = [
                 "Software Engineer",
                 "Backend Engineer Python",
@@ -292,10 +294,8 @@ class MasterPipelineRunner:
             ]
             all_jobs = []
             for q in queries:
-                res_dict = await search_all(query=q, limit=50)
-                for prov_name, job_list in res_dict.items():
-                    if job_list:
-                        all_jobs.extend(job_list)
+                report = await fetch_jobs(q)
+                all_jobs.extend({**asdict(r), "tags": list(r.tags)} for r in report.records)
 
             new_saved, dups = self.save_normalized_jobs(all_jobs, "multi_provider_search")
             self.pipeline_results["Multi-Provider Global Search"] = {
