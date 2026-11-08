@@ -18,19 +18,19 @@ import re
 import secrets
 import smtplib
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from email import message_from_bytes, policy
 from email.message import EmailMessage
 from email.utils import getaddresses, make_msgid, parseaddr, parsedate_to_datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 from sqlalchemy.orm import Session
 
 from src.api.contract import iso_utc
 from src.config import settings
+from src.jobify.services.mail_ingest import ParsedMessage, ingest_message
 from src.models import Application, InboundRecruiterMessage, MailboxAccount, User
 from src.services.inbound_email_classifier import InboundEmailIntentClassifier
-from src.jobify.services.mail_ingest import ParsedMessage, ingest_message
 
 PROVIDER = "jobify"
 SIGNATURE_MAX_SKEW = 300  # seconds; rejects replayed deliveries
@@ -70,7 +70,7 @@ def _base_name(user: User) -> str:
     return base or "jobseeker"
 
 
-def get_or_create_inbox(db: Session, user: User) -> Optional[MailboxAccount]:
+def get_or_create_inbox(db: Session, user: User) -> MailboxAccount | None:
     mb = (db.query(MailboxAccount).filter(MailboxAccount.user_id == user.id, MailboxAccount.provider == PROVIDER)
           .first())
     if mb is not None or not settings.inbox_domain:
@@ -97,7 +97,7 @@ def sign(secret: str, timestamp: str, body: bytes) -> str:
     return hmac.new(secret.encode(), timestamp.encode() + b"." + body, hashlib.sha256).hexdigest()
 
 
-def verify_signature(timestamp: Optional[str], signature: Optional[str], body: bytes, now: Optional[float] = None) -> None:
+def verify_signature(timestamp: str | None, signature: str | None, body: bytes, now: float | None = None) -> None:
     if not settings.inbound_webhook_secret:
         raise InboxError("INBOX_NOT_CONFIGURED", "Inbound email is not configured", 503)
     if not timestamp or not signature or not timestamp.isdigit():
@@ -109,7 +109,7 @@ def verify_signature(timestamp: Optional[str], signature: Optional[str], body: b
         raise InboxError("BAD_SIGNATURE", "Invalid signature", 401)
 
 
-def _sender_verified(msg) -> Optional[bool]:
+def _sender_verified(msg) -> bool | None:
     """Read SPF/DKIM/DMARC from Authentication-Results (added by the receiving MTA)."""
     results = " ".join(str(v) for v in (msg.get_all("Authentication-Results") or [])
                        + (msg.get_all("ARC-Authentication-Results") or [])).lower()
@@ -142,7 +142,7 @@ def parse_raw(raw: bytes, envelope_to: str = "") -> ParsedMessage:
     if msg.get("Date"):
         try:
             dt = parsedate_to_datetime(str(msg.get("Date")))
-            received = dt.astimezone(timezone.utc).replace(tzinfo=None) if dt.tzinfo else dt  # stored as naive UTC
+            received = dt.astimezone(UTC).replace(tzinfo=None) if dt.tzinfo else dt  # stored as naive UTC
         except (TypeError, ValueError):
             received = None
     message_id = str(msg.get("Message-ID", "")).strip() or f"<no-id-{secrets.token_hex(8)}@jobify>"
@@ -158,7 +158,7 @@ def parse_raw(raw: bytes, envelope_to: str = "") -> ParsedMessage:
         in_reply_to=in_reply_to, references=refs, sender_verified=_sender_verified(msg))
 
 
-def receive(db: Session, raw: bytes, envelope_to: str) -> Dict[str, Any]:
+def receive(db: Session, raw: bytes, envelope_to: str) -> dict[str, Any]:
     """Store one inbound message for the inbox it was addressed to. Unknown recipients are dropped."""
     address = (envelope_to or "").strip().lower()
     mb = db.query(MailboxAccount).filter(MailboxAccount.provider == PROVIDER, MailboxAccount.email_address == address).first()
@@ -179,7 +179,7 @@ def receive(db: Session, raw: bytes, envelope_to: str) -> Dict[str, Any]:
 
 # --- in-app inbox -----------------------------------------------------------------------------
 
-def to_ui(row: InboundRecruiterMessage, full: bool = False) -> Dict[str, Any]:
+def to_ui(row: InboundRecruiterMessage, full: bool = False) -> dict[str, Any]:
     out = {
         "id": str(row.id),
         "direction": row.direction or "in",

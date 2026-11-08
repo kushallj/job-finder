@@ -17,12 +17,14 @@ Privacy rules:
 from __future__ import annotations
 
 import base64
+import contextlib
+import logging
 import re
 import secrets
 import time
 from datetime import datetime, timedelta
 from email.utils import parseaddr
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import urlencode
 
 import httpx
@@ -31,14 +33,16 @@ from sqlalchemy.orm import Session
 
 from src.api.contract import iso_utc
 from src.config import settings
+from src.jobify.services.mail_ingest import ParsedMessage, ingest_message, match_application  # noqa: F401  (re-exported)
 from src.models import Application, InboundRecruiterMessage, MailboxAccount, User
 from src.services.inbound_email_classifier import InboundEmailIntentClassifier
-from src.jobify.services.mail_ingest import ParsedMessage, ingest_message, match_application  # noqa: F401  (re-exported)
+
+log = logging.getLogger(__name__)
 
 GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 SCOPES = f"openid email {GMAIL_SCOPE}"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-TOKEN_URL = "https://oauth2.googleapis.com/token"
+TOKEN_URL = "https://oauth2.googleapis.com/token"  # noqa: S105 (endpoint URL, not a secret)
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
@@ -108,14 +112,14 @@ class GoogleClient:
     def __init__(self, timeout: float = 20.0):
         self.http = httpx.Client(timeout=timeout)
 
-    def _check(self, res: httpx.Response, what: str) -> Dict[str, Any]:
+    def _check(self, res: httpx.Response, what: str) -> dict[str, Any]:
         if res.status_code >= 400:
             if res.status_code in (400, 401) and "invalid_grant" in res.text:
                 raise GmailError("GMAIL_REAUTH_REQUIRED", "Gmail access was revoked or expired. Connect again.", 409)
             raise GmailError("GMAIL_API_ERROR", f"Google {what} failed ({res.status_code})", 502)
         return res.json() if res.content else {}
 
-    def exchange_code(self, code: str) -> Dict[str, Any]:
+    def exchange_code(self, code: str) -> dict[str, Any]:
         return self._check(self.http.post(TOKEN_URL, data={
             "code": code, "client_id": settings.google_oauth_client_id,
             "client_secret": settings.google_oauth_client_secret,
@@ -127,23 +131,21 @@ class GoogleClient:
             "client_secret": settings.google_oauth_client_secret, "grant_type": "refresh_token"}), "token refresh")
         return data["access_token"]
 
-    def userinfo(self, access_token: str) -> Dict[str, Any]:
+    def userinfo(self, access_token: str) -> dict[str, Any]:
         return self._check(self.http.get(USERINFO_URL, headers={"Authorization": f"Bearer {access_token}"}), "userinfo")
 
-    def list_messages(self, access_token: str, query: str, limit: int) -> List[str]:
+    def list_messages(self, access_token: str, query: str, limit: int) -> list[str]:
         data = self._check(self.http.get(f"{GMAIL_API}/messages", params={"q": query, "maxResults": limit},
                                          headers={"Authorization": f"Bearer {access_token}"}), "message list")
         return [m["id"] for m in data.get("messages", [])]
 
-    def get_message(self, access_token: str, msg_id: str) -> Dict[str, Any]:
+    def get_message(self, access_token: str, msg_id: str) -> dict[str, Any]:
         return self._check(self.http.get(f"{GMAIL_API}/messages/{msg_id}", params={"format": "full"},
                                          headers={"Authorization": f"Bearer {access_token}"}), "message read")
 
     def revoke(self, token: str) -> None:
-        try:
+        with contextlib.suppress(httpx.HTTPError):  # best effort; local token is deleted regardless
             self.http.post(REVOKE_URL, data={"token": token})
-        except httpx.HTTPError:
-            pass  # best effort; local token is deleted regardless
 
 
 def get_client() -> GoogleClient:
@@ -152,12 +154,12 @@ def get_client() -> GoogleClient:
 
 # --- connection state (shape: applicationService.getConnection) -------------------------
 
-def mailbox_for(db: Session, user: User) -> Optional[MailboxAccount]:
+def mailbox_for(db: Session, user: User) -> MailboxAccount | None:
     return (db.query(MailboxAccount).filter(MailboxAccount.user_id == user.id, MailboxAccount.provider == "gmail")
             .order_by(MailboxAccount.id.desc()).first())
 
 
-def connection_state(mb: Optional[MailboxAccount]) -> Dict[str, Any]:
+def connection_state(mb: MailboxAccount | None) -> dict[str, Any]:
     if mb is None or not mb.sync_status:
         return {"status": "not_connected", "email": None, "lastSync": None, "nextScan": None}
     live = mb.sync_status in ("connected", "syncing", "failed")
@@ -205,8 +207,8 @@ def disconnect(db: Session, user: User, client: GoogleClient) -> MailboxAccount 
     if mb.oauth_refresh_token_enc:
         try:
             client.revoke(decrypt_token(mb.oauth_refresh_token_enc))
-        except Exception:  # noqa: BLE001  undecryptable token: still wipe it locally
-            pass
+        except Exception:  # undecryptable token (rotated key): still disconnect locally
+            log.warning("gmail disconnect: could not revoke token for mailbox %s", mb.id, exc_info=True)
     mb.oauth_refresh_token_enc = None
     mb.sync_status, mb.is_connected, mb.last_error, mb.next_scan_at = "disconnected", False, None, None
     for msg in db.query(InboundRecruiterMessage).filter(InboundRecruiterMessage.mailbox_id == mb.id):
@@ -217,25 +219,25 @@ def disconnect(db: Session, user: User, client: GoogleClient) -> MailboxAccount 
 
 # --- message parsing ----------------------------------------------------------------------
 
-def _header(msg: Dict[str, Any], name: str) -> str:
+def _header(msg: dict[str, Any], name: str) -> str:
     for h in msg.get("payload", {}).get("headers", []):
         if h.get("name", "").lower() == name.lower():
             return h.get("value", "")
     return ""
 
 
-def _body_text(part: Dict[str, Any]) -> str:
+def _body_text(part: dict[str, Any]) -> str:
     mime = part.get("mimeType", "")
     data = part.get("body", {}).get("data")
     if data and mime in ("text/plain", "text/html"):
         raw = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode("utf-8", "replace")
         return re.sub(r"<[^>]+>", " ", raw) if mime == "text/html" else raw
     texts = [_body_text(p) for p in part.get("parts", []) or []]
-    plain = [t for p, t in zip(part.get("parts", []) or [], texts) if p.get("mimeType") == "text/plain" and t]
+    plain = [t for p, t in zip(part.get("parts", []) or [], texts, strict=True) if p.get("mimeType") == "text/plain" and t]
     return (plain or [t for t in texts if t] or [""])[0]
 
 
-def parse_message(raw: Dict[str, Any]) -> ParsedMessage:
+def parse_message(raw: dict[str, Any]) -> ParsedMessage:
     name, addr = parseaddr(_header(raw, "From"))
     ts = int(raw.get("internalDate", "0") or 0) / 1000
     return ParsedMessage(
@@ -248,7 +250,7 @@ def parse_message(raw: Dict[str, Any]) -> ParsedMessage:
 
 # --- sync -------------------------------------------------------------------------------------
 
-def sync_mailbox(db: Session, mb: MailboxAccount, client: GoogleClient, now: Optional[datetime] = None) -> Dict[str, int]:
+def sync_mailbox(db: Session, mb: MailboxAccount, client: GoogleClient, now: datetime | None = None) -> dict[str, int]:
     now = now or datetime.utcnow()
     if not mb.oauth_refresh_token_enc:
         raise GmailError("GMAIL_NOT_CONNECTED", "Gmail is not connected", 409)
@@ -287,7 +289,7 @@ def sync_mailbox(db: Session, mb: MailboxAccount, client: GoogleClient, now: Opt
             mb.oauth_refresh_token_enc = None
         db.commit()
         raise
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         db.rollback()
         mb.sync_status, mb.last_error = "failed", "Sync failed. Try again later."
         db.commit()

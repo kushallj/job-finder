@@ -9,18 +9,17 @@ URL; never fakes success), POST /gmail/sync, DELETE /gmail. State shape:
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import get_current_user
+from src.api.deps import CURRENT_USER, DB_SESSION
 from src.config import settings
-from src.database import get_db
-from src.models import User
 from src.jobify.services import gmail_sync as gs
+from src.models import User
 
 router = APIRouter(prefix="/api/gmail", tags=["Jobify"])
 
@@ -35,13 +34,13 @@ def _back_to_app(**params: str) -> RedirectResponse:
 
 
 @router.get("")
-def get_connection(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_connection(user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     # `available`: whether this server can offer Gmail at all (OAuth client configured).
     return {**gs.connection_state(gs.mailbox_for(db, user)), "available": gs.configured()}
 
 
 @router.post("/connect")
-def connect(user: User = Depends(get_current_user)) -> Dict[str, str]:
+def connect(user: User = CURRENT_USER) -> dict[str, str]:
     try:
         return {"url": gs.auth_url(user)}
     except gs.GmailError as exc:
@@ -49,8 +48,7 @@ def connect(user: User = Depends(get_current_user)) -> Dict[str, str]:
 
 
 @router.get("/callback", include_in_schema=False)
-def callback(code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = Query(default=None),
-             db: Session = Depends(get_db)) -> RedirectResponse:
+def callback(db: Session = DB_SESSION, code: str | None = None, state: str | None = None, error: str | None = Query(default=None)) -> RedirectResponse:
     """Public (Google redirects here without our bearer token); trust comes from the signed state."""
     if error:
         return _back_to_app(gmail="error", reason="ACCESS_DENIED" if error == "access_denied" else "GOOGLE_ERROR")
@@ -64,7 +62,7 @@ def callback(code: Optional[str] = None, state: Optional[str] = None, error: Opt
 
 
 @router.post("/sync")
-def sync(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def sync(user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     mb = gs.mailbox_for(db, user)
     if mb is None or not mb.oauth_refresh_token_enc:
         _raise(gs.GmailError("GMAIL_NOT_CONNECTED", "Connect Gmail first", 409))
@@ -79,5 +77,5 @@ def sync(user: User = Depends(get_current_user), db: Session = Depends(get_db)) 
 
 
 @router.delete("")
-def disconnect(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def disconnect(user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     return gs.connection_state(gs.disconnect(db, user, gs.get_client()))

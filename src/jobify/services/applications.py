@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func
@@ -48,23 +48,23 @@ class ApplicationCreate(BaseModel):
     subject: str = Field(default="Added manually", max_length=300)
     sender: str = Field(default="", max_length=300)
     source: Literal["manual", "job", "email"] = "manual"
-    jobId: Optional[int] = None
+    jobId: int | None = None
 
 
 class ApplicationPatch(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    company: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    position: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    stage: Optional[Stage] = None
-    notes: Optional[str] = Field(default=None, max_length=5000)
-    subject: Optional[str] = Field(default=None, max_length=300)
-    sender: Optional[str] = Field(default=None, max_length=300)
-    events: Optional[List[Event]] = Field(default=None, max_length=100)
-    offer: Optional[Offer] = None
+    company: str | None = Field(default=None, min_length=1, max_length=200)
+    position: str | None = Field(default=None, min_length=1, max_length=200)
+    stage: Stage | None = None
+    notes: str | None = Field(default=None, max_length=5000)
+    subject: str | None = Field(default=None, max_length=300)
+    sender: str | None = Field(default=None, max_length=300)
+    events: list[Event] | None = Field(default=None, max_length=100)
+    offer: Offer | None = None
 
 
-def _loads(raw: Optional[str], default):
+def _loads(raw: str | None, default):
     if not raw:
         return default
     try:
@@ -73,16 +73,16 @@ def _loads(raw: Optional[str], default):
         return default
 
 
-def message_counts(db: Session, app_ids: List[int]) -> Dict[int, int]:
+def message_counts(db: Session, app_ids: list[int]) -> dict[int, int]:
     if not app_ids:
         return {}
     rows = (db.query(InboundRecruiterMessage.application_id, func.count())
             .filter(InboundRecruiterMessage.application_id.in_(app_ids))
             .group_by(InboundRecruiterMessage.application_id).all())
-    return {app_id: n for app_id, n in rows}
+    return dict(rows)
 
 
-def to_ui(app: Application, job: Optional[Job] = None, inbound: int = 0) -> Dict[str, Any]:
+def to_ui(app: Application, job: Job | None = None, inbound: int = 0) -> dict[str, Any]:
     stage = (app.kanban_stage or "applied").lower()
     return {
         "id": str(app.id),
@@ -121,7 +121,7 @@ def apply_patch(app: Application, patch: ApplicationPatch) -> None:
     app.updated_at = datetime.utcnow()
 
 
-def sweep_ghosted(db: Session, now: Optional[datetime] = None) -> int:
+def sweep_ghosted(db: Session, now: datetime | None = None) -> int:
     """Move 'applied' cards with no inbound email for GHOSTED_AFTER_DAYS to 'ghosted'.
 
     Runs from Celery beat (src/tasks.py), never from the frontend. Returns cards moved.

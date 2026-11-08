@@ -14,15 +14,14 @@ Logic: src/jobify/services/founders.py.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import get_current_user
-from src.database import get_db
-from src.models import PortfolioCompany, SavedFounderCompany, User
+from src.api.deps import CURRENT_USER, DB_SESSION
 from src.jobify.services import founders as jf
+from src.models import PortfolioCompany, SavedFounderCompany, User
 
 router = APIRouter(tags=["Jobify"])
 
@@ -35,23 +34,21 @@ def _company_or_404(db: Session, company_id: int) -> PortfolioCompany:
 
 
 @router.get("/api/founders")
-def list_founders(q: str = "", country: str = "", industry: str = "", hiringOnly: bool = False,
-                  page: int = Query(default=1, ge=1), pageSize: int = Query(default=10, ge=1, le=100),
-                  user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def list_founders(user: User = CURRENT_USER, db: Session = DB_SESSION, q: str = "", country: str = "", industry: str = "", hiringOnly: bool = False, page: int = Query(default=1, ge=1), pageSize: int = Query(default=10, ge=1, le=100)) -> dict[str, Any]:
     items = jf.search(jf.load_companies(db, user), q, country, industry, hiringOnly)
     start = (page - 1) * pageSize
     return {"items": items[start:start + pageSize], "total": len(items), "page": page, "pageSize": pageSize}
 
 
 @router.get("/api/founders/facets")
-def facets(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def facets(user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     items = jf.load_companies(db, user)
     return {"countries": sorted({c["country"] for c in items}), "industries": sorted({c["industry"] for c in items}),
             "unlockCost": jf.unlock_cost()}
 
 
 @router.post("/api/founders/{company_id:int}/unlock")
-def unlock(company_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def unlock(company_id: int, user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     _company_or_404(db, company_id)
     result = jf.unlock(db, user, company_id)
     company = jf.load_companies(db, user, ids=[company_id])[0]
@@ -59,13 +56,12 @@ def unlock(company_id: int, user: User = Depends(get_current_user), db: Session 
 
 
 @router.get("/api/me/founders/state")
-def founders_state(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, List[str]]:
+def founders_state(user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, list[str]]:
     return jf.user_state(db, user)
 
 
 @router.put("/api/me/founders/{company_id:int}/saved")
-def set_saved(company_id: int, body: Optional[Dict[str, Any]] = Body(default=None),
-              user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, List[str]]:
+def set_saved(company_id: int, user: User = CURRENT_USER, db: Session = DB_SESSION, body: dict[str, Any] | None = Body(default=None)) -> dict[str, list[str]]:
     _company_or_404(db, company_id)
     row = (db.query(SavedFounderCompany)
            .filter(SavedFounderCompany.user_id == user.id, SavedFounderCompany.company_id == company_id).first())

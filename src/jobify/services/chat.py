@@ -23,15 +23,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import AsyncIterator, Callable
 from datetime import datetime
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from src.api.contract import iso_utc
+from src.jobify.services.chat_providers import ChatProvider, ChatProviderError
 from src.models import ChatConversation, ChatMessage, User
-from src.jobify.services.chat_providers import ChatProvider, ChatProviderError, build_prompt
 from src.services.credit_service import CREDIT_COSTS, add_credits, deduct_credits
 
 log = logging.getLogger(__name__)
@@ -47,17 +48,17 @@ def chat_cost() -> int:
 
 # --- shapes ------------------------------------------------------------------------
 
-def message_out(m: ChatMessage) -> Dict[str, Any]:
+def message_out(m: ChatMessage) -> dict[str, Any]:
     return {"id": str(m.id), "role": m.role, "content": m.content, "at": iso_utc(m.created_at), "mode": m.mode,
             "status": m.status, "provider": m.provider}
 
 
-def conversation_out(c: ChatConversation) -> Dict[str, Any]:
+def conversation_out(c: ChatConversation) -> dict[str, Any]:
     return {"id": str(c.id), "title": c.title, "mode": c.mode, "updatedAt": iso_utc(c.updated_at),
             "messages": [message_out(m) for m in c.messages]}
 
 
-def sse(event: str, data: Dict[str, Any]) -> str:
+def sse(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
@@ -120,19 +121,19 @@ def accept_message(db: Session, user: User, conv: ChatConversation, content: str
     return msg
 
 
-def history(conv: ChatConversation) -> List[Dict[str, str]]:
+def history(conv: ChatConversation) -> list[dict[str, str]]:
     return [{"role": m.role, "content": m.content} for m in conv.messages
             if m.role in ("user", "assistant") and m.content]
 
 
-async def stream_reply(
+async def stream_reply(  # noqa: PLR0915 -- linear SSE flow; keeps charge/refund/stop rules in one place
     *,
     session_factory: Callable[[], Session],
     provider: ChatProvider,
     user_id: int,
     conversation_id: int,
-    user_message: Dict[str, Any],
-    prompt: List[Dict[str, str]],
+    user_message: dict[str, Any],
+    prompt: list[dict[str, str]],
     mode: str,
     is_disconnected: Callable[[], Any],
 ) -> AsyncIterator[str]:
@@ -141,10 +142,10 @@ async def stream_reply(
     Writes go through a fresh session from `session_factory`, not the request's session, so
     this keeps working if FastAPI closes request dependencies before the body is streamed.
     """
-    parts: List[str] = []
+    parts: list[str] = []
     state = {"saved": False}
 
-    def persist(status: str) -> Optional[Dict[str, Any]]:
+    def persist(status: str) -> dict[str, Any] | None:
         if state["saved"]:
             return None
         state["saved"] = True

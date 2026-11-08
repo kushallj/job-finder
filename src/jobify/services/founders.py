@@ -19,14 +19,23 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, Iterable, List, Optional, Set
+from collections.abc import Iterable
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.models import CompanyFounder, FounderUnlock, Job, PortfolioCompany, SavedFounderCompany, User, VCFirm
+from src.models import (
+    CompanyFounder,
+    FounderUnlock,
+    Job,
+    PortfolioCompany,
+    SavedFounderCompany,
+    User,
+    VCFirm,
+)
 from src.services.credit_service import CREDIT_COSTS, add_credits, deduct_credits
 
 UNLOCK_ACTION = "founder_unlock"
@@ -43,7 +52,7 @@ def unlock_cost() -> int:
     return int(CREDIT_COSTS.get(UNLOCK_ACTION, 5))
 
 
-def _tags(raw: Optional[str]) -> List[str]:
+def _tags(raw: str | None) -> list[str]:
     if not raw:
         return []
     try:
@@ -75,7 +84,7 @@ _KNOWN_LOWER = {p.lower(): p for p in _KNOWN_PLACES}
 _ALL_NAMES = sorted(list(_KNOWN_LOWER) + list(_COUNTRY_ALIASES), key=len, reverse=True)
 
 
-def normalize_country(value: Optional[str]) -> Optional[str]:
+def normalize_country(value: str | None) -> str | None:
     """'San Francisco, United States' -> 'USA'; 'X, Y · Oct 15, 2026' -> 'Y'; 'Singapore / Asia' -> 'Singapore'."""
     text = (value or "").split("·")[0].strip()
     if not text:
@@ -92,15 +101,15 @@ def normalize_country(value: Optional[str]) -> Optional[str]:
     best = None
     for name in _ALL_NAMES:
         idx = low.rfind(f" {name}")
-        if idx >= 0 and low[idx + len(name) + 1:idx + len(name) + 2] in (" ", ",", ".", "!", "/", ")"):
-            if best is None or idx > best[0]:
-                best = (idx, name)
+        boundary = low[idx + len(name) + 1:idx + len(name) + 2] in (" ", ",", ".", "!", "/", ")")
+        if idx >= 0 and boundary and (best is None or idx > best[0]):
+            best = (idx, name)
     if best is None:
         return None
     return _COUNTRY_ALIASES.get(best[1]) or _KNOWN_LOWER[best[1]]
 
 
-def country_of(company: PortfolioCompany, firm: Optional[VCFirm]) -> str:
+def country_of(company: PortfolioCompany, firm: VCFirm | None) -> str:
     from_location = normalize_country(company.location)
     if from_location:
         return from_location
@@ -116,7 +125,7 @@ def _initials(name: str) -> str:
     return ("".join(p[0] for p in parts[:2]) or "?").upper()
 
 
-def founder_ui(f: CompanyFounder, unlocked: bool) -> Dict[str, Any]:
+def founder_ui(f: CompanyFounder, unlocked: bool) -> dict[str, Any]:
     out = {
         "id": str(f.id),
         "name": f.full_name or "",
@@ -131,8 +140,8 @@ def founder_ui(f: CompanyFounder, unlocked: bool) -> Dict[str, Any]:
     return out
 
 
-def company_ui(company: PortfolioCompany, founders: List[CompanyFounder], firm: Optional[VCFirm],
-               hiring: bool, unlocked: bool) -> Dict[str, Any]:
+def company_ui(company: PortfolioCompany, founders: list[CompanyFounder], firm: VCFirm | None,
+               hiring: bool, unlocked: bool) -> dict[str, Any]:
     country = country_of(company, firm)
     website = company.website or (f"https://{company.domain}" if company.domain else "")
     tags = _tags(company.industry_tags)
@@ -149,7 +158,7 @@ def company_ui(company: PortfolioCompany, founders: List[CompanyFounder], firm: 
     }
 
 
-def hiring_names(db: Session, names: Iterable[str]) -> Set[str]:
+def hiring_names(db: Session, names: Iterable[str]) -> set[str]:
     """Lower-cased company names with at least one open (non-expired) job in our catalog."""
     lowered = {n.lower() for n in names if n}
     if not lowered:
@@ -159,13 +168,13 @@ def hiring_names(db: Session, names: Iterable[str]) -> Set[str]:
     return {r[0] for r in rows}
 
 
-def user_state(db: Session, user: User) -> Dict[str, List[str]]:
+def user_state(db: Session, user: User) -> dict[str, list[str]]:
     saved = [str(r.company_id) for r in db.query(SavedFounderCompany).filter(SavedFounderCompany.user_id == user.id)]
     unlocked = [str(r.company_id) for r in db.query(FounderUnlock).filter(FounderUnlock.user_id == user.id)]
     return {"saved": saved, "unlocked": unlocked}
 
 
-def load_companies(db: Session, user: User, ids: Optional[List[int]] = None) -> List[Dict[str, Any]]:
+def load_companies(db: Session, user: User, ids: list[int] | None = None) -> list[dict[str, Any]]:
     query = db.query(PortfolioCompany)
     if ids is not None:
         query = query.filter(PortfolioCompany.id.in_(ids))
@@ -173,7 +182,7 @@ def load_companies(db: Session, user: User, ids: Optional[List[int]] = None) -> 
     if not companies:
         return []
     cids = [c.id for c in companies]
-    founders: Dict[int, List[CompanyFounder]] = {}
+    founders: dict[int, list[CompanyFounder]] = {}
     for f in db.query(CompanyFounder).filter(CompanyFounder.company_id.in_(cids)).order_by(CompanyFounder.id):
         founders.setdefault(f.company_id, []).append(f)
     firm_ids = {c.vc_firm_id for c in companies if c.vc_firm_id}
@@ -187,7 +196,7 @@ def load_companies(db: Session, user: User, ids: Optional[List[int]] = None) -> 
     return out
 
 
-def search(items: List[Dict[str, Any]], q: str, country: str, industry: str, hiring_only: bool) -> List[Dict[str, Any]]:
+def search(items: list[dict[str, Any]], q: str, country: str, industry: str, hiring_only: bool) -> list[dict[str, Any]]:
     needle = q.strip().lower()
     out = []
     for c in items:
@@ -205,7 +214,7 @@ def search(items: List[Dict[str, Any]], q: str, country: str, industry: str, hir
     return out
 
 
-def unlock(db: Session, user: User, company_id: int) -> Dict[str, Any]:
+def unlock(db: Session, user: User, company_id: int) -> dict[str, Any]:
     """Charge once and record the unlock. Returns {cost, already}. Raises HTTP 402 via credit_service."""
     if db.query(FounderUnlock.id).filter(FounderUnlock.user_id == user.id, FounderUnlock.company_id == company_id).first():
         return {"cost": 0, "already": True}

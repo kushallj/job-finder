@@ -9,23 +9,22 @@ Moving a card only records the change; nothing is sent to an employer.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from src.api.contract import scoped
-from src.auth.dependencies import get_current_user
-from src.database import get_db
-from src.models import Application, Job, User
+from src.api.deps import CURRENT_USER, DB_SESSION
 from src.jobify.services import applications as ja
+from src.models import Application, Job, User
 
 router = APIRouter(prefix="/api/applications", tags=["Jobify"])
 
 MAX_APPLICATIONS = 1000  # the board loads everything at once; cap the payload
 
 
-def _card(db: Session, app: Application) -> Dict[str, Any]:
+def _card(db: Session, app: Application) -> dict[str, Any]:
     job = db.query(Job).filter(Job.id == app.job_id).first() if app.job_id else None
     return ja.to_ui(app, job, ja.message_counts(db, [app.id]).get(app.id, 0))
 
@@ -38,7 +37,7 @@ def _owned(db: Session, user: User, app_id: int) -> Application:
 
 
 @router.get("")
-def list_applications(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def list_applications(user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     apps = (scoped(db.query(Application), Application, user)
             .order_by(Application.created_at.desc(), Application.id.desc())
             .limit(MAX_APPLICATIONS).all())
@@ -50,8 +49,7 @@ def list_applications(user: User = Depends(get_current_user), db: Session = Depe
 
 
 @router.post("", status_code=201)
-def create_application(body: ja.ApplicationCreate, user: User = Depends(get_current_user),
-                       db: Session = Depends(get_db)) -> Dict[str, Any]:
+def create_application(body: ja.ApplicationCreate, user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     if body.jobId is not None and not db.query(Job.id).filter(Job.id == body.jobId).first():
         raise HTTPException(404, "Job not found")
     now = datetime.utcnow()
@@ -68,8 +66,7 @@ def create_application(body: ja.ApplicationCreate, user: User = Depends(get_curr
 
 
 @router.patch("/{app_id:int}")
-def update_application(app_id: int, body: ja.ApplicationPatch, user: User = Depends(get_current_user),
-                       db: Session = Depends(get_db)) -> Dict[str, Any]:
+def update_application(app_id: int, body: ja.ApplicationPatch, user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     app = _owned(db, user, app_id)
     ja.apply_patch(app, body)
     db.commit()
@@ -78,7 +75,7 @@ def update_application(app_id: int, body: ja.ApplicationPatch, user: User = Depe
 
 
 @router.delete("/{app_id:int}", status_code=204)
-def delete_application(app_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Response:
+def delete_application(app_id: int, user: User = CURRENT_USER, db: Session = DB_SESSION) -> Response:
     db.delete(_owned(db, user, app_id))
     db.commit()
     return Response(status_code=204)

@@ -12,18 +12,17 @@ Logic lives in src/jobify/services/inbox.py.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.api.contract import paginate
-from src.auth.dependencies import get_current_user
+from src.api.deps import CURRENT_USER, DB_SESSION
 from src.config import settings
-from src.database import get_db
-from src.models import InboundRecruiterMessage, MailboxAccount, User
 from src.jobify.services import inbox as ib
+from src.models import InboundRecruiterMessage, MailboxAccount, User
 
 router = APIRouter(tags=["Jobify"])
 
@@ -33,7 +32,7 @@ def _raise(exc: ib.InboxError):
 
 
 @router.post("/api/inbound/email", status_code=202, include_in_schema=False)
-async def inbound_email(request: Request, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def inbound_email(request: Request, db: Session = DB_SESSION) -> dict[str, Any]:
     length = int(request.headers.get("content-length") or 0)
     if length > settings.inbound_max_bytes:
         _raise(ib.InboxError("TOO_LARGE", "Message too large", 413))
@@ -48,7 +47,7 @@ async def inbound_email(request: Request, db: Session = Depends(get_db)) -> Dict
 
 
 @router.get("/api/inbox")
-def get_inbox(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_inbox(user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     try:
         mb = ib.get_or_create_inbox(db, user)
     except ib.InboxError as exc:
@@ -63,9 +62,7 @@ def get_inbox(user: User = Depends(get_current_user), db: Session = Depends(get_
 
 
 @router.get("/api/inbox/messages")
-def list_messages(applicationId: Optional[int] = None, page: int = Query(default=1, ge=1),
-                  pageSize: int = Query(default=50, ge=1, le=100),
-                  user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def list_messages(user: User = CURRENT_USER, db: Session = DB_SESSION, applicationId: int | None = None, page: int = Query(default=1, ge=1), pageSize: int = Query(default=50, ge=1, le=100)) -> dict[str, Any]:
     query = (db.query(InboundRecruiterMessage)
              .join(MailboxAccount, InboundRecruiterMessage.mailbox_id == MailboxAccount.id)
              .filter(MailboxAccount.user_id == user.id, MailboxAccount.provider == ib.PROVIDER))
@@ -76,7 +73,7 @@ def list_messages(applicationId: Optional[int] = None, page: int = Query(default
 
 
 @router.get("/api/inbox/messages/{msg_id:int}")
-def get_message(msg_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_message(msg_id: int, user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     try:
         row = ib.owned_message(db, user, msg_id)
     except ib.InboxError as exc:
@@ -92,8 +89,7 @@ class ReplyBody(BaseModel):
 
 
 @router.post("/api/inbox/messages/{msg_id:int}/reply", status_code=201)
-def reply(msg_id: int, payload: ReplyBody, user: User = Depends(get_current_user),
-          db: Session = Depends(get_db)) -> Dict[str, Any]:
+def reply(msg_id: int, payload: ReplyBody, user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     try:
         return ib.to_ui(ib.reply(db, user, msg_id, payload.body), full=True)
     except ib.InboxError as exc:

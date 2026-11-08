@@ -31,8 +31,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Dict, List, Optional, Protocol
+from typing import Any, Protocol
 
 import httpx
 
@@ -40,7 +41,7 @@ from src.config import settings
 
 log = logging.getLogger(__name__)
 
-Message = Dict[str, str]
+Message = dict[str, str]
 
 _NO_INVENTION = (
     " Never invent facts about the user: no made-up employers, projects, results, metrics or numbers. "
@@ -65,7 +66,7 @@ SYSTEM_PROMPTS = {
 class ChatProvider(Protocol):
     name: str
 
-    def stream(self, messages: List[Message], *, mode: str) -> AsyncIterator[str]:
+    def stream(self, messages: list[Message], *, mode: str) -> AsyncIterator[str]:
         """Yield reply text in chunks. Raise ChatProviderError if no reply can be produced."""
         ...
 
@@ -80,12 +81,12 @@ class EchoProvider:
     """Stand-in until an LLM is configured: streams the last user message back, word by word."""
 
     name = "echo"
-    last_usage: Optional[Dict[str, Any]] = None
+    last_usage: dict[str, Any] | None = None
 
     def __init__(self, delay_ms: int = 40):
         self.delay = max(0, delay_ms) / 1000
 
-    async def stream(self, messages: List[Message], *, mode: str) -> AsyncIterator[str]:
+    async def stream(self, messages: list[Message], *, mode: str) -> AsyncIterator[str]:
         last = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
         reply = f"Echo ({mode} mode, no AI model connected yet): {last}"
         words = reply.split(" ")
@@ -146,16 +147,16 @@ class OpenAICompatibleProvider:
     name: str
     base_url: str
     model: str
-    api_key: Optional[str] = None
-    extra_body: Dict[str, Any] = field(default_factory=dict)
-    headers: Dict[str, str] = field(default_factory=dict)
+    api_key: str | None = None
+    extra_body: dict[str, Any] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict)
     timeout_s: float = 60.0
     max_tokens: int = 1024
     temperature: float = 0.4
-    transport: Optional[httpx.AsyncBaseTransport] = None  # tests inject a MockTransport
-    last_usage: Optional[Dict[str, Any]] = None
+    transport: httpx.AsyncBaseTransport | None = None  # tests inject a MockTransport
+    last_usage: dict[str, Any] | None = None
 
-    async def stream(self, messages: List[Message], *, mode: str) -> AsyncIterator[str]:
+    async def stream(self, messages: list[Message], *, mode: str) -> AsyncIterator[str]:  # noqa: PLR0912 -- SSE parse loop
         body = {"model": self.model, "messages": messages, "stream": True, "max_tokens": self.max_tokens,
                 "temperature": self.temperature, **self.extra_body}
         headers = {"Accept": "text/event-stream", **self.headers}
@@ -164,16 +165,18 @@ class OpenAICompatibleProvider:
         timeout = httpx.Timeout(self.timeout_s, connect=10.0)
         think = ThinkFilter()
         try:
-            async with httpx.AsyncClient(timeout=timeout, transport=self.transport) as client:
-                async with client.stream("POST", self.base_url.rstrip("/") + "/chat/completions",
-                                         json=body, headers=headers) as res:
+            async with (
+                httpx.AsyncClient(timeout=timeout, transport=self.transport) as client,
+                client.stream("POST", self.base_url.rstrip("/") + "/chat/completions",
+                              json=body, headers=headers) as res,
+            ):
                     if res.status_code >= 400:
                         detail = (await res.aread())[:300].decode("utf-8", "replace")
                         log.warning("chat provider %s HTTP %s: %s", self.name, res.status_code, detail)
                         raise ChatProviderError(_STATUS_MESSAGES.get(
                             res.status_code, f"The AI model returned an error ({res.status_code})."))
-                    async for line in res.aiter_lines():
-                        line = line.strip()
+                    async for raw_line in res.aiter_lines():
+                        line = raw_line.strip()
                         if not line.startswith("data:"):
                             continue  # blank lines, "event:" lines, ": keep-alive" comments
                         data = line[5:].strip()
@@ -197,11 +200,11 @@ class OpenAICompatibleProvider:
             tail = think.flush()
             if tail:
                 yield tail
-        except httpx.TimeoutException:
-            raise ChatProviderError("The AI model took too long to respond.")
+        except httpx.TimeoutException as exc:
+            raise ChatProviderError("The AI model took too long to respond.") from exc
         except httpx.HTTPError as exc:
             log.warning("chat provider %s unreachable: %s", self.name, exc)
-            raise ChatProviderError("The AI model is unreachable right now.")
+            raise ChatProviderError("The AI model is unreachable right now.") from exc
 
 
 # --- fallback chain ------------------------------------------------------------------------
@@ -209,13 +212,13 @@ class OpenAICompatibleProvider:
 class FallbackProvider:
     """Tries providers in order; moves on only if the current one fails before any text."""
 
-    def __init__(self, providers: List[ChatProvider]):
+    def __init__(self, providers: list[ChatProvider]):
         self.providers = providers
         self.name = providers[0].name
-        self.last_usage: Optional[Dict[str, Any]] = None
+        self.last_usage: dict[str, Any] | None = None
 
-    async def stream(self, messages: List[Message], *, mode: str) -> AsyncIterator[str]:
-        last_error: Optional[ChatProviderError] = None
+    async def stream(self, messages: list[Message], *, mode: str) -> AsyncIterator[str]:
+        last_error: ChatProviderError | None = None
         for provider in self.providers:
             started = False
             try:
@@ -236,23 +239,23 @@ class FallbackProvider:
 
 # --- configuration ---------------------------------------------------------------------------
 
-def _common() -> Dict[str, Any]:
+def _common() -> dict[str, Any]:
     # Reasoning tokens count against max_tokens, so thinking needs a bigger budget.
     max_tokens = settings.chat_reasoning_max_tokens if settings.chat_reasoning else settings.chat_max_tokens
     return {"timeout_s": settings.chat_timeout_s, "max_tokens": max_tokens, "temperature": settings.chat_temperature}
 
 
-def _ollama() -> Optional[ChatProvider]:
+def _ollama() -> ChatProvider | None:
     if not settings.chat_ollama_model:
         return None
-    extra: Dict[str, Any] = {"stream_options": {"include_usage": True}}
+    extra: dict[str, Any] = {"stream_options": {"include_usage": True}}
     if not settings.chat_reasoning:
         extra["reasoning_effort"] = "none"  # disables qwen3-style thinking on Ollama
     return OpenAICompatibleProvider(name="ollama", base_url=settings.chat_ollama_base_url,
                                     model=settings.chat_ollama_model, extra_body=extra, **_common())
 
 
-def _openrouter() -> Optional[ChatProvider]:
+def _openrouter() -> ChatProvider | None:
     if not (settings.openrouter_api_key and settings.chat_openrouter_model):
         return None
     return OpenAICompatibleProvider(
@@ -261,14 +264,14 @@ def _openrouter() -> Optional[ChatProvider]:
         headers={"HTTP-Referer": settings.frontend_url, "X-Title": "Jobify"}, **_common())
 
 
-def _hf() -> Optional[ChatProvider]:
+def _hf() -> ChatProvider | None:
     if not (settings.hf_token and settings.chat_hf_model):
         return None
     return OpenAICompatibleProvider(name="hf", base_url="https://router.huggingface.co/v1",
                                     model=settings.chat_hf_model, api_key=settings.hf_token, **_common())
 
 
-def _custom() -> Optional[ChatProvider]:
+def _custom() -> ChatProvider | None:
     if not (settings.chat_custom_base_url and settings.chat_custom_model):
         return None
     return OpenAICompatibleProvider(name="custom", base_url=settings.chat_custom_base_url,
@@ -296,9 +299,9 @@ def get_chat_provider() -> ChatProvider:
     return chain[0] if len(chain) == 1 else FallbackProvider(chain)
 
 
-def build_prompt(history: List[Message], mode: str, max_turns: int = 20, context: str = "") -> List[Message]:
+def build_prompt(history: list[Message], mode: str, max_turns: int = 20, context: str = "") -> list[Message]:
     """System prompt for the mode (+ the user's profile facts) + the most recent turns."""
     system = SYSTEM_PROMPTS.get(mode, SYSTEM_PROMPTS["ask"])
     if context:
         system += "\n\n" + context
-    return [{"role": "system", "content": system}] + history[-max_turns:]
+    return [{"role": "system", "content": system}, *history[-max_turns:]]

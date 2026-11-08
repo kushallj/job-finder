@@ -12,18 +12,17 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, defer
 
 from src.api.contract import iso_utc, scoped
-from src.auth.dependencies import get_current_user
-from src.database import get_db
-from src.models import CandidateProfile, Job, User, UserJob
+from src.api.deps import CURRENT_USER, DB_SESSION
 from src.jobify.services import jobs as jj
+from src.models import CandidateProfile, Job, User, UserJob
 
 router = APIRouter(prefix="/api", tags=["Jobify"])
 
@@ -41,7 +40,7 @@ STATUS_BY_SUB = {"active": "active", "trialing": "active", "past_due": "past_due
 # --- me ------------------------------------------------------------------------
 
 @router.get("/me")
-def get_me(user: User = Depends(get_current_user)) -> Dict[str, Any]:
+def get_me(user: User = CURRENT_USER) -> dict[str, Any]:
     return {
         "id": user.clerk_user_id or str(user.id),
         "name": user.full_name or user.email,
@@ -52,7 +51,7 @@ def get_me(user: User = Depends(get_current_user)) -> Dict[str, Any]:
 
 
 @router.get("/me/subscription")
-def get_subscription(user: User = Depends(get_current_user)) -> Dict[str, Any]:
+def get_subscription(user: User = CURRENT_USER) -> dict[str, Any]:
     plan = PLAN_BY_TIER.get((user.subscription_tier or "").lower())
     status = STATUS_BY_SUB.get((user.subscription_status or "").lower(), "none") if plan else "none"
     return {
@@ -69,23 +68,25 @@ def get_subscription(user: User = Depends(get_current_user)) -> Dict[str, Any]:
 # portfolio/resume features share one profile per user.
 
 class MatchProfile(BaseModel):
-    skills: List[str] = Field(default_factory=list, max_length=50)
-    targetRoles: List[str] = Field(default_factory=list, max_length=20)
-    yearsOfExperience: Optional[float] = Field(default=None, ge=0, le=50)
-    locations: List[str] = Field(default_factory=list, max_length=20)
+    skills: list[str] = Field(default_factory=list, max_length=50)
+    targetRoles: list[str] = Field(default_factory=list, max_length=20)
+    yearsOfExperience: float | None = Field(default=None, ge=0, le=50)
+    locations: list[str] = Field(default_factory=list, max_length=20)
 
     @field_validator("skills", "targetRoles", "locations")
     @classmethod
-    def _clean(cls, v: List[str]) -> List[str]:
-        out = []
-        for item in v:
-            item = " ".join(str(item).split())[:60]
-            if item and item.lower() not in (x.lower() for x in out):
+    def _clean(cls, v: list[str]) -> list[str]:
+        out: list[str] = []
+        seen: set[str] = set()  # case-insensitive dedupe in O(n)
+        for raw in v:
+            item = " ".join(str(raw).split())[:60]
+            if item and item.lower() not in seen:
+                seen.add(item.lower())
                 out.append(item)
         return out
 
 
-def _profile_out(profile: Optional[CandidateProfile]) -> Dict[str, Any]:
+def _profile_out(profile: CandidateProfile | None) -> dict[str, Any]:
     if profile is None:
         data = MatchProfile()
     else:
@@ -98,12 +99,12 @@ def _profile_out(profile: Optional[CandidateProfile]) -> Dict[str, Any]:
 
 
 @router.get("/me/profile")
-def get_profile(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_profile(user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     return _profile_out(jj.profile_for(db, user))
 
 
 @router.put("/me/profile")
-def put_profile(body: MatchProfile, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def put_profile(body: MatchProfile, user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     profile = jj.profile_for(db, user)
     if profile is None:
         profile = CandidateProfile(user_identifier=user.clerk_user_id or f"user_{user.id}",
@@ -122,20 +123,20 @@ def put_profile(body: MatchProfile, user: User = Depends(get_current_user), db: 
 
 @router.get("/jobs")
 def list_jobs(
+    user: User = CURRENT_USER,
+    db: Session = DB_SESSION,
     q: str = "",
-    workModes: List[str] = Query(default=[]),
-    types: List[str] = Query(default=[]),
-    countries: List[str] = Query(default=[]),
-    skills: List[str] = Query(default=[]),
+    workModes: list[str] = Query(default=[]),
+    types: list[str] = Query(default=[]),
+    countries: list[str] = Query(default=[]),
+    skills: list[str] = Query(default=[]),
     matchOnly: bool = False,
     minSalaryUsd: float = Query(default=0, ge=0),
-    maxYears: Optional[int] = Query(default=None, ge=0, le=50),
+    maxYears: int | None = Query(default=None, ge=0, le=50),
     sort: str = Query(default="match", pattern="^(match|recent|salary|title)$"),
     page: int = Query(default=1, ge=1),
     pageSize: int = Query(default=20, ge=1, le=100),
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     query = db.query(Job).filter(Job.expired_at.is_(None))
     needle = q.strip().lower()
     if needle:
@@ -158,7 +159,7 @@ def list_jobs(
 
 
 @router.get("/jobs/{job_id:int}")
-def get_job(job_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_job(job_id: int, user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(404, "Job not found")
@@ -167,7 +168,7 @@ def get_job(job_id: int, user: User = Depends(get_current_user), db: Session = D
 
 # --- per-user job state ----------------------------------------------------------
 
-def _state(db: Session, user: User) -> Dict[str, List[str]]:
+def _state(db: Session, user: User) -> dict[str, list[str]]:
     rows = scoped(db.query(UserJob), UserJob, user).all()
     return {
         "saved": [str(r.job_id) for r in rows if r.saved_at],
@@ -186,17 +187,17 @@ def _user_job(db: Session, user: User, job_id: int) -> UserJob:
 
 
 @router.get("/me/jobs/state")
-def get_job_state(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, List[str]]:
+def get_job_state(user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, list[str]]:
     return _state(db, user)
 
 
 @router.put("/me/jobs/{job_id:int}/saved")
 def set_saved(
     job_id: int,
-    body: Optional[Dict[str, Any]] = Body(default=None),
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> Dict[str, List[str]]:
+    user: User = CURRENT_USER,
+    db: Session = DB_SESSION,
+    body: dict[str, Any] | None = Body(default=None),
+) -> dict[str, list[str]]:
     """Body {"saved": bool} sets the flag; no body toggles (jobService.toggleSaved)."""
     row = _user_job(db, user, job_id)
     saved = (row.saved_at is None) if not body or "saved" not in body else bool(body["saved"])
@@ -206,7 +207,7 @@ def set_saved(
 
 
 @router.post("/me/jobs/{job_id:int}/applied")
-def mark_applied(job_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, List[str]]:
+def mark_applied(job_id: int, user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, list[str]]:
     """Records that the user applied. Never submits anything to the employer.
 
     Only flags the job: JobsPage.apply() creates the Applications card itself via

@@ -17,7 +17,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -45,15 +44,15 @@ class ParsedMessage:
     received_at: datetime
     recipient_email: str = ""
     in_reply_to: str = ""
-    sender_verified: Optional[bool] = None  # None = unknown (no auth results available)
-    references: List[str] = field(default_factory=list)
+    sender_verified: bool | None = None  # None = unknown (no auth results available)
+    references: list[str] = field(default_factory=list)
 
 
 def _slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
 
 
-def match_application(apps: List[Application], msg: ParsedMessage) -> Optional[Application]:
+def match_application(apps: list[Application], msg: ParsedMessage) -> Application | None:
     """Best match among the owner's applications, or None."""
     for app in apps:
         if app.recruiter_email and app.recruiter_email.lower() == msg.sender_email:
@@ -73,9 +72,9 @@ def match_application(apps: List[Application], msg: ParsedMessage) -> Optional[A
     return best
 
 
-def thread_application(db: Session, mb: MailboxAccount, msg: ParsedMessage) -> Optional[Application]:
+def thread_application(db: Session, mb: MailboxAccount, msg: ParsedMessage) -> Application | None:
     """A reply in an existing thread belongs to the same application as the thread."""
-    refs = [r for r in ([msg.in_reply_to] + msg.references) if r]
+    refs = [r for r in (msg.in_reply_to, *msg.references) if r]
     if not refs:
         return None
     prior = (db.query(InboundRecruiterMessage)
@@ -88,8 +87,8 @@ def thread_application(db: Session, mb: MailboxAccount, msg: ParsedMessage) -> O
                                         Application.user_id == mb.user_id).first()
 
 
-def ingest_message(db: Session, mb: MailboxAccount, msg: ParsedMessage, apps: List[Application],
-                   classifier: InboundEmailIntentClassifier, *, store_unmatched: bool) -> Optional[InboundRecruiterMessage]:
+def ingest_message(db: Session, mb: MailboxAccount, msg: ParsedMessage, apps: list[Application],
+                   classifier: InboundEmailIntentClassifier, *, store_unmatched: bool) -> InboundRecruiterMessage | None:
     """Record one inbound message. Returns the stored row, or None if it was discarded."""
     app = thread_application(db, mb, msg) or match_application(apps, msg)
     if app is None and not store_unmatched:

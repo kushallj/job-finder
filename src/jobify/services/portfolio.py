@@ -26,7 +26,7 @@ import json
 import re
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -34,8 +34,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.api.contract import iso_utc
-from src.models import CandidateExperience, CandidateProject, Portfolio, User
 from src.jobify.services import jobs as jj
+from src.models import CandidateExperience, CandidateProject, Portfolio, User
 
 USERNAME_RE = re.compile(r"^[a-z0-9-]{3,24}$")
 RESERVED = {
@@ -66,15 +66,17 @@ class Identity(_Base):
     tagline: str = _s(200)
     bio: str = _s(3000)
     introLabels: str = _s(500)
-    skills: List[str] = Field(default_factory=list, max_length=60)
+    skills: list[str] = Field(default_factory=list, max_length=60)
 
     @field_validator("skills")
     @classmethod
-    def _skills(cls, v: List[str]) -> List[str]:
-        out: List[str] = []
-        for s in v:
-            s = " ".join(str(s).split())[:40].lower()
-            if s and s not in out:
+    def _skills(cls, v: list[str]) -> list[str]:
+        out: list[str] = []
+        seen: set[str] = set()
+        for raw in v:
+            s = " ".join(str(raw).split())[:40].lower()
+            if s and s not in seen:
+                seen.add(s)
                 out.append(s)
         return out
 
@@ -108,15 +110,15 @@ class CustomSection(_Base):
 class PortfolioContent(_Base):
     identity: Identity = Field(default_factory=Identity)
     contact: Contact = Field(default_factory=Contact)
-    projects: List[Item] = Field(default_factory=list, max_length=50)
-    experience: List[Item] = Field(default_factory=list, max_length=50)
-    education: List[Item] = Field(default_factory=list, max_length=50)
-    hacks: List[Item] = Field(default_factory=list, max_length=50)
-    research: List[Item] = Field(default_factory=list, max_length=50)
+    projects: list[Item] = Field(default_factory=list, max_length=50)
+    experience: list[Item] = Field(default_factory=list, max_length=50)
+    education: list[Item] = Field(default_factory=list, max_length=50)
+    hacks: list[Item] = Field(default_factory=list, max_length=50)
+    research: list[Item] = Field(default_factory=list, max_length=50)
     socials: Socials = Field(default_factory=Socials)
-    custom: List[CustomSection] = Field(default_factory=list, max_length=20)
+    custom: list[CustomSection] = Field(default_factory=list, max_length=20)
 
-    def with_ids(self) -> "PortfolioContent":
+    def with_ids(self) -> PortfolioContent:
         for key in (*LIST_SECTIONS, "custom"):
             seen = set()
             for item in getattr(self, key):
@@ -128,7 +130,7 @@ class PortfolioContent(_Base):
 
 # --- persistence ------------------------------------------------------------------------
 
-def _real_name(user: User, name: Optional[str]) -> str:
+def _real_name(user: User, name: str | None) -> str:
     """Auto-provisioning stores the Clerk id as the name when the session token has none
     ("User_3Lhdz..."); that's a placeholder, not something to publish."""
     name = (name or "").strip()
@@ -159,14 +161,14 @@ def get_or_create(db: Session, user: User) -> Portfolio:
     return row
 
 
-def load_content(raw: Optional[str]) -> PortfolioContent:
+def load_content(raw: str | None) -> PortfolioContent:
     try:
         return PortfolioContent.model_validate(json.loads(raw or "{}"))
     except (ValueError, TypeError):
         return PortfolioContent()
 
 
-def _sources(db: Session, user: User, row: Portfolio) -> Dict[str, Any]:
+def _sources(db: Session, user: User, row: Portfolio) -> dict[str, Any]:
     profile = jj.profile_for(db, user)
     return {
         "resume": iso_utc(profile.updated_at) if profile is not None and profile.updated_at else None,
@@ -175,7 +177,7 @@ def _sources(db: Session, user: User, row: Portfolio) -> Dict[str, Any]:
     }
 
 
-def to_api(db: Session, user: User, row: Portfolio) -> Dict[str, Any]:
+def to_api(db: Session, user: User, row: Portfolio) -> dict[str, Any]:
     out = load_content(row.content).model_dump()
     out.update({"status": row.status, "username": row.username or "", "sources": _sources(db, user, row),
                 "updatedAt": iso_utc(row.updated_at), "publishedAt": iso_utc(row.published_at)})
@@ -192,7 +194,7 @@ def save_draft(db: Session, row: Portfolio, content: PortfolioContent) -> Portfo
 
 # --- usernames ----------------------------------------------------------------------------
 
-def username_problem(db: Session, name: str, user: Optional[User] = None) -> Optional[str]:
+def username_problem(db: Session, name: str, user: User | None = None) -> str | None:
     """None if `name` can be claimed by `user`, else a human-readable reason."""
     if not USERNAME_RE.match(name or ""):
         return "Use 3 to 24 lowercase letters, numbers or hyphens"
@@ -210,8 +212,8 @@ def username_problem(db: Session, name: str, user: Optional[User] = None) -> Opt
 
 # --- publish ------------------------------------------------------------------------------
 
-def publish_errors(content: PortfolioContent) -> Dict[str, str]:
-    errors: Dict[str, str] = {}
+def publish_errors(content: PortfolioContent) -> dict[str, str]:
+    errors: dict[str, str] = {}
     if not content.identity.fullName.strip():
         errors["fullName"] = "Add your full name before publishing"
     if content.contact.email and not _EMAIL_RE.match(content.contact.email):
@@ -245,7 +247,7 @@ def publish(db: Session, user: User, row: Portfolio, username: str) -> Portfolio
         db.commit()
     except IntegrityError:  # another user claimed it between the check and the write
         db.rollback()
-        raise HTTPException(409, detail={"code": "USERNAME_UNAVAILABLE", "message": "That username is taken"})
+        raise HTTPException(409, detail={"code": "USERNAME_UNAVAILABLE", "message": "That username is taken"}) from None
     db.refresh(row)
     return row
 
@@ -259,7 +261,7 @@ def unpublish(db: Session, row: Portfolio) -> Portfolio:
     return row
 
 
-def public_view(db: Session, username: str) -> Optional[Dict[str, Any]]:
+def public_view(db: Session, username: str) -> dict[str, Any] | None:
     row = (db.query(Portfolio)
            .filter(Portfolio.username == (username or "").lower(), Portfolio.status == "published").first())
     if row is None or not row.published_content:
@@ -271,12 +273,12 @@ def public_view(db: Session, username: str) -> Optional[Dict[str, Any]]:
 
 # --- regenerate -------------------------------------------------------------------------------
 
-def _period(start: Optional[str], end: Optional[str]) -> str:
+def _period(start: str | None, end: str | None) -> str:
     start, end = (start or "").strip(), (end or "").strip()
     return f"{start} – {end}" if start and end else start or end
 
 
-def _append_missing(items: List[Item], new: List[Item]) -> None:
+def _append_missing(items: list[Item], new: list[Item]) -> None:
     have = {(i.title.strip().lower(), i.subtitle.strip().lower()) for i in items}
     for item in new:
         key = (item.title.strip().lower(), item.subtitle.strip().lower())
@@ -290,11 +292,11 @@ def regenerate(db: Session, user: User, row: Portfolio) -> Portfolio:
     profile = jj.profile_for(db, user)
     ident, contact, socials = content.identity, content.contact, content.socials
 
-    def fill(obj, field: str, value: Optional[str], limit: int) -> None:
+    def fill(obj, field: str, value: str | None, limit: int) -> None:
         if value and str(value).strip() and not getattr(obj, field).strip():
             setattr(obj, field, str(value).strip()[:limit])
 
-    def real_email(value: Optional[str]) -> Optional[str]:
+    def real_email(value: str | None) -> str | None:
         return value if value and not value.endswith("@clerk.user") else None  # Clerk placeholder, not an address
 
     fill(ident, "fullName", _real_name(user, profile.full_name if profile else None) or _real_name(user, user.full_name), 120)

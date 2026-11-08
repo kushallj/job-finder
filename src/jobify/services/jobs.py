@@ -18,9 +18,10 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any
 
 from src.models import CandidateProfile, Job, User
 
@@ -36,7 +37,7 @@ SYMBOL = {"USD": "$", "INR": "₹", "GBP": "£", "EUR": "€"}
 _BULLET = re.compile(r"^\s*(?:[-*•▪◦]|\d+[.)])\s+(.{8,240})$")
 
 
-def _json_list(raw: Optional[str]) -> List[str]:
+def _json_list(raw: str | None) -> list[str]:
     if not raw:
         return []
     try:
@@ -48,7 +49,7 @@ def _json_list(raw: Optional[str]) -> List[str]:
     return [p.strip() for p in re.split(r"[,;|]", raw) if p.strip()]
 
 
-def job_skills(job: Job) -> List[str]:
+def job_skills(job: Job) -> list[str]:
     return list(dict.fromkeys(s.lower() for s in _json_list(job.tags)))
 
 
@@ -78,7 +79,7 @@ def job_type(job: Job) -> str:
     return "Internship" if "intern" in (job.title or "").lower() else "Full-time"
 
 
-def job_min_years(job: Job) -> Optional[int]:
+def job_min_years(job: Job) -> int | None:
     """Lower bound of required years, or None when unknown."""
     text = f"{job.experience_level or ''} {job.title or ''}".lower()
     m = re.search(r"(\d+)\s*(?:\+|–|-|to)?\s*\d*\s*(?:years|yrs|yoe)", text)
@@ -129,7 +130,7 @@ def job_salary(job: Job) -> str:
     return "Not disclosed"
 
 
-def job_posted_days_ago(job: Job, now: Optional[datetime] = None) -> int:
+def job_posted_days_ago(job: Job, now: datetime | None = None) -> int:
     ref = job.posted_date or job.fetched_at
     if not ref:
         return 0
@@ -137,7 +138,7 @@ def job_posted_days_ago(job: Job, now: Optional[datetime] = None) -> int:
     return max(0, (now - ref.replace(tzinfo=None)).days)
 
 
-def job_responsibilities(job: Job, limit: int = 6) -> List[str]:
+def job_responsibilities(job: Job, limit: int = 6) -> list[str]:
     out = []
     for line in (job.description or "").splitlines():
         m = _BULLET.match(line)
@@ -150,7 +151,7 @@ def job_responsibilities(job: Job, limit: int = 6) -> List[str]:
 
 # --- match -------------------------------------------------------------------
 
-def profile_for(db, user: User) -> Optional[CandidateProfile]:
+def profile_for(db, user: User) -> CandidateProfile | None:
     """Same linkage convention as auth_router (clerk id, or user_<id>)."""
     keys = [k for k in (user.clerk_user_id, f"user_{user.id}") if k]
     return db.query(CandidateProfile).filter(CandidateProfile.user_identifier.in_(keys)).first()
@@ -168,10 +169,10 @@ class MatchProfile:
     roles: tuple[str, ...]
     role_words: tuple[str, ...]
     targets: tuple[str, ...]
-    years: Optional[float]
+    years: float | None
 
     @classmethod
-    def of(cls, profile: "CandidateProfile | MatchProfile | None") -> Optional["MatchProfile"]:
+    def of(cls, profile: CandidateProfile | MatchProfile | None) -> MatchProfile | None:
         if profile is None or isinstance(profile, MatchProfile):
             return profile
         roles = tuple(r.lower() for r in _json_list(profile.target_roles))
@@ -184,7 +185,7 @@ class MatchProfile:
         )
 
 
-def _score(job: Job, mp: MatchProfile, want: List[str], need: Optional[int], mode: str, country: str) -> int:
+def _score(job: Job, mp: MatchProfile, want: list[str], need: int | None, mode: str, country: str) -> int:
     """Weighted match from precomputed job facts (see module docstring for the weights)."""
     if want:
         skills = len(mp.skills.intersection(want)) / len(want)
@@ -218,14 +219,14 @@ def _score(job: Job, mp: MatchProfile, want: List[str], need: Optional[int], mod
     return round(100 * (0.60 * skills + 0.20 * role + 0.10 * years + 0.10 * loc))
 
 
-def match_score(job: Job, profile: "CandidateProfile | MatchProfile | None") -> int:
+def match_score(job: Job, profile: CandidateProfile | MatchProfile | None) -> int:
     mp = MatchProfile.of(profile)
     if mp is None:
         return 0
     return _score(job, mp, job_skills(job), job_min_years(job), job_work_mode(job), job_country(job))
 
 
-def to_ui_job(job: Job, profile: "CandidateProfile | MatchProfile | None" = None) -> Dict[str, Any]:
+def to_ui_job(job: Job, profile: CandidateProfile | MatchProfile | None = None) -> dict[str, Any]:
     return {
         "id": str(job.id),
         "title": job.title or "",
@@ -260,7 +261,7 @@ class _Candidate:
     posted_days: int
 
 
-SORTERS: Dict[str, Callable[[_Candidate], Any]] = {
+SORTERS: dict[str, Callable[[_Candidate], Any]] = {
     "match": lambda c: -c.match,
     "recent": lambda c: c.posted_days,
     "salary": lambda c: -c.salary_usd,
@@ -270,22 +271,22 @@ SORTERS: Dict[str, Callable[[_Candidate], Any]] = {
 
 def _candidates(
     rows: Iterable[Job],
-    profile: "CandidateProfile | MatchProfile | None",
+    profile: CandidateProfile | MatchProfile | None,
     *,
-    work_modes: List[str],
-    types: List[str],
-    countries: List[str],
-    skills: List[str],
+    work_modes: list[str],
+    types: list[str],
+    countries: list[str],
+    skills: list[str],
     match_only: bool,
     min_salary_usd: float,
-    max_years: Optional[int],
+    max_years: int | None,
     sort: str,
-) -> List[_Candidate]:
+) -> list[_Candidate]:
     """Filter + sort rows on derived facts, cheapest checks first. One pass, O(rows)."""
     mp = MatchProfile.of(profile)
     want_skills = [s.lower() for s in skills]
     now = datetime.utcnow()
-    out: List[_Candidate] = []
+    out: list[_Candidate] = []
     for job in rows:
         mode = job_work_mode(job)
         if work_modes and mode not in work_modes:
@@ -312,7 +313,7 @@ def _candidates(
     return out
 
 
-def filter_and_sort(rows: Iterable[Job], profile: "CandidateProfile | MatchProfile | None", **filters: Any) -> List[Dict[str, Any]]:
+def filter_and_sort(rows: Iterable[Job], profile: CandidateProfile | MatchProfile | None, **filters: Any) -> list[dict[str, Any]]:
     """Every matching job as a UI card (kept for callers that need the full list)."""
     mp = MatchProfile.of(profile)
     return [to_ui_job(c.job, mp) for c in _candidates(rows, mp, **filters)]
@@ -320,12 +321,12 @@ def filter_and_sort(rows: Iterable[Job], profile: "CandidateProfile | MatchProfi
 
 def list_page(
     rows: Iterable[Job],
-    profile: "CandidateProfile | MatchProfile | None",
+    profile: CandidateProfile | MatchProfile | None,
     *,
     page: int,
     page_size: int,
     **filters: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Paginated `{items,total,page,pageSize}`; builds UI cards only for the page slice."""
     mp = MatchProfile.of(profile)
     matched = _candidates(rows, mp, **filters)

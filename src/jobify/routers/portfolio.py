@@ -15,16 +15,15 @@ Logic: src/jobify/services/portfolio.py.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import get_current_user
-from src.database import get_db
-from src.models import User
+from src.api.deps import CURRENT_USER, DB_SESSION
 from src.jobify.services import portfolio as jp
+from src.models import User
 
 router = APIRouter(prefix="/api/portfolio", tags=["Jobify"])
 
@@ -34,42 +33,40 @@ class PublishBody(BaseModel):
 
 
 @router.get("")
-def get_portfolio(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_portfolio(user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     return jp.to_api(db, user, jp.get_or_create(db, user))
 
 
 @router.put("")
-def save_portfolio(body: jp.PortfolioContent, user: User = Depends(get_current_user),
-                   db: Session = Depends(get_db)) -> Dict[str, Any]:
+def save_portfolio(body: jp.PortfolioContent, user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     row = jp.save_draft(db, jp.get_or_create(db, user), body)
     return jp.to_api(db, user, row)
 
 
 @router.get("/username-available")
-def username_available(name: str = Query(default="", max_length=64), user: User = Depends(get_current_user),
-                       db: Session = Depends(get_db)) -> Dict[str, Any]:
+def username_available(user: User = CURRENT_USER, db: Session = DB_SESSION, name: str = Query(default="", max_length=64)) -> dict[str, Any]:
     reason = jp.username_problem(db, name.strip().lower(), user)
     return {"available": True} if reason is None else {"available": False, "reason": reason}
 
 
 @router.post("/publish")
-def publish(body: PublishBody, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def publish(body: PublishBody, user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     row = jp.publish(db, user, jp.get_or_create(db, user), body.username)
     return jp.to_api(db, user, row)
 
 
 @router.delete("/publish")
-def unpublish(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def unpublish(user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     return jp.to_api(db, user, jp.unpublish(db, jp.get_or_create(db, user)))
 
 
 @router.post("/regenerate")
-def regenerate(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def regenerate(user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
     return jp.to_api(db, user, jp.regenerate(db, user, jp.get_or_create(db, user)))
 
 
 @router.get("/{username}")
-def public_portfolio(username: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def public_portfolio(username: str, db: Session = DB_SESSION) -> dict[str, Any]:
     view = jp.public_view(db, username)
     if view is None:
         raise HTTPException(404, "Portfolio not found")
