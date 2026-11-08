@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     # Job APIs
     adzuna_app_id: str = ""
     adzuna_app_key: str = ""
+    adzuna_country: str = "in"  # Adzuna country endpoint (in, gb, us, de, ...)
+
+    # Job sources (src/job_sources). Empty JOB_SOURCES = every source whose keys are set.
+    # Scrape-tier sources (HTML scraping) stay off until JOB_SOURCES_ALLOW_SCRAPING=true.
+    job_sources: str = ""
+    job_sources_allow_scraping: bool = False
+    job_source_timeout_seconds: float = 120.0
     jobdata_api_key: Optional[str] = None
     aidevboard_api_key: Optional[str] = None
     fantastic_jobs_api_key: Optional[str] = None

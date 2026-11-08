@@ -22,7 +22,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.ai.unified_ai_service import UnifiedAIService
@@ -32,7 +31,6 @@ from src.database import SessionLocal
 from src.email_discovery import EmailDiscoveryService
 from src.outreach_orchestrator import OutreachOrchestrator
 from src.models import Application, Job, Resume
-from src.scrapers.api_scraper import APIJobScraper
 from src.utils.sheets import DEFAULT_WORKSHEET, GoogleSheetsClient
 
 log = logging.getLogger(__name__)
@@ -192,7 +190,6 @@ class JobProcessor:
         orchestrator: Optional[OutreachOrchestrator] = None,
     ):
         self.cfg = config or ProcessorConfig()
-        self.scraper = APIJobScraper()
         self.ai = UnifiedAIService()
         self.metrics = RunMetrics()
 
@@ -273,49 +270,15 @@ class JobProcessor:
         return self.metrics
 
     async def fetch_and_store_jobs(self, query: str = "software engineer") -> int:
-        """Scrape jobs from all sources and persist new ones to the DB."""
+        """Fetch from every enabled job source and persist new jobs (see src/job_sources)."""
+        from src.job_sources import fetch_and_store
+
         log.info("🔍 Fetching jobs for: %s", query)
-        jobs = await with_retry(
-            self.scraper.fetch_all, query,
-            max_retries=self.cfg.max_retries,
-            base_delay=self.cfg.retry_base_delay,
-            label="scraper.fetch_all",
-        )
-        self.metrics.jobs_fetched = len(jobs)
-        log.info("✅ Fetched %d jobs", len(jobs))
-
-        stored = 0
-        seen: set = set()
-
         async with db_session() as db:
-            for job_data in jobs:
-                jid = job_data.get("job_id")
-                if not jid or jid in seen:
-                    continue
-                seen.add(jid)
-
-                if db.query(Job).filter_by(job_id=jid).first():
-                    continue
-
-                job = Job(
-                    job_id=jid,
-                    title=job_data["title"],
-                    company=job_data["company"],
-                    location=job_data["location"],
-                    description=job_data["description"],
-                    url=job_data["url"],
-                    source=job_data["source"],
-                    posted_date=datetime.utcnow(),
-                )
-                try:
-                    db.add(job)
-                    db.commit()
-                    stored += 1
-                except IntegrityError:
-                    db.rollback()
-
+            stored, report = await fetch_and_store(db, query)
+        self.metrics.jobs_fetched = len(report.records)
         self.metrics.jobs_stored = stored
-        log.info("💾 Stored %d new jobs", stored)
+        log.info("💾 Stored %d new jobs (%s)", stored, report.summary())
         return stored
 
     async def process_all_jobs(self, resume_text: str, min_score: Optional[int] = None):

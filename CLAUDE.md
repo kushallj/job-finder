@@ -83,8 +83,8 @@ Score 0–100. **≥65% = worth applying**, <50% = never recommend.
 ## 5. Architecture map
 
 ```
-Job sources (JobSpy, Adzuna, Careerjet, USAJobs, ATS boards, Firecrawl)
-  → src/scrapers/            raw listings
+Job APIs/feeds (Adzuna, Careerjet, USAJobs, JobDataAPI, Arbeitnow, Remotive, Greenhouse/Lever, …)
+  → src/job_sources/         ONE entry point: concurrent fetch → dedupe → bulk store into `jobs`
   → src/job_processor.py     AI match scoring + content generation
   → src/email_engine/, src/email_discovery.py      contact email discovery
   → src/contact_intelligence/                      decision-maker graph ranking (PageRank)
@@ -107,6 +107,7 @@ Job sources (JobSpy, Adzuna, Careerjet, USAJobs, ATS boards, Firecrawl)
 | Billing / credits | `billing_router.py` + `billing_service.py` (Stripe; webhook paths also reserved for Dodo), `credit_service.py` (`CREDIT_COSTS`, `SELECT … FOR UPDATE`) |
 | AI providers | `src/ai/unified_ai_service.py`: cascade Ollama → Gemini → OpenAI/Anthropic/Groq. Ollama isn't available on PaaS |
 | Background | `src/tasks.py`. Procfile: `api`, `worker` (concurrency 4), `beat` (exactly one), `flower` :5555 (internal only). Beat: `refresh_job_catalog` twice daily (`CATALOG_REFRESH_HOURS_UTC`, default 08:00 + 20:00 IST; queries from `CATALOG_QUERIES`) scrapes into the shared `Job` table only; Gmail sync hourly; ghosted sweep daily. **No scheduled task may send email** (`tests/test_catalog_refresh.py`). `run_full_pipeline` (single-candidate) and `send_outreach` (honours `AUTO_SEND_EMAILS`) are manual only. Each refresh is a `catalog_refresh_runs` row (ok/partial/failed/running); `GET /api/admin/catalog-runs` (`require_admin`) shows history, `stuck` runs and `stale` (no success in `CATALOG_STALE_AFTER_HOURS`=26). Deploy: `render.yaml` (worker + beat `numInstances: 1`), `fly.toml` (`[processes]` app/worker/beat; run `fly scale count beat=1`), `docker-compose.prod.yml` (`celery_worker`, `celery_beat`). **Beat must be exactly one instance** |
+| Job fetching | **`src/job_sources/` is the only fetch entry point** (`fetch_jobs`, `fetch_and_store`; CLI `python -m src.job_sources --list`). Sources are `CallableSource`s in `sources.py` with a tier: `official_api` / `public_feed` run when keys are set; `scrape` needs `JOB_SOURCES_ALLOW_SCRAPING=true`; LinkedIn/X/Google results are never registered (test enforces it). Used by the catalog refresh (`tasks._scrape`) and `JobProcessor.fetch_and_store_jobs`. Legacy layers still in the repo but not on this path: `scrapers/api_scraper.py` (stealth LinkedIn/Indeed/Naukri), `scrapers/orchestrator.py`, `multi_platform_scraper.py`, `job_data_providers.search_all` (main.py endpoints). Add new sources to `job_sources/sources.py`, not there |
 | CLI | `src/cli.py`: tracker, verify, dedup, normalize, digest, pipeline, drafts, send, skip, status, scan, process-async, vc-seed-100, vc-scrape-*, vc-cron |
 | Deploy | `Dockerfile`, `docker-compose{,.dev,.prod}.yml` (postgres, redis, api, celery_worker/beat/flower, telegram_daemon, frontend, ollama), `render.yaml`, `fly.toml` |
 | CI | `.github/workflows/deploy-frontend.yml`, `security-scan.yml`. No backend test CI yet |

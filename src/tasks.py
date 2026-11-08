@@ -180,17 +180,13 @@ def scrape_query(self, query: str) -> int:
 
 
 def _scrape(query: str) -> int:
-    """Fetch every job source for one query and store new jobs (deduped) in the Job table."""
-    from src.job_processor import JobProcessor, ProcessorConfig
-    p = JobProcessor(config=ProcessorConfig(auto_send_emails=False))
+    """Fetch every enabled job source for one query and store new jobs (src/job_sources)."""
+    from src.database import SessionLocal
+    from src.job_sources import fetch_and_store
 
-    async def _go():
-        try:
-            return await p.fetch_and_store_jobs(query=query) or 0
-        finally:
-            await p.close()
-
-    return _run(_go())
+    with SessionLocal() as db:
+        stored, _report = _run(fetch_and_store(db, query))
+    return stored
 
 
 # ── Shared Jobify job catalog (scheduled twice daily) ─────────────────────────
