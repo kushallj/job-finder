@@ -151,7 +151,7 @@ def test_keyed_sources_need_keys_and_names_filter(monkeypatch):
         monkeypatch.setattr(settings, key, None)
     names = {s.name for s in enabled_sources("")}
     assert names.isdisjoint({"jobdataapi", "careerjet", "usajobs", "adzuna"})
-    assert {"arbeitnow", "remotive", "ats_boards"} <= names  # public feeds need no key
+    assert {"arbeitnow", "remotive", "greenhouse", "weworkremotely"} <= names  # public feeds need no key
 
     monkeypatch.setattr(settings, "adzuna_app_id", "id")
     monkeypatch.setattr(settings, "adzuna_app_key", "key")

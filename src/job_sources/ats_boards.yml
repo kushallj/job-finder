@@ -1,0 +1,47 @@
+# Companies queried on each ATS platform's public job-board API (src/job_sources/sources/ats.py).
+# slug: Display Name. Slugs verified live on 2026-11-08. Add companies freely; a wrong slug
+# just returns nothing. Greenhouse and Lever lists live in src/scrapers/ats_scraper.py.
+ashby:
+  openai: OpenAI
+  ramp: Ramp
+  notion: Notion
+  linear: Linear
+  replit: Replit
+  supabase: Supabase
+  posthog: PostHog
+  zapier: Zapier
+  perplexity: Perplexity
+  elevenlabs: ElevenLabs
+  cohere: Cohere
+  modal: Modal
+  clickhouse: ClickHouse
+  docker: Docker
+  sardine: Sardine
+  vanta: Vanta
+  cursor: Cursor
+  watershed: Watershed
+workable:
+  huggingface: Hugging Face
+smartrecruiters:
+  BoschGroup: Bosch
+  Ubisoft2: Ubisoft
+  Experian: Experian
+  Sixt: Sixt
+  Equinox: Equinox
+  ServiceNow: ServiceNow
+  Canva: Canva
+  AECOM2: AECOM
+recruitee:
+  bunq: bunq
+  channable: Channable
+teamtailor:
+  storytel: Storytel
+  polestar: Polestar
+  tibber: Tibber
+  oatly: Oatly
+rippling:
+  rippling: Rippling
+  opendoor: Opendoor
+workday:
+  # tenant|site: Display Name  (https://<tenant>.<wdN>.myworkdayjobs.com/<site>)
+  nvidia.wd5|NVIDIAExternalCareerSite: NVIDIA

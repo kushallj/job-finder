@@ -26,6 +26,17 @@ class Settings(BaseSettings):
     adzuna_app_id: str = ""
     adzuna_app_key: str = ""
     adzuna_country: str = "in"  # Adzuna country endpoint (in, gb, us, de, ...)
+    reed_api_key: Optional[str] = None              # reed.co.uk/developers
+    jooble_api_key: Optional[str] = None            # jooble.org/api/about
+    findwork_api_key: Optional[str] = None          # findwork.dev/developers
+    themuse_api_key: Optional[str] = None           # themuse.com/developers
+    careeronestop_user_id: Optional[str] = None     # careeronestop.org/Developers
+    careeronestop_api_token: Optional[str] = None
+    rapidapi_key: Optional[str] = None              # JSearch on RapidAPI
+    theirstack_api_key: Optional[str] = None        # theirstack.com (each job costs a credit)
+    theirstack_max_results: int = 25
+    france_travail_client_id: Optional[str] = None  # francetravail.io
+    france_travail_client_secret: Optional[str] = None
 
     # Job sources (src/job_sources). Empty JOB_SOURCES = every source whose keys are set.
     # Scrape-tier sources (HTML scraping) stay off until JOB_SOURCES_ALLOW_SCRAPING=true.

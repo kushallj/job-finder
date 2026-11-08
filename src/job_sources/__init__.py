@@ -18,9 +18,9 @@ CLI: python -m src.job_sources --list | "<query>" [--location X] [--store]
 from src.job_sources.base import CallableSource, JobSource
 from src.job_sources.models import FetchReport, JobRecord, SearchQuery, SourceReport, Tier
 from src.job_sources.registry import all_sources, describe, enabled_sources
-from src.job_sources.service import dedupe, fetch_and_store, fetch_jobs, store_jobs
+from src.job_sources.service import dedupe, fetch_and_store, fetch_jobs, store_jobs, upsert_jobs
 
 __all__ = [
     "CallableSource", "FetchReport", "JobRecord", "JobSource", "SearchQuery", "SourceReport", "Tier",
-    "all_sources", "dedupe", "describe", "enabled_sources", "fetch_and_store", "fetch_jobs", "store_jobs",
+    "all_sources", "dedupe", "describe", "enabled_sources", "fetch_and_store", "fetch_jobs", "store_jobs", "upsert_jobs",
 ]

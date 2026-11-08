@@ -89,7 +89,7 @@ class JobRecord:
         company = str(d.get("company") or d.get("company_name") or "").strip()[:500]
         if not title or not company:
             return None
-        src = str(d.get("source") or source)
+        src = source  # provenance = the adapter that fetched it (legacy dicts carry ad-hoc labels)
         url = str(d.get("url") or "").strip()
         job_id = str(d.get("job_id") or "") or f"{src}:{_digest(title, company, url)}"
         payload = d.get("provider_payload")

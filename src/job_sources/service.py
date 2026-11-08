@@ -10,6 +10,7 @@ Errors: one failing or slow source is reported and skipped; it never fails the r
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from collections.abc import Iterable, Sequence
@@ -112,6 +113,43 @@ def _store_one_by_one(db: Session, records: Iterable[JobRecord]) -> int:
         except IntegrityError:
             db.rollback()
     return stored
+
+
+UPSERT_FIELDS = ("title", "company", "location", "description", "url", "posted_date", "provider_id",
+                 "company_website", "salary_min", "salary_max", "salary_currency", "has_remote", "work_mode",
+                 "experience_level", "tags", "expired_at", "provider_payload")
+
+
+def upsert_jobs(db: Session, records: Sequence[JobRecord]) -> tuple[int, int]:
+    """Insert new records and refresh existing ones (non-empty fields win; `provider_sources`
+    accumulates every source that listed the job). Returns (inserted, updated)."""
+    inserted = updated = 0
+    for start in range(0, len(records), STORE_CHUNK):
+        chunk = records[start:start + STORE_CHUNK]
+        existing = {j.job_id: j for j in db.query(Job).filter(Job.job_id.in_([r.job_id for r in chunk]))}
+        for rec in chunk:
+            row = rec.to_row()
+            job = existing.get(rec.job_id)
+            if job is None:
+                db.add(Job(**row, provider_sources=json.dumps([rec.source])))
+                inserted += 1
+                continue
+            for name in UPSERT_FIELDS:
+                if row[name] not in (None, ""):
+                    setattr(job, name, row[name])
+            sources = _json_list(job.provider_sources) or ([job.source] if job.source else [])
+            job.provider_sources = json.dumps(list(dict.fromkeys([*sources, rec.source])))
+            updated += 1
+        db.commit()
+    return inserted, updated
+
+
+def _json_list(raw: str | None) -> list[str]:
+    try:
+        value = json.loads(raw) if raw else []
+    except ValueError:
+        return []
+    return [str(v) for v in value] if isinstance(value, list) else []
 
 
 async def fetch_and_store(
