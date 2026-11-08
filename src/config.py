@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     adzuna_country: str = "in"  # Adzuna country endpoint (in, gb, us, de, ...)
     reed_api_key: Optional[str] = None              # reed.co.uk/developers
     jooble_api_key: Optional[str] = None            # jooble.org/api/about
+    jooble_host: str = "jooble.org"                # keys are per country site, e.g. in.jooble.org
     findwork_api_key: Optional[str] = None          # findwork.dev/developers
     themuse_api_key: Optional[str] = None           # themuse.com/developers
     careeronestop_user_id: Optional[str] = None     # careeronestop.org/Developers

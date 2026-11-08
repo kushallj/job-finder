@@ -105,7 +105,7 @@ async def _reed(q: SearchQuery) -> Rows:
 
 async def _jooble(q: SearchQuery) -> Rows:
     body = {"keywords": q.text, "location": q.location, "page": "1", "ResultOnPage": str(min(q.limit, 50))}
-    res = await request("POST", f"https://jooble.org/api/{settings.jooble_api_key}", json=body)
+    res = await request("POST", f"https://{settings.jooble_host}/api/{settings.jooble_api_key}", json=body)
     return [normalize_job({
         "id": j.get("id"), "title": j.get("title"), "company": j.get("company"), "location": j.get("location"),
         "description": html_to_text(j.get("snippet")), "url": j.get("link"), "posted": j.get("updated"),
