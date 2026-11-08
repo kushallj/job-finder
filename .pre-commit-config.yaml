@@ -14,3 +14,9 @@ repos:
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.4
+    hooks:
+      # Strict profile (src/jobify/ruff.toml) on the product API; legacy code is not gated yet.
+      - id: ruff
+        files: ^src/(jobify/|api/(deps|contract)\.py)

@@ -19,7 +19,8 @@ Agent and contributor context. Auto-loaded by Claude Code every session, so keep
 - Read `config/profile.yml` + `data/resume.txt` before evaluating fit or writing outreach. Cite resume lines when justifying a score.
 - Regenerate `data/applications.md` (`python -m src.tracker`) after any status change.
 - New API routes: require auth by default and filter every query by the current user (§6).
-- Validate with the smallest relevant check: `python -m compileall src main.py`, the targeted `pytest` file, and `npm run check` in `jobify/`.
+- Validate with the smallest relevant check: `python -m compileall src main.py`, the targeted `pytest` file, `ruff check src/jobify` (strict profile in `src/jobify/ruff.toml`), and `npm run check` in `jobify/`.
+- Route dependencies: `user: User = CURRENT_USER, db: Session = DB_SESSION` from `src/api/deps.py` (not `Annotated` until FastAPI is upgraded past 0.104).
 - Keep diffs to one concern each. Don't refactor business logic unless asked.
 
 ---
@@ -102,7 +103,7 @@ Job sources (JobSpy, Adzuna, Careerjet, USAJobs, ATS boards, Firecrawl)
 | Other routers | `src/api/routers/*.py` (ops, agents, auth, billing, legacy kanban/mailbox/portfolio/telegram), `src/vc_intelligence/api.py`, crawler, sidekick, nextraise, workday, startups_gallery |
 | Auth | `src/auth/dependencies.py` (Clerk RS256 via JWKS + auto-provision, HS256 legacy, `require_admin`, `is_public_path`), `jwt_handler.py`, `crypto.py` |
 | Settings | `src/config.py`. `env`, `database_url` (default SQLite `jobs.db`), `cors_origins`, `frontend_url`, `clerk_*`, `default_signup_credits=50`, `auto_send_emails=False`; the default `jwt_secret_key` is blocked when `ENV=production` |
-| Models / DB | `src/models.py` (`User.clerk_user_id` exists), `src/database.py`, `alembic/` (baseline `b4686927ddeb` + one revision per Jobify phase; head `124e1ce369ff` catalog refresh runs) |
+| Models / DB | `src/models.py` (`User.clerk_user_id` exists), `src/database.py`, `alembic/` (baseline `b4686927ddeb` + one revision per Jobify phase; head `9a3e51c0d7b2` hot-path indexes) |
 | Billing / credits | `billing_router.py` + `billing_service.py` (Stripe; webhook paths also reserved for Dodo), `credit_service.py` (`CREDIT_COSTS`, `SELECT … FOR UPDATE`) |
 | AI providers | `src/ai/unified_ai_service.py`: cascade Ollama → Gemini → OpenAI/Anthropic/Groq. Ollama isn't available on PaaS |
 | Background | `src/tasks.py`. Procfile: `api`, `worker` (concurrency 4), `beat` (exactly one), `flower` :5555 (internal only). Beat: `refresh_job_catalog` twice daily (`CATALOG_REFRESH_HOURS_UTC`, default 08:00 + 20:00 IST; queries from `CATALOG_QUERIES`) scrapes into the shared `Job` table only; Gmail sync hourly; ghosted sweep daily. **No scheduled task may send email** (`tests/test_catalog_refresh.py`). `run_full_pipeline` (single-candidate) and `send_outreach` (honours `AUTO_SEND_EMAILS`) are manual only. Each refresh is a `catalog_refresh_runs` row (ok/partial/failed/running); `GET /api/admin/catalog-runs` (`require_admin`) shows history, `stuck` runs and `stale` (no success in `CATALOG_STALE_AFTER_HOURS`=26). Deploy: `render.yaml` (worker + beat `numInstances: 1`), `fly.toml` (`[processes]` app/worker/beat; run `fly scale count beat=1`), `docker-compose.prod.yml` (`celery_worker`, `celery_beat`). **Beat must be exactly one instance** |
