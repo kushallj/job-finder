@@ -7,19 +7,39 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   security-audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # Scan only the new commits: the PR's commits, or the range a push added. (base=main on a
+      # push to main compared main with itself, so TruffleHog refused to scan anything.)
+      # Manual runs and a branch's first push (before = 000...0) scan the full history.
+      - name: Commit range
+        id: range
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          base=""
+          if [ "$EVENT" = "pull_request" ]; then base="$PR_BASE"
+          elif [ "$EVENT" = "push" ] && [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then base="$BEFORE"
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
       - name: Secret Scan with TruffleHog OSS
         uses: trufflesecurity/trufflehog@v3.99.7  # pinned release (was @main: mutable, supply-chain risk)
         with:
           path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
+          base: ${{ steps.range.outputs.base }}
+          head: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           extra_args: --only-verified
