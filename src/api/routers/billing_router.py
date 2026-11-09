@@ -21,6 +21,7 @@ from src.services.billing_service import (
     get_plans_catalog,
     create_checkout_session,
     create_customer_portal_session,
+    verify_dodo_signature,
     verify_webhook_signature,
     process_webhook_event,
 )
@@ -188,12 +189,16 @@ async def dodo_webhook(
     Activates user Pro subscription (1,000 credits) or adds credit top-ups on successful payments.
     """
     payload_bytes = await request.body()
+    # Public route: without a valid signature anyone could grant any user a paid plan.
+    if not verify_dodo_signature(payload_bytes, dict(request.headers)):
+        log.warning("Invalid or unsigned Dodo webhook rejected")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
     try:
         event_data = json.loads(payload_bytes.decode("utf-8"))
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Malformed JSON payload: {exc}",
+            detail="Malformed JSON payload",
         ) from exc
 
     data = event_data.get("data", event_data)

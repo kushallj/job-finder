@@ -275,6 +275,26 @@ def create_customer_portal_session(
     return {"portal_url": mock_portal}
 
 
+def unsigned_webhooks_allowed() -> bool:
+    return settings.env.lower() in ("development", "dev", "local", "test")
+
+
+def verify_dodo_signature(payload_bytes: bytes, headers: Dict[str, str], secret: Optional[str] = None) -> bool:
+    """Dodo Payments signs webhooks with the Standard Webhooks scheme (webhook-id,
+    webhook-timestamp, webhook-signature; HMAC-SHA256, 5-minute tolerance). The svix
+    library verifies that scheme, including the timestamp window and constant-time compare."""
+    webhook_secret = secret or settings.dodo_payments_webhook_secret
+    if not webhook_secret:
+        return unsigned_webhooks_allowed()
+    from svix.webhooks import Webhook, WebhookVerificationError
+
+    try:
+        Webhook(webhook_secret).verify(payload_bytes, {k.lower(): v for k, v in headers.items()})
+    except (WebhookVerificationError, ValueError):
+        return False
+    return True
+
+
 def verify_webhook_signature(
     payload_bytes: bytes,
     sig_header: str,
@@ -288,8 +308,9 @@ def verify_webhook_signature(
     """
     webhook_secret = secret or settings.stripe_webhook_secret
     if not webhook_secret:
-        # If no webhook secret configured in dev/test, accept if marked mock
-        return True
+        # Unsigned events are accepted only for local development/tests. Anywhere else a
+        # missing secret would let anyone POST a fake payment and grant themselves a plan.
+        return unsigned_webhooks_allowed()
     
     if not sig_header:
         return False
