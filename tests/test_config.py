@@ -1,92 +1,57 @@
-"""Tests for src.config module."""
+"""Tests for src.config: the code's defaults, independent of the machine's .env.
+
+These used to assert on the live `settings` singleton, so they passed or failed depending
+on the developer's .env (Postgres DATABASE_URL, whether an Adzuna key was set). Each test
+now builds Settings with no env file and a scrubbed environment.
+"""
+
 import pytest
+
 from src.config import Settings, settings
 
-
-class TestSettingsLoadsFromEnv:
-    """Verify settings object exists and loads values from .env."""
-
-    def test_settings_loads_from_env(self):
-        """Settings singleton should exist and be a Settings instance."""
-        assert settings is not None
-        assert isinstance(settings, Settings)
-        # Should have loaded required fields (they'd fail validation otherwise)
-        assert hasattr(settings, "adzuna_app_id")
-        assert hasattr(settings, "adzuna_app_key")
-        assert hasattr(settings, "database_url")
-        assert hasattr(settings, "redis_url")
-        assert hasattr(settings, "google_credentials_path")
-        assert hasattr(settings, "gmail_address")
+SCRUB = ("DATABASE_URL", "REDIS_URL", "ENV", "EMAIL_PROVIDER", "ADZUNA_APP_ID", "ADZUNA_APP_KEY", "GEMINI_API_KEY")
 
 
-class TestSettingsHasAdzunaKeys:
-    """Verify Adzuna API keys are present and non-empty."""
-
-    def test_settings_has_adzuna_keys(self):
-        """settings.adzuna_app_id should be a non-empty string."""
-        assert settings.adzuna_app_id is not None
-        assert isinstance(settings.adzuna_app_id, str)
-        assert len(settings.adzuna_app_id) > 0
+@pytest.fixture
+def defaults(monkeypatch) -> Settings:
+    for key in SCRUB:
+        monkeypatch.delenv(key, raising=False)
+    return Settings(_env_file=None)
 
 
-class TestSettingsDatabaseUrl:
-    """Verify database_url contains 'sqlite'."""
-
-    def test_settings_database_url(self):
-        """settings.database_url should contain 'sqlite'."""
-        assert settings.database_url is not None
-        assert "sqlite" in settings.database_url.lower()
+def test_singleton_exposes_core_fields():
+    assert isinstance(settings, Settings)
+    for name in ("adzuna_app_id", "adzuna_app_key", "database_url", "redis_url", "google_credentials_path", "gmail_address"):
+        assert hasattr(settings, name)
 
 
-class TestSettingsRedisUrl:
-    """Verify redis_url starts with 'redis://'."""
-
-    def test_settings_redis_url(self):
-        """settings.redis_url should start with 'redis://'."""
-        assert settings.redis_url is not None
-        assert settings.redis_url.startswith("redis://")
+def test_adzuna_keys_default_to_empty_strings(defaults):
+    # Optional source: empty means "not configured" and the source stays off.
+    assert defaults.adzuna_app_id == "" and defaults.adzuna_app_key == ""
 
 
-class TestSettingsEmailProviderDefault:
-    """Verify email_provider default is 'smtp' or matches .env value."""
-
-    def test_settings_email_provider_default(self):
-        """email_provider should be 'smtp' (default) or a valid provider string."""
-        assert settings.email_provider is not None
-        assert isinstance(settings.email_provider, str)
-        # Default is 'smtp'; if overridden via .env it should still be a valid provider
-        valid_providers = {"smtp", "sendgrid", "ses"}
-        assert settings.email_provider in valid_providers
+def test_database_url_defaults_to_local_sqlite(defaults):
+    assert defaults.database_url.lower().startswith("sqlite")
 
 
-class TestSettingsEnvDevelopment:
-    """Verify settings.env is 'development'."""
-
-    def test_settings_env_development(self):
-        """settings.env should be 'development'."""
-        assert settings.env == "development"
+def test_redis_url_default(defaults):
+    assert defaults.redis_url.startswith("redis://")
 
 
-class TestSettingsOptionalFields:
-    """Verify optional fields can be None."""
-
-    def test_settings_optional_fields(self):
-        """gemini_api_key can be None (it's Optional[str])."""
-        # This just verifies the field exists and accepts None as a valid value
-        # If it's set via .env, it will be a string; if not, it will be None
-        assert hasattr(settings, "gemini_api_key")
-        if settings.gemini_api_key is not None:
-            assert isinstance(settings.gemini_api_key, str)
-        # The field type allows None — that's what we're testing
-        fresh = Settings.model_fields["gemini_api_key"]
-        assert fresh.default is None
+def test_email_provider_default_is_valid(defaults):
+    assert defaults.email_provider in {"smtp", "sendgrid", "ses"}
 
 
-class TestSettingsOllamaModel:
-    """Verify ollama_model is a string."""
+def test_env_defaults_to_development(defaults):
+    assert defaults.env == "development" and not defaults.is_production
 
-    def test_settings_ollama_model(self):
-        """settings.ollama_model should be a non-empty string."""
-        assert settings.ollama_model is not None
-        assert isinstance(settings.ollama_model, str)
-        assert len(settings.ollama_model) > 0
+
+def test_optional_keys_default_to_unset(defaults):
+    assert defaults.gemini_api_key in (None, "")
+
+
+def test_env_vars_override_defaults(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@db:5432/x")
+    monkeypatch.setenv("ENV", "staging")
+    s = Settings(_env_file=None)
+    assert s.database_url == "postgresql://u:p@db:5432/x" and s.env == "staging"

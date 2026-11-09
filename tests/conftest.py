@@ -1,4 +1,15 @@
 """Shared test fixtures for the job-finder test suite."""
+import os
+import tempfile
+
+# Isolate the suite from the developer's database. This runs before any `src` import, so
+# the engine in src/database.py binds to a throwaway SQLite file instead of the .env
+# DATABASE_URL (tests used to write into, and depend on, the local dev Postgres). An
+# explicit DATABASE_URL in the environment wins: CI points it at its Postgres service.
+os.environ.setdefault(
+    "DATABASE_URL", f"sqlite:///{os.path.join(tempfile.mkdtemp(prefix='jobfinder-tests-'), 'test.db')}"
+)
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -182,6 +193,32 @@ def clerk_auth(monkeypatch):
     set_clerk_jwks_client(_StubJWKClient(auth.public_pem))
     yield auth
     set_clerk_jwks_client(None)
+
+def pytest_collection_modifyitems(config, items):
+    """Live third-party calls make the suite slow or hang when that service is (Common
+    Crawl stalled a full run). Opt in with RUN_NETWORK_TESTS=1."""
+    if os.getenv("RUN_NETWORK_TESTS") == "1":
+        return
+    skip = pytest.mark.skip(reason="live network test; set RUN_NETWORK_TESTS=1 to run")
+    for item in items:
+        if "network" in item.keywords:
+            item.add_marker(skip)
+
+
+@pytest.fixture(autouse=True)
+def _example_candidate_identity(monkeypatch):
+    """ATS integrations read the candidate's email from the environment (no hardcoded
+    fallback). Tests use an example identity, never the developer's .env values."""
+    monkeypatch.setenv("NEXTRAISE_EMAIL", "candidate@example.com")
+    monkeypatch.setenv("GMAIL_ADDRESS", "candidate@example.com")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _test_database_schema():
+    """Create every table once on the isolated test database. Tests that hit the app via
+    TestClient(app) without its lifespan would otherwise see an empty schema."""
+    init_db()
+
 
 @pytest.fixture(autouse=True)
 def _legacy_single_tenant_auth(request, monkeypatch):

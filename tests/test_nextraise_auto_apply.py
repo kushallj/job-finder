@@ -1,6 +1,6 @@
 """
 tests/test_nextraise_auto_apply.py — Comprehensive Unit & Integration Test Suite for NextRaise Auto-Apply.
-Verifies high-volume dispatching (200-300 daily target), OAuth for canaby007@gmail.com,
+Verifies high-volume dispatching (200-300 daily target), OAuth for candidate@example.com,
 tamper-evident cryptographic receipts, multi-ATS integration, and quota enforcement.
 """
 import pytest
@@ -59,7 +59,7 @@ def test_ats_detection_for_nextraise():
 
 def test_nextraise_client_receipt_and_dispatch():
     """Verify NextRaise cryptographic receipt generation and proof URL."""
-    client = NextRaiseClient(account_email="canaby007@gmail.com")
+    client = NextRaiseClient(account_email="candidate@example.com")
     receipt_id = client.generate_receipt_id(job_id=42, company="Netflix", ats_code="workday")
     
     assert receipt_id.startswith("NR-WORKDAY-")
@@ -69,12 +69,12 @@ def test_nextraise_client_receipt_and_dispatch():
 @pytest.mark.asyncio
 async def test_nextraise_client_autonomous_submission():
     """Verify autonomous submission packet processing."""
-    client = NextRaiseClient(account_email="canaby007@gmail.com")
+    client = NextRaiseClient(account_email="candidate@example.com")
     ats_info = detect_ats("https://jobs.lever.co/databricks/101")
     
     packet = {
         "job": {"id": 101, "company": "Databricks", "title": "Senior Systems Engineer", "url": "https://jobs.lever.co/databricks/101"},
-        "candidate": {"full_name": "Kushall Jain", "email": "canaby007@gmail.com"},
+        "candidate": {"full_name": "Kushall Jain", "email": "candidate@example.com"},
         "answers": [{"question": "Are you legally authorized to work?", "answer": "Yes, I am fully authorized to work."}],
         "tailored_resume_text": "Experienced Python/FastAPI and Distributed Systems Engineer...",
         "cover_letter_text": "Dear Hiring Team at Databricks...",
@@ -84,7 +84,7 @@ async def test_nextraise_client_autonomous_submission():
     assert result["success"] is True
     assert result["receipt_id"].startswith("NR-LEVER-")
     assert "https://app.nextraise.ai/proof/NR-LEVER-" in result["proof_url"]
-    assert result["account_email"] == "canaby007@gmail.com"
+    assert result["account_email"] == "candidate@example.com"
 
 
 @pytest.mark.asyncio
@@ -103,9 +103,9 @@ async def test_nextraise_payload_builder(db_session):
 
     ats_info = detect_ats(job.url)
     builder = NextRaisePayloadBuilder(db=db_session)
-    packet = builder.build_packet(job, ats_info, account_email="canaby007@gmail.com")
+    packet = builder.build_packet(job, ats_info, account_email="candidate@example.com")
 
-    assert packet["candidate"]["email"] == "canaby007@gmail.com"
+    assert packet["candidate"]["email"] == "candidate@example.com"
     assert packet["job"]["company"] == "Uber"
     assert packet["job"]["ats_type"] == "workday"
     assert len(packet["answers"]) >= 3
@@ -137,7 +137,7 @@ async def test_nextraise_service_single_apply(db_session):
     sub = db_session.query(NextRaiseSubmission).filter(NextRaiseSubmission.job_id == 303).first()
     assert sub is not None
     assert sub.status == "applied"
-    assert sub.account_email == "canaby007@gmail.com"
+    assert sub.account_email == "candidate@example.com"
     assert sub.receipt_id == res["receipt_id"]
 
     # Verify Application record
@@ -220,12 +220,12 @@ def test_nextraise_fastapi_endpoints(db_session):
     res = client.get("/api/nextraise/status")
     assert res.status_code == 200
     data = res.json()
-    assert data["account"]["account_email"] == "canaby007@gmail.com"
+    assert data["account"]["account_email"] == "candidate@example.com"
     assert data["quota"]["daily_limit"] == 300
 
     # 2. POST /api/nextraise/oauth/authorize
     auth_res = client.post("/api/nextraise/oauth/authorize", json={
-        "account_email": "canaby007@gmail.com",
+        "account_email": "candidate@example.com",
         "oauth_access_token": "nr_oauth_test_token_999",
         "session_token": "nr_sess_999",
     })
@@ -244,3 +244,32 @@ def test_nextraise_fastapi_endpoints(db_session):
     assert upd_res.status_code == 200
     assert upd_res.json()["config"]["daily_target"] == 250
     assert upd_res.json()["config"]["min_fit_score"] == 65.0
+
+
+def test_candidate_profile_comes_only_from_config_and_never_invents(tmp_path, monkeypatch):
+    """Auto-apply used to submit hardcoded facts (555 phone, US work authorization, 5 years).
+    Fields absent from config/profile.yml must stay None, never a placeholder."""
+    from src.nextraise.payload_builder import NextRaisePayloadBuilder
+
+    profile = tmp_path / "profile.yml"
+    profile.write_text("candidate:\n  full_name: Test Candidate\n  email: test@example.com\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)  # no data/resume.txt here
+    data = NextRaisePayloadBuilder(db=None).load_candidate_profile(profile_path=str(profile))
+    assert data["full_name"] == "Test Candidate" and data["email"] == "test@example.com"
+    for field in ("phone", "location", "work_authorization", "sponsorship_required", "years_of_experience", "github"):
+        assert data[field] is None, field
+    assert data["skills"] == []
+
+    with pytest.raises(ValueError):
+        NextRaisePayloadBuilder(db=None).load_candidate_profile(profile_path=str(tmp_path / "missing.yml"))
+
+
+def test_candidate_email_has_no_hardcoded_fallback(monkeypatch):
+    from src.candidate_identity import candidate_account_email
+
+    monkeypatch.setenv("NEXTRAISE_EMAIL", "me@example.com")
+    assert candidate_account_email() == "me@example.com"
+    monkeypatch.delenv("NEXTRAISE_EMAIL")
+    monkeypatch.delenv("GMAIL_ADDRESS", raising=False)
+    with pytest.raises(ValueError):
+        candidate_account_email()

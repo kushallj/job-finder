@@ -30,6 +30,8 @@ from src.services.billing_service import (
     verify_webhook_signature,
     process_webhook_event,
 )
+
+PACK_ID = next(iter(CREDIT_PACKS))  # whichever top-up pack the catalog currently sells
 from src.database import get_db
 from main import app
 
@@ -52,19 +54,18 @@ def billing_db_session():
 
 
 def test_plans_catalog_structure():
-    """Verify plan catalog contains free, starter, pro, and unlimited tiers with correct limits."""
-    catalog = get_plans_catalog()
-    assert "plans" in catalog
-    assert "credit_packs" in catalog
-    assert len(catalog["plans"]) == 4
+    """The catalog served to the UI mirrors PLANS/CREDIT_PACKS and is well formed.
 
-    plan_ids = {p["id"] for p in catalog["plans"]}
-    assert plan_ids == {"free", "starter", "pro", "unlimited"}
-    
-    assert PLANS["free"]["credits"] == 50
-    assert PLANS["starter"]["credits"] == 300
-    assert PLANS["pro"]["credits"] == 1000
-    assert PLANS["unlimited"]["credits"] == 9999
+    Asserts invariants, not tier names: the old test froze a 4-tier catalog
+    (free/starter/pro/unlimited) that the code no longer has. Aligning prices with
+    Jobify plans.js is CLAUDE.md Phase 7 (pending pricing decision).
+    """
+    catalog = get_plans_catalog()
+    assert {p["id"] for p in catalog["plans"]} == set(PLANS)
+    assert {p["id"] for p in catalog["credit_packs"]} == set(CREDIT_PACKS)
+    assert "free" in PLANS and PLANS["free"]["credits"] > 0
+    assert all(p["credits"] > 0 for p in catalog["plans"] + catalog["credit_packs"])
+    assert len(catalog["plans"]) >= 2 and catalog["credit_packs"]
 
 
 def test_create_checkout_session_mock_mode(billing_db_session):
@@ -218,11 +219,11 @@ def test_webhook_credit_pack_topup(billing_db_session):
         "type": "checkout.session.completed",
         "data": {
             "object": {
-                "id": "cs_test_pack_300",
+                "id": "cs_test_pack",
                 "customer": "cus_topup_456",
                 "metadata": {
                     "user_id": str(user.id),
-                    "target": "pack_300",
+                    "target": PACK_ID,
                     "type": "topup",
                 },
             }
@@ -233,7 +234,7 @@ def test_webhook_credit_pack_topup(billing_db_session):
     assert res["action"] == "topup_applied"
     
     billing_db_session.refresh(user)
-    assert user.credits_balance == 305  # 5 + 300
+    assert user.credits_balance == 5 + CREDIT_PACKS[PACK_ID]["credits"]
 
 
 def test_fastapi_billing_endpoints(billing_db_session):
@@ -265,7 +266,7 @@ def test_fastapi_billing_endpoints(billing_db_session):
         res_plans = client.get("/api/billing/plans", headers={"Authorization": f"Bearer {token}"})
         assert res_plans.status_code == 200
         data = res_plans.json()
-        assert len(data["plans"]) == 4
+        assert {p["id"] for p in data["plans"]} == set(PLANS)
         assert data["current_tier"] == "free"
 
         # 2. POST /api/billing/create-checkout-session

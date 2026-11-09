@@ -86,7 +86,7 @@ def test_workday_resume_tailorer_and_pdf_generation():
     
     candidate_profile = {
         "full_name": "Kushall Jain",
-        "email": "canaby007@gmail.com",
+        "email": "candidate@example.com",
         "phone": "+1 (555) 019-2834",
         "city": "San Francisco",
         "state": "CA",
@@ -134,20 +134,20 @@ async def test_workday_client_account_and_submission():
     client = WorkdayClient(tenant_domain="gartner.wd5.myworkdayjobs.com")
 
     # 1. Account registration
-    reg_result = await client.register_candidate_account("canaby007@gmail.com", "SecureWorkdayPass123!")
+    reg_result = await client.register_candidate_account("candidate@example.com", "SecureWorkdayPass123!")
     assert reg_result["success"] is True
     assert reg_result["account_created"] is True
     assert reg_result["tenant"] == "gartner"
 
     # 2. Account login
-    login_result = await client.login_candidate_account("canaby007@gmail.com", "SecureWorkdayPass123!")
+    login_result = await client.login_candidate_account("candidate@example.com", "SecureWorkdayPass123!")
     assert login_result["success"] is True
     assert "session_token" in login_result
 
     # 3. 5-step execution
     submission_packet = {
         "job": {"id": 888, "company": "Gartner", "title": "Senior Solutions Architect", "url": "https://gartner.wd5.myworkdayjobs.com/Gartner/job/888"},
-        "candidate": {"full_name": "Kushall Jain", "email": "canaby007@gmail.com"},
+        "candidate": {"full_name": "Kushall Jain", "email": "candidate@example.com"},
         "tailored_resume_path": "/tmp/dummy_resume.pdf",
         "screening_answers": {"legal_authorization": "Yes", "requires_sponsorship": "No"},
         "eeo": {"gender": "Decline to specify", "race_ethnicity": "Asian"}
@@ -192,7 +192,7 @@ async def test_workday_service_single_apply(db_session):
     # Verify Account record was provisioned
     acct = db_session.query(WorkdayAccountRecord).filter(WorkdayAccountRecord.tenant_domain == "nvidia.wd3.myworkdayjobs.com").first()
     assert acct is not None
-    assert acct.email == "canaby007@gmail.com"
+    assert acct.email == "candidate@example.com"
     assert acct.status == "active"
 
     # Verify Submission record
@@ -258,7 +258,7 @@ def test_workday_fastapi_endpoints(db_session):
     res = client.get("/api/workday/status")
     assert res.status_code == 200
     data = res.json()
-    assert data["profile"]["email"] == "canaby007@gmail.com"
+    assert data["profile"]["email"] == "candidate@example.com"
     assert data["config"]["daily_limit"] == 100
 
     # 2. GET & POST /api/workday/profile
@@ -268,14 +268,14 @@ def test_workday_fastapi_endpoints(db_session):
 
     upd_res = client.post("/api/workday/profile", json={
         "full_name": "Kushall Jain",
-        "email": "canaby007@gmail.com",
+        "email": "candidate@example.com",
         "phone": "+1 555-987-6543",
         "city": "San Francisco",
         "state": "CA",
         "postal_code": "94105",
         "headline": "Senior Staff Distributed Systems Architect",
         "linkedin_url": "https://linkedin.com/in/kushalljain",
-        "github_url": "https://github.com/canaby007",
+        "github_url": "https://github.com/example-candidate",
         "experience_years": 8,
         "skills": ["Python", "FastAPI", "Go", "Kubernetes", "AWS", "Workday API"],
         "education": [{"degree": "B.S. Computer Science", "school": "UC Berkeley"}],

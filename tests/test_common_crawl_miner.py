@@ -25,6 +25,7 @@ def test_miner_initialization():
     assert "data.commoncrawl.org" in miner.s3_base_url
 
 
+@pytest.mark.network
 @pytest.mark.asyncio
 async def test_get_available_indices():
     miner = CommonCrawlMiner()
@@ -97,6 +98,7 @@ def test_job_posting_extraction():
     assert jobs[0]["company_domain"] == "stripe.com"
 
 
+@pytest.mark.network
 @pytest.mark.asyncio
 async def test_mine_stealth_intel_end_to_end():
     miner = CommonCrawlMiner()
@@ -109,6 +111,7 @@ async def test_mine_stealth_intel_end_to_end():
     assert len(res["detected_tech_stack"]) >= 1
 
 
+@pytest.mark.network
 @pytest.mark.asyncio
 async def test_common_crawl_email_provider():
     provider = CommonCrawlEmailProvider()
@@ -126,6 +129,7 @@ async def test_common_crawl_email_provider():
     assert "@datadog.com" in res["emails"][0]
 
 
+@pytest.mark.network
 @pytest.mark.asyncio
 async def test_email_discovery_service_integration():
     service = EmailDiscoveryService()
@@ -143,6 +147,7 @@ async def test_email_discovery_service_integration():
     assert len(res["discovered_emails"]) >= 1
 
 
+@pytest.mark.network
 def test_fastapi_common_crawl_endpoints(client):
     # 1. GET /api/common-crawl/indices
     res = client.get("/api/common-crawl/indices")

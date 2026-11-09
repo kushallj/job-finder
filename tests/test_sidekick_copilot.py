@@ -51,8 +51,9 @@ def test_hybrid_rag_semantic_search():
     assert any(term in top_doc["id"].lower() or term in top_doc["title"].lower() for term in ["rate_limiter", "kafka", "ddos", "secure", "server", "traffic", "hashing", "system"])
 
 
-def test_sidekick_api_endpoints():
-    client = TestClient(app)
+def test_sidekick_api_endpoints(clerk_auth):
+    # The sidekick router is mounted with get_current_user: every call needs a token.
+    client = TestClient(app, headers=clerk_auth.headers(sub="user_sidekick", email="sidekick@example.com"))
     
     # 1. Status
     res = client.get("/api/sidekick/status")

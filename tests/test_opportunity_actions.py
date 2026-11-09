@@ -1,84 +1,124 @@
+"""Opportunity actions: lifecycle "do next", action queue ranking, transitions.
+
+The action queue and transitions are per-user (filtered by Application.user_id), so
+these tests sign in with a Clerk test token and create rows owned by that user. They
+used to call the API anonymously with ownerless rows, which only worked before the
+endpoints were tenant-scoped.
+"""
+
 import uuid
-from datetime import datetime, timedelta
-import pytest
+
 from fastapi.testclient import TestClient
 
 from main import app
 from src.database import SessionLocal, init_db
-from src.models import Job, Application, Contact, OutreachRecord
+from src.models import Application, Job, User
 
 
-def test_lifecycle_transition_offer_to_negotiation_and_accept():
-    init_db(); db = SessionLocal()
-    jid = f"lifecycle-{uuid.uuid4().hex}"
-    job = Job(job_id=jid, title="Staff Engineer", company="Lifecycle Co", url="https://example.com/apply", source="test")
-    db.add(job); db.commit(); db.refresh(job)
-    app_row = Application(job_id=job.id, status="offer")
-    db.add(app_row); db.commit(); db.refresh(app_row); job_id = job.id; app_id = app_row.id; db.close()
+def _signed_in(clerk_auth):
+    """Client + auth headers + the auto-provisioned user's id (as in production)."""
+    sub = f"user_{uuid.uuid4().hex[:12]}"
+    headers = clerk_auth.headers(sub=sub, email=f"{sub}@example.com")
+    client = TestClient(app)
+    assert client.get("/api/me", headers=headers).status_code == 200
+    with SessionLocal() as db:
+        user_id = db.query(User.id).filter(User.clerk_user_id == sub).scalar()
+    return client, headers, user_id
+
+
+def _job(db, prefix: str, **kw) -> Job:
+    job = Job(job_id=f"{prefix}-{uuid.uuid4().hex}", url="https://example.com/apply", source="test", **kw)
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+def _cleanup(job_ids):
+    with SessionLocal() as db:
+        db.query(Application).filter(Application.job_id.in_(job_ids)).delete(synchronize_session=False)
+        db.query(Job).filter(Job.id.in_(job_ids)).delete(synchronize_session=False)
+        db.commit()
+
+
+def test_lifecycle_transition_offer_to_negotiation_and_accept(clerk_auth):
+    init_db()
+    client, headers, uid = _signed_in(clerk_auth)
+    with SessionLocal() as db:
+        job = _job(db, "lifecycle", title="Staff Engineer", company="Lifecycle Co")
+        app_row = Application(job_id=job.id, status="offer", user_id=uid)
+        db.add(app_row)
+        db.commit()
+        job_id, app_id = job.id, app_row.id
     try:
-        client = TestClient(app)
-        r = client.post(f"/api/opportunities/{job_id}/do-next")
+        r = client.post(f"/api/opportunities/{job_id}/do-next", headers=headers)
         assert r.status_code == 200 and r.json()["action"] == "negotiate"
-        db = SessionLocal(); current = db.query(Application).filter(Application.id == app_id).first(); assert current and current.status == "negotiation"; db.close()
-        r = client.post(f"/api/opportunities/{job_id}/do-next")
+        with SessionLocal() as db:
+            assert db.get(Application, app_id).status == "negotiation"
+        r = client.post(f"/api/opportunities/{job_id}/do-next", headers=headers)
         assert r.status_code == 200 and r.json()["action"] == "accept_offer" and r.json()["requires_confirmation"] is True
-        r = client.post(f"/api/applications/{app_id}/transition", json={"status": "accepted"})
+        r = client.post(f"/api/applications/{app_id}/transition", json={"status": "accepted"}, headers=headers)
         assert r.status_code == 200 and r.json()["application_status"] == "accepted"
     finally:
-        db = SessionLocal(); db.query(Application).filter(Application.job_id == job_id).delete(synchronize_session=False); db.query(Job).filter(Job.id == job_id).delete(synchronize_session=False); db.commit(); db.close()
+        _cleanup([job_id])
 
 
-def test_action_queue_ranks_and_exposes_lifecycle_action():
-    init_db(); db = SessionLocal()
+def test_action_queue_ranks_and_exposes_lifecycle_action(clerk_auth):
+    init_db()
+    client, headers, uid = _signed_in(clerk_auth)
     ids = []
-    for idx, status in enumerate(("saved", "offer")):
-        jid = f"queue-{idx}-{uuid.uuid4().hex}"
-        job = Job(job_id=jid, title=f"Engineer {idx}", company=f"Queue Co {idx}", url="https://example.com/apply", source="test")
-        db.add(job); db.commit(); db.refresh(job)
-        app_row = Application(job_id=job.id, status=status, match_score=60 + idx * 30)
-        db.add(app_row); db.commit(); ids.append((job.id, app_row.id))
-    db.close()
+    with SessionLocal() as db:
+        for idx, status in enumerate(("saved", "offer")):
+            job = _job(db, f"queue-{idx}", title=f"Engineer {idx}", company=f"Queue Co {idx}")
+            db.add(Application(job_id=job.id, status=status, match_score=60 + idx * 30, user_id=uid))
+            db.commit()
+            ids.append(job.id)
     try:
-        client = TestClient(app)
-        r = client.get('/api/action-queue?limit=1000')
+        r = client.get("/api/action-queue?limit=1000", headers=headers)
         assert r.status_code == 200
-        payload = r.json()
-        by_job = {item['job_id']: item for item in payload['actions'] if item['job_id'] in {x[0] for x in ids}}
-        assert by_job[ids[0][0]]['action']['key'] == 'prepare_application'
-        assert by_job[ids[1][0]]['action']['key'] == 'negotiate'
+        by_job = {item["job_id"]: item for item in r.json()["actions"] if item["job_id"] in ids}
+        assert by_job[ids[0]]["action"]["key"] == "prepare_application"
+        assert by_job[ids[1]]["action"]["key"] == "negotiate"
     finally:
-        db = SessionLocal()
-        for job_id, _ in ids:
-            db.query(Application).filter(Application.job_id == job_id).delete(synchronize_session=False)
-            db.query(Job).filter(Job.id == job_id).delete(synchronize_session=False)
-        db.commit(); db.close()
+        _cleanup(ids)
 
 
-def test_action_queue_excludes_closed_and_deduplicates_job_state():
-    init_db(); db = SessionLocal()
-    jid = f"queue-dedupe-{uuid.uuid4().hex}"
-    job = Job(job_id=jid, title="Platform Engineer", company="Queue Co", url="https://example.com", source="test")
-    db.add(job); db.commit(); db.refresh(job)
-    db.add(Application(job_id=job.id, status="saved", match_score=70))
-    db.commit()
-    db.add(Application(job_id=job.id, status="applied", match_score=80))
-    db.commit()
-    closed_job = Job(job_id=f"closed-{uuid.uuid4().hex}", title="Closed Engineer", company="Closed Co", url="https://example.com", source="test")
-    db.add(closed_job); db.commit(); db.refresh(closed_job)
-    db.add(Application(job_id=closed_job.id, status="accepted", match_score=99)); db.commit()
-    ids = [job.id, closed_job.id]
-    db.close()
+def test_action_queue_excludes_closed_and_deduplicates_job_state(clerk_auth):
+    init_db()
+    client, headers, uid = _signed_in(clerk_auth)
+    with SessionLocal() as db:
+        job = _job(db, "queue-dedupe", title="Platform Engineer", company="Queue Co")
+        db.add(Application(job_id=job.id, status="saved", match_score=70, user_id=uid))
+        db.commit()
+        db.add(Application(job_id=job.id, status="applied", match_score=80, user_id=uid))
+        db.commit()
+        closed = _job(db, "closed", title="Closed Engineer", company="Closed Co")
+        db.add(Application(job_id=closed.id, status="accepted", match_score=99, user_id=uid))
+        db.commit()
+        job_id, closed_id = job.id, closed.id
     try:
-        client = TestClient(app)
-        r = client.get('/api/action-queue?limit=100')
+        r = client.get("/api/action-queue?limit=100", headers=headers)
         assert r.status_code == 200
-        rows = r.json()['actions']
-        ours = [x for x in rows if x['job_id'] in ids]
-        assert len([x for x in ours if x['job_id'] == job.id]) == 1
-        assert not any(x['job_id'] == closed_job.id for x in rows)
-        assert next(x for x in ours if x['job_id'] == job.id)['stage'] == 'applied'
+        rows = r.json()["actions"]
+        ours = [x for x in rows if x["job_id"] == job_id]
+        assert len(ours) == 1 and ours[0]["stage"] == "applied"
+        assert not any(x["job_id"] == closed_id for x in rows)
     finally:
-        db = SessionLocal()
-        db.query(Application).filter(Application.job_id.in_(ids)).delete(synchronize_session=False)
-        db.query(Job).filter(Job.id.in_(ids)).delete(synchronize_session=False)
-        db.commit(); db.close()
+        _cleanup([job_id, closed_id])
+
+
+def test_action_queue_hides_other_users_applications(clerk_auth):
+    """Tenant isolation: user B never sees user A's opportunities."""
+    init_db()
+    _client_a, _headers_a, uid_a = _signed_in(clerk_auth)
+    client_b, headers_b, _uid_b = _signed_in(clerk_auth)
+    with SessionLocal() as db:
+        job = _job(db, "private", title="Private Role", company="A Co")
+        db.add(Application(job_id=job.id, status="saved", match_score=90, user_id=uid_a))
+        db.commit()
+        job_id = job.id
+    try:
+        rows = client_b.get("/api/action-queue?limit=1000", headers=headers_b).json()["actions"]
+        assert not any(x["job_id"] == job_id for x in rows)
+    finally:
+        _cleanup([job_id])

@@ -194,7 +194,7 @@ Goal: ship **Jobify** (`jobify/`, copied from `devnoid1/Jobify` @ `89b2570` on 2
 
 **Decisions:** existing `/api/*` routes are **replaced** in place (`VITE_API_BASE_URL=https://<host>/api`) · `frontend/` and `extension/` are **retired**, so their routes can be reshaped or deleted freely · payments via **Dodo** (merchant of record, which handles GST/tax) at **Jobify `plans.js` prices** (Basic $5/500 credits, Pro $8/1,500) · Jobs/Founders data = **everything currently in the DB** (legal review is the user's accepted risk, so flag it, don't block) · **real Gmail OAuth in the MVP** · Chat LLM provider **deferred**.
 
-**Cross-cutting: ✅ done 2026-11-05** (global auth, fail-closed Clerk + `azp`, contract envelope/`paginate`/`scoped`, credit costs, Alembic baseline, `clerk_auth` test fixture, `.env.example`). Tests: legacy endpoint tests run single-tenant via an autouse fixture in `tests/conftest.py`; Jobify-phase tests must use `clerk_auth`. 22 tests were failing before this work and still fail (not caused by it). Original checklist for reference:
+**Cross-cutting: ✅ done 2026-11-05** (global auth, fail-closed Clerk + `azp`, contract envelope/`paginate`/`scoped`, credit costs, Alembic baseline, `clerk_auth` test fixture, `.env.example`). Tests: legacy endpoint tests run single-tenant via an autouse fixture in `tests/conftest.py`; Jobify-phase tests must use `clerk_auth`. The 22 long-standing failures were fixed on 2026-11-09 (see Testing rules below). Original checklist for reference:
 - Global auth: wire `enforce_auth_unless_public` as an app-level dependency and keep `is_public_path` as the allow-list. Add an `azp` check. Add `CLERK_*`, `DODO_*`, `GOOGLE_OAUTH_*`, `TOKEN_ENCRYPTION_KEY` to `.env.example`.
 - Contract helpers in `src/api/contract.py`: `paginate()` → `{items,total,page,pageSize}`, plus an exception handler mapping every `HTTPException`/validation error to `{error:{code,message}}` (402 → `CREDITS_REQUIRED`).
 - Tenant helper `scoped(query, Model, user)`. Every new route uses it, and pytest asserts user A can't read or write user B's rows.
@@ -240,6 +240,12 @@ Goal: ship **Jobify** (`jobify/`, copied from `devnoid1/Jobify` @ `89b2570` on 2
 - **CI** (`.github/workflows/backend-ci.yml`): ruff (bug rules repo-wide + strict profiles), release-gate pytest on Postgres, `alembic upgrade head` + `alembic check` + downgrade/upgrade on fresh Postgres, `pip-audit`, Docker build (non-root, no secrets baked in), Jobify `npm run check`. Full legacy suite runs non-blocking.
 
 ---
+
+**Testing rules (2026-11-09):**
+- `tests/conftest.py` points `DATABASE_URL` at a throwaway SQLite file before any `src` import (unless the env already sets it; CI sets Postgres) and creates the schema once per session. Tests must never read or write the developer's database or `data/`/`config/` personal files.
+- Tests that call per-user endpoints use `clerk_auth` and create rows owned by that user; anonymous calls only work for legacy single-tenant routes.
+- No personal data in code or tests: ATS integrations read the candidate's identity from env (`src/candidate_identity.py`) and the profile from `config/profile.yml`; missing facts stay empty, never placeholders. Tests use `candidate@example.com`.
+- SQLite does not enforce `String(n)`; Postgres does. Insert paths for provider/free-text data use `fit_to_columns()` (src/models.py).
 
 ## 10. Gotchas
 
