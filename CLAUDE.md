@@ -228,6 +228,17 @@ Goal: ship **Jobify** (`jobify/`, copied from `devnoid1/Jobify` @ `89b2570` on 2
 
 **Production target:** Jobify on Vercel (Clerk *production* instance on an owned domain) · slim API image without Playwright (scrapers in a separate worker image) · Celery worker + one beat · managed Postgres (backups/PITR) + Redis · Sentry + PostHog · secrets in the platform store · Flower and `/metrics` kept private.
 
+**Production hardening (✅ 2026-11-09; keep these invariants):**
+- **Startup refusal:** `src/production_checks.py` makes the API exit at import when `ENV=production` and a required/unsafe setting is wrong (Clerk issuer/azp/webhook secret, `TOKEN_ENCRYPTION_KEY`, https-only `CORS_ORIGINS`/`FRONTEND_URL`, Postgres URL, payment webhook secret for `BILLING_PROVIDER`, `INBOUND_WEBHOOK_SECRET` with `INBOX_DOMAIN`, no mock billing). Full template: `.env.production.example`.
+- **Route policy:** in production non-admins reach only `CUSTOMER_ROUTE_MODULES` (`src.jobify.*`, health, billing, auth) via `enforce_route_policy` in `src/auth/dependencies.py`; every legacy `main.py`/router endpoint is admin-only (404) unless `LEGACY_ROUTES_ENABLED=true`. New customer endpoints belong in `src/jobify/`.
+- **Payment webhooks fail closed:** Dodo (`verify_dodo_signature`, Standard Webhooks via svix) and Stripe signatures are mandatory; unsigned events are accepted only when `ENV` is development/test and no secret is set. Never add a public route that changes plans/credits without a signature check.
+- **HTTP hardening** (`src/api/hardening.py`, pure ASGI so SSE is untouched): security headers (+HSTS in prod), body cap (`MAX_REQUEST_BYTES`, inbound email larger), client `X-Trace-ID` validated (log injection). `/docs` + `/openapi.json` off in prod (`ENABLE_API_DOCS`); legacy `/api/auth/register|login` 404 in prod; `/metrics` `require_admin`.
+- **Probes:** `/healthz` liveness (no I/O; Docker HEALTHCHECK), `/readyz` readiness (DB + Redis, booleans only; Render/Fly/compose health checks). `/health` is legacy, not a probe.
+- **Observability** (`src/observability.py`): JSON logs on stdout in prod with `trace_id` on every line (API and Celery via `setup_logging` signal); `SENTRY_DSN` enables Sentry with `send_default_pii=False`.
+- **Schema:** production schema comes only from `alembic upgrade head` as a release step (`render.yaml` preDeployCommand, `fly.toml` release_command, compose `migrate` service); `init_db()` skips create_all/ALTERs when `ENV=production`.
+- **Image/deps:** `Dockerfile` is multi-stage, non-root, no Playwright/compiler/frontend; `.dockerignore` excludes `.env*`, `data/`, `config/profile.yml`. `requirements.txt` (API/worker, resolvable; FastAPI 0.146 / Starlette 1.x) · `requirements-scrapers.txt` (Playwright, JobSpy) · `requirements-dev.txt` (tests/lint/audit). Local envs built before this need `pip install -r requirements-dev.txt` in a fresh venv.
+- **CI** (`.github/workflows/backend-ci.yml`): ruff (bug rules repo-wide + strict profiles), release-gate pytest on Postgres, `alembic upgrade head` + `alembic check` + downgrade/upgrade on fresh Postgres, `pip-audit`, Docker build (non-root, no secrets baked in), Jobify `npm run check`. Full legacy suite runs non-blocking.
+
 ---
 
 ## 10. Gotchas
