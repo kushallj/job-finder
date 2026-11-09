@@ -93,6 +93,28 @@ python -m src.cli tracker | verify | drafts | scan "<query>"
 
 Output is written to `data/` (for example `data/agent_run_report.md`) for review. The full `/nexus` command list is in [`CLAUDE.md` §2](./CLAUDE.md).
 
+## Deploy on GCP (one VM: nginx + PM2)
+
+Production runs frontend and backend on one Compute Engine VM (Ubuntu 24.04): **nginx** serves the
+built Jobify app and proxies `/api` to the FastAPI app; **PM2** runs and restarts the API, the
+Celery worker and exactly one Celery beat, and captures their logs. Use **Cloud SQL (Postgres)**
+for the database; Redis runs locally on the VM (or use Memorystore).
+
+```bash
+# 1. VM: e2-standard-2+, Ubuntu 24.04, allow HTTP/HTTPS; point your domain's A record at it.
+# 2. Bootstrap (installs Python 3.12, Node 22, nginx, certbot, PM2 + logrotate, Redis, firewall):
+sudo bash infra/gcp/setup_vm.sh https://github.com/devnoid1/Jobify.git app.your-domain.com
+# 3. Secrets: fill /opt/jobify/.env (template: .env.production.example) and
+#    /opt/jobify/jobify/.env.production (template: jobify/.env.production.example).
+# 4. Deploy (also every later release): deps -> frontend build -> migrations -> PM2 reload
+sudo -u jobify bash /opt/jobify/infra/gcp/deploy.sh
+```
+
+Operate with `pm2 status`, `pm2 logs jobify-api`, `pm2 monit`; logs also land in `/var/log/jobify/`
+(rotated daily-ish by `pm2-logrotate`, 14 kept). Health: `https://app.your-domain.com/readyz`.
+The API refuses to start in production if a required setting is missing and prints which one.
+
+
 ## Checks
 
 ```bash
