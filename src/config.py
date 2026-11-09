@@ -30,7 +30,6 @@ class Settings(BaseSettings):
     jooble_api_key: Optional[str] = None            # jooble.org/api/about
     jooble_host: str = "jooble.org"                # keys are per country site, e.g. in.jooble.org
     findwork_api_key: Optional[str] = None          # findwork.dev/developers
-    themuse_api_key: Optional[str] = None           # themuse.com/developers
     careeronestop_user_id: Optional[str] = None     # careeronestop.org/Developers
     careeronestop_api_token: Optional[str] = None
     rapidapi_key: Optional[str] = None              # JSearch on RapidAPI

@@ -18,7 +18,7 @@ job-finder/
 │   ├── agents/          core agents 1-15 + orchestrator.py
 │   ├── experimental/    agents 16-26 + their services (unwired; audit before use)
 │   ├── auth/            Clerk RS256 + legacy HS256 JWT verification
-│   ├── job_sources/     the one job-fetch entry point: 53 sources (31 keyless), concurrent, deduped (`python -m src.job_sources --list`)
+│   ├── job_sources/     the one job-fetch entry point: 52 sources (31 keyless), concurrent, deduped (`python -m src.job_sources --list`)
 │   ├── company_sources/ registries/ (curated company lists) + miners/ (careers/contact miners)
 │   ├── models.py        SQLAlchemy models    database.py  engine/session
 │   ├── tasks.py         Celery tasks         cli.py       NEXUS CLI

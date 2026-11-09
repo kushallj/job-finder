@@ -128,30 +128,6 @@ async def _findwork(q: SearchQuery) -> Rows:
     }, "findwork") for j in data.get("results", [])[: q.limit]]
 
 
-# --- The Muse (themuse.com/developers/api/v2) : no text search, filter client-side ------------------
-
-async def _themuse(q: SearchQuery) -> Rows:
-    from src.job_sources.sources._http import matches
-
-    params: dict[str, Any] = {"page": 0, "descending": "true", "api_key": settings.themuse_api_key}
-    if q.location:
-        params["location"] = q.location
-    data = await get_json("https://www.themuse.com/api/public/jobs", params=params)
-    rows = []
-    for j in data.get("results", []):
-        text = html_to_text(j.get("contents"))
-        if not matches(q.text, j.get("name"), text):
-            continue
-        rows.append(normalize_job({
-            "id": j.get("id"), "title": j.get("name"), "company": (j.get("company") or {}).get("name"),
-            "location": ", ".join(loc.get("name", "") for loc in j.get("locations") or []),
-            "description": text, "url": (j.get("refs") or {}).get("landing_page"),
-            "posted": j.get("publication_date"),
-            "experience_level": ", ".join(lv.get("name", "") for lv in j.get("levels") or []) or None,
-        }, "themuse"))
-    return rows[: q.limit]
-
-
 # --- CareerOneStop (US Dept. of Labor) : user id + bearer token -------------------------------------
 
 async def _careeronestop(q: SearchQuery) -> Rows:
@@ -250,7 +226,6 @@ SOURCES: tuple[CallableSource, ...] = (
     CallableSource("reed", Tier.OFFICIAL_API, _reed, _has("reed_api_key"), "Reed.co.uk (UK)"),
     CallableSource("jooble", Tier.OFFICIAL_API, _jooble, _has("jooble_api_key"), "Jooble aggregator (70 countries)"),
     CallableSource("findwork", Tier.OFFICIAL_API, _findwork, _has("findwork_api_key"), "Findwork.dev tech jobs"),
-    CallableSource("themuse", Tier.OFFICIAL_API, _themuse, _has("themuse_api_key"), "The Muse"),
     CallableSource("careeronestop", Tier.OFFICIAL_API, _careeronestop,
                    _has("careeronestop_user_id", "careeronestop_api_token"), "CareerOneStop (US DOL)"),
     CallableSource("jsearch", Tier.OFFICIAL_API, _jsearch, _has("rapidapi_key"), "JSearch via RapidAPI"),
