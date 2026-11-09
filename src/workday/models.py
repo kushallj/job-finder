@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, Date, ForeignKey
 from sqlalchemy.orm import relationship
 
-from src.database import Base
+from src.models import Base
 
 
 class WorkdayCandidateProfile(Base):

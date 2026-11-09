@@ -3,8 +3,9 @@ from sqlalchemy import create_engine, event, inspect, text as _text  # type: ign
 from sqlalchemy.orm import sessionmaker, Session  # type: ignore # pyrefly: ignore [missing-import]
 from src.config import settings
 from src.models import Base
-from src.answer_bank import models as _answer_bank_models  # noqa: F401  (registers AnsweredQuestion on Base.metadata)
-from src.nextraise import models as _nextraise_models      # noqa: F401  (registers NextRaise on Base.metadata)
+from src.model_registry import load_all_models
+
+load_all_models()  # every table on Base.metadata (same set Alembic sees)
 
 def normalize_database_url(url: str) -> str:
     """Normalize database URL for SQLAlchemy 2.0 (e.g. postgres:// -> postgresql://)."""
