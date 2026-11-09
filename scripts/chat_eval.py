@@ -155,8 +155,8 @@ async def main() -> int:
         if args.think and isinstance(p, cp.OpenAICompatibleProvider):
             p.extra_body = {k: v for k, v in p.extra_body.items() if k not in ("reasoning_effort", "reasoning")}
             p.max_tokens = max(p.max_tokens, 3000)
-    print(f"Providers: {', '.join(p.name + ':' + str(getattr(p, "model", '-')) for p in chain)}"
-          f"{' (thinking allowed)' if args.think else ''}\n")
+    providers = ", ".join(p.name + ":" + str(getattr(p, "model", "-")) for p in chain)
+    print(f"Providers: {providers}{' (thinking allowed)' if args.think else ''}\n")
 
     histories: Dict[str, List[cp.Message]] = {}
     failures = 0
