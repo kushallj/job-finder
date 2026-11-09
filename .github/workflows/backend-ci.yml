@@ -66,11 +66,12 @@ jobs:
           tests/test_catalog_refresh.py tests/test_production_hardening.py
           tests/test_models.py tests/test_database.py tests/test_database_schema.py
 
-  legacy-tests:
-    # Full suite as a report. Known pre-existing failures (CLAUDE.md) keep this non-blocking
-    # until they are fixed; the release gate above is what must stay green.
+  full-suite:
+    # Every test, blocking. Runs on the suite's isolated SQLite DB (tests/conftest.py) exactly
+    # as developers run it locally; the `test` job above covers the Postgres-backed release
+    # gate. Live third-party tests (@pytest.mark.network) are skipped unless RUN_NETWORK_TESTS=1.
     runs-on: ubuntu-latest
-    continue-on-error: true
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -79,7 +80,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements*.txt
       - run: pip install -r requirements-dev.txt
-      - run: pytest -q tests --maxfail=200 || true
+      - run: pytest -q tests -p no:cacheprovider
 
   migrations:
     runs-on: ubuntu-latest
