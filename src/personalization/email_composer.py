@@ -51,15 +51,16 @@ log = logging.getLogger(__name__)
 # Sender identity (pulled from config; fallback to placeholder)
 try:
     from src.config import settings as _cfg
-    _MY_NAME     = getattr(_cfg, "sender_name",  "Your Name")
-    _MY_EMAIL    = getattr(_cfg, "sender_email", "")
-    _MY_LINKEDIN = getattr(_cfg, "linkedin_url", "")
+    # Settings exist but may be None when unset; getattr's default only covers a missing attribute.
+    _MY_NAME     = getattr(_cfg, "sender_name", None) or "Your Name"
+    _MY_EMAIL    = getattr(_cfg, "sender_email", None) or ""
+    _MY_LINKEDIN = getattr(_cfg, "linkedin_url", None) or ""
 except Exception:
     _MY_NAME     = "Your Name"
     _MY_EMAIL    = ""
     _MY_LINKEDIN = ""
 
-_MY_TAGLINE = getattr(_cfg, "tagline", "") if "_cfg" in dir() else ""
+_MY_TAGLINE = (getattr(_cfg, "tagline", None) or "") if "_cfg" in dir() else ""
 
 
 class EmailComposer:
