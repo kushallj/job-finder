@@ -17,6 +17,7 @@ load_dotenv()
 
 from sqlalchemy.orm import Session
 
+from src.candidate_identity import candidate_account_email
 from src.models import Application, Job
 from src.tsenta.ats_detector import detect_ats, ATSInfo
 from src.nextraise.client import NextRaiseClient
@@ -37,7 +38,7 @@ class NextRaiseService:
         oauth_token = self.config.oauth_access_token or os.getenv("NEXTRAISE_OAUTH_TOKEN")
         api_url = self.config.api_url or os.getenv("NEXTRAISE_API_URL", "https://nextraise.ai")
         self.client = client or NextRaiseClient(
-            account_email=self.config.account_email or "canaby007@gmail.com",
+            account_email=self.config.account_email or candidate_account_email(),
             oauth_token=oauth_token,
             session_token=session_token,
             widget_session_id=session_token,
@@ -50,7 +51,7 @@ class NextRaiseService:
         env_token = os.getenv("NEXTRAISE_SESSION_TOKEN")
         if not cfg:
             cfg = NextRaiseConfigRecord(
-                account_email="canaby007@gmail.com",
+                account_email=candidate_account_email(),
                 oauth_connected=True,
                 session_token=env_token,
                 oauth_access_token=env_token,

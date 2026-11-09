@@ -360,10 +360,10 @@ EDUCATION
         import json
         if isinstance(candidate_profile, dict):
             prof = WorkdayCandidateProfile(
-                account_email=candidate_profile.get("email") or candidate_profile.get("account_email", "canaby007@gmail.com"),
+                account_email=candidate_profile.get("email") or candidate_profile.get("account_email", ""),
                 first_name=candidate_profile.get("first_name", "Kushall"),
                 last_name=candidate_profile.get("last_name", "Jain"),
-                phone=candidate_profile.get("phone", "+1 555-0199"),
+                phone=candidate_profile.get("phone", ""),  # never a placeholder phone on a real application
                 city=candidate_profile.get("city", "San Francisco"),
                 state_province=candidate_profile.get("state", "CA"),
                 country=candidate_profile.get("country", "USA"),

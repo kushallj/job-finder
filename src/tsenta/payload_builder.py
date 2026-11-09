@@ -34,10 +34,11 @@ class TsentaPayloadBuilder:
         
         # Default candidate profile
         self.candidate_name = os.getenv("SENDER_NAME", "Job Applicant")
-        self.candidate_email = os.getenv("GMAIL_ADDRESS", "applicant@example.com")
-        self.candidate_phone = os.getenv("CANDIDATE_PHONE", "+1 555-0199")
-        self.candidate_linkedin = os.getenv("LINKEDIN_URL", "https://linkedin.com/in/applicant")
-        self.candidate_github = os.getenv("GITHUB_URL", "https://github.com/applicant")
+        # Empty when unset: placeholders here were submitted to employers as real contact details.
+        self.candidate_email = os.getenv("GMAIL_ADDRESS", "")
+        self.candidate_phone = os.getenv("CANDIDATE_PHONE", "")
+        self.candidate_linkedin = os.getenv("LINKEDIN_URL", "")
+        self.candidate_github = os.getenv("GITHUB_URL", "")
         self.candidate_location = os.getenv("CANDIDATE_LOCATION", "Remote / United States")
         self.yoe = 4.0
 

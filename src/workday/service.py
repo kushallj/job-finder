@@ -8,6 +8,9 @@ import hashlib
 import json
 import logging
 import os
+import secrets
+
+from src.candidate_identity import candidate_account_email
 import time
 from datetime import datetime, date, timezone
 from typing import Any, Dict, List, Optional
@@ -27,6 +30,8 @@ from src.workday.models import (
 from src.workday.resume_tailorer import WorkdayResumeTailorer
 
 logger = logging.getLogger("workday_service")
+
+
 
 
 class WorkdayService:
@@ -52,7 +57,7 @@ class WorkdayService:
         today = date.today()
         if not cfg:
             cfg = WorkdayConfigRecord(
-                account_email=os.getenv("NEXTRAISE_EMAIL", os.getenv("GMAIL_ADDRESS", "canaby007@gmail.com")),
+                account_email=candidate_account_email(),
                 auto_apply_enabled=True,
                 mode="instant_auto",
                 min_fit_score=60.0,
@@ -76,7 +81,7 @@ class WorkdayService:
         return cfg
 
     def _get_or_create_candidate_profile(self) -> WorkdayCandidateProfile:
-        email = self.config.account_email or "canaby007@gmail.com"
+        email = self.config.account_email or candidate_account_email()
         profile = self.db.query(WorkdayCandidateProfile).filter(WorkdayCandidateProfile.account_email == email).first()
         if not profile:
             profile = WorkdayCandidateProfile(
@@ -130,9 +135,10 @@ class WorkdayService:
         if account:
             return account
 
-        # Generate secure tenant-specific password
-        pwd_seed = f"Workday!2026_{tenant}_{email}"
-        pwd_hash = hashlib.sha256(pwd_seed.encode()).hexdigest()[:16] + "!Aa1"
+        # Random per-tenant password. It is never needed again (session cookies + auth token
+        # are stored), so nothing is lost; the old value was derived from the tenant and email
+        # ("Workday!2026_{tenant}_{email}"), letting anyone recompute it and log in.
+        pwd_hash = secrets.token_urlsafe(18) + "!Aa1"
 
         # Register via client
         reg_result = await self.client.register_candidate_account(tenant_info, email, pwd_hash)

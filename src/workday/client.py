@@ -261,7 +261,7 @@ class WorkdayClient:
         
         tenant = tenant_info.get("tenant", "workday_portal")
         job_id = job_info.get("id", 0)
-        account_email = profile_data.get("account_email") or profile_data.get("email") or "canaby007@gmail.com"
+        account_email = profile_data.get("account_email") or profile_data.get("email") or ""
         company = job_info.get("company", "Company")
 
         receipt_id = self.generate_receipt_id(tenant, job_id, account_email)

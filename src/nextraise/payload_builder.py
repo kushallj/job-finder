@@ -22,35 +22,48 @@ class NextRaisePayloadBuilder:
     def __init__(self, db: Session):
         self.db = db
 
-    def load_candidate_profile(self, account_email: str = "canaby007@gmail.com") -> Dict[str, Any]:
-        """Loads baseline candidate profile, skills, and contact information."""
-        resume_text = ""
-        for path in ["data/resume.txt", "data/resume_profile.json", "resume.txt"]:
-            if os.path.exists(path):
-                try:
-                    with open(path, "r", encoding="utf-8") as f:
-                        resume_text = f.read()
-                    break
-                except Exception:
-                    pass
+    def load_candidate_profile(self, account_email: Optional[str] = None,
+                               profile_path: str = "config/profile.yml") -> Dict[str, Any]:
+        """The candidate's real profile from config/profile.yml + data/resume.txt.
 
+        Nothing is invented (CLAUDE.md section 1): a field missing from the profile stays
+        None instead of a placeholder. This used to return hardcoded values (a 555 phone
+        number, "Authorized to work in US", "no sponsorship", 5 years) that were submitted
+        to employers as if true. Raises if the profile file is missing.
+        """
+        import yaml
+
+        if not os.path.exists(profile_path):
+            raise ValueError(f"{profile_path} not found: auto-apply needs the candidate's real profile")
+        with open(profile_path, encoding="utf-8") as fh:
+            profile = yaml.safe_load(fh) or {}
+        cand = profile.get("candidate") or {}
+        answers = profile.get("application_answers") or {}
+        stack = profile.get("tech_stack") or {}
+        experience = profile.get("experience") or {}
+
+        resume_text = ""
+        for path in ("data/resume.txt", "data/resume_profile.json"):
+            if os.path.exists(path):
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    resume_text = f.read()
+                break
+
+        full_name = cand.get("full_name") or cand.get("name")
         return {
-            "first_name": "Kushal",
-            "last_name": "Jain",
-            "full_name": "Kushal Jain",
-            "email": account_email,
-            "phone": "+1-415-555-0199",
-            "location": "San Francisco, CA / Remote",
-            "linkedin": "https://linkedin.com/in/kushal-jain",
-            "github": "https://github.com/canaby007",
-            "portfolio": "https://kushaljain.dev",
-            "work_authorization": "Authorized to work in US / Remote",
-            "sponsorship_required": False,
-            "years_of_experience": 5,
-            "skills": [
-                "Python", "FastAPI", "Kotlin", "Java", "Go", "React", "TypeScript",
-                "Docker", "Kubernetes", "AWS", "Distributed Systems", "PostgreSQL", "Redis"
-            ],
+            "first_name": cand.get("first_name"),
+            "last_name": cand.get("last_name"),
+            "full_name": full_name,
+            "email": account_email or cand.get("email"),
+            "phone": cand.get("phone"),
+            "location": cand.get("location"),
+            "linkedin": cand.get("linkedin_url") or cand.get("linkedin"),
+            "github": cand.get("github_url") or cand.get("github"),
+            "portfolio": cand.get("portfolio"),
+            "work_authorization": cand.get("visa_status") or answers.get("work_authorization_india"),
+            "sponsorship_required": answers.get("requires_sponsorship_india"),
+            "years_of_experience": experience.get("years_total") or cand.get("experience_years"),
+            "skills": list(stack.get("strong") or []) + list(stack.get("familiar") or []),
             "resume_raw": resume_text,
         }
 
@@ -88,7 +101,7 @@ class NextRaisePayloadBuilder:
         self,
         job: Job,
         ats_info: ATSInfo,
-        account_email: str = "canaby007@gmail.com",
+        account_email: str = "",
     ) -> Dict[str, Any]:
         """Assembles the complete application submission packet."""
         candidate = self.load_candidate_profile(account_email)

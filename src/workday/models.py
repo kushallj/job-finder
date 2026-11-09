@@ -18,7 +18,7 @@ class WorkdayCandidateProfile(Base):
     __tablename__ = "workday_candidate_profiles"
 
     id = Column(Integer, primary_key=True, index=True)
-    account_email = Column(String(255), unique=True, nullable=False, default="canaby007@gmail.com")
+    account_email = Column(String(255), unique=True, nullable=False)
     
     # ── Personal Information ──
     first_name = Column(String(100), default="Kushall")
@@ -217,7 +217,7 @@ class WorkdayApplicationSubmission(Base):
     tenant_domain = Column(String(255), nullable=False)
     company_name = Column(String(255), nullable=True)
     job_title = Column(String(255), nullable=True)
-    account_email = Column(String(255), nullable=False, default="canaby007@gmail.com")
+    account_email = Column(String(255), nullable=False)
     status = Column(String(50), default="submitted")  # account_created, resume_tailored, form_filled, submitted, failed
     receipt_id = Column(String(100), unique=True, nullable=True, index=True)
     proof_url = Column(Text, nullable=True)
@@ -278,7 +278,7 @@ class WorkdayConfigRecord(Base):
     __tablename__ = "workday_configs"
 
     id = Column(Integer, primary_key=True, index=True)
-    account_email = Column(String(255), default="canaby007@gmail.com")
+    account_email = Column(String(255))
     auto_apply_enabled = Column(Boolean, default=True)
     mode = Column(String(50), default="instant_auto")  # instant_auto | review_gate
     min_fit_score = Column(Float, default=65.0)
