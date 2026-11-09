@@ -101,3 +101,23 @@ def test_deployment_manifests_integrity():
     ignored = (root_dir / ".dockerignore").read_text().splitlines()
     for entry in (".env", "data/", "config/profile.yml"):
         assert entry in ignored, f".dockerignore must exclude {entry}"
+
+
+def test_vercel_builds_only_the_frontend():
+    """Vercel builds jobify/ from the repo root: the root vercel.json mirrors jobify/vercel.json
+    (routing + security headers) and .vercelignore keeps the FastAPI backend out of the upload,
+    otherwise Vercel detects main.py/requirements.txt as a Python app (build failed on psycopg2)."""
+    import json
+
+    repo = Path(__file__).resolve().parents[1]
+    root = json.loads((repo / "vercel.json").read_text(encoding="utf-8"))
+    app_cfg = json.loads((repo / "jobify" / "vercel.json").read_text(encoding="utf-8"))
+    assert root["framework"] == "vite" and root["outputDirectory"] == "jobify/dist"
+    assert "--prefix jobify" in root["installCommand"] and "--prefix jobify" in root["buildCommand"]
+    assert root["rewrites"] == app_cfg["rewrites"]
+    assert root["headers"] == app_cfg["headers"]   # one security-header policy, two entry points
+
+    ignore = (repo / ".vercelignore").read_text(encoding="utf-8").splitlines()
+    assert "/*" in ignore and "!/jobify" in ignore and "!/vercel.json" in ignore
+    assert not any(line.lstrip("!").strip("/") in {"main.py", "requirements.txt", "src", "data"}
+                   for line in ignore if line.startswith("!"))

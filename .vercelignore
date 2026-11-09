@@ -1,0 +1,13 @@
+# Vercel serves only the Jobify frontend (jobify/). The repo root is the FastAPI backend; without
+# this, Vercel auto-detects main.py + requirements.txt as a Python app and tries to install the
+# whole backend (the build failed on psycopg2 under Python 3.14). It also keeps backend code and
+# data off Vercel's build machines. Build settings: vercel.json (mirrors jobify/vercel.json).
+/*
+!/jobify
+!/vercel.json
+!/.vercelignore
+/jobify/node_modules
+/jobify/dist
+/jobify/.env*
+!/jobify/.env.example
+!/jobify/.env.production.example

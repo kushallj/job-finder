@@ -149,7 +149,7 @@ Goal: ship **Jobify** (`jobify/`, copied from `devnoid1/Jobify` @ `89b2570` on 2
 
 ### 6. Jobify frontend rules
 
-- Stack: React 19, Vite 8, Tailwind 4, React Router 7, `@clerk/react`, Motion, Lucide. TypeScript entry `src/main.tsx`; the rest is mostly `.jsx`. Node 22. Deploys to Vercel (`vercel.json`: SPA rewrite, security headers, report-only CSP).
+- Stack: React 19, Vite 8, Tailwind 4, React Router 7, `@clerk/react`, Motion, Lucide. TypeScript entry `src/main.tsx`; the rest is mostly `.jsx`. Node 22. Deploys to Vercel (`jobify/vercel.json`: SPA rewrite, security headers, report-only CSP). The Vercel project builds from the monorepo root: root `vercel.json` mirrors `jobify/vercel.json` (sync test in `tests/test_production_deployment.py`) and `.vercelignore` uploads only `jobify/`, else Vercel detects the FastAPI backend as a Python app.
 - Routes: `/` marketing · `/signin` (Clerk) · `/plans` → `/checkout` · `/demo/{chat,jobs,applications,founders,portfolio}` (no auth, fixtures) · `/app/{…}` (Clerk session).
 - **Integration seam = `jobify/src/services/*.js`** (application, auth, chat, founder, job, newsletter, portfolio). Pages import services only, never `mocks/` or `fetch`.
 - `import.meta.env` is read **only** in `src/config/env.js`. `hasApi` is true when `VITE_API_BASE_URL` is set.
