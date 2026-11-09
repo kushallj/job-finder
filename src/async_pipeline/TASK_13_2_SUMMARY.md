@@ -260,13 +260,13 @@ Created comprehensive documentation:
 
 Run the example to see structured logging in action:
 ```bash
-cd /Users/kushalljain/Desktop/job-finder
+cd path/to/job-finder
 PYTHONPATH=$(pwd) python src/async_pipeline/logging_example.py
 ```
 
 Run tests:
 ```bash
-cd /Users/kushalljain/Desktop/job-finder
+cd path/to/job-finder
 python -m pytest tests/test_structured_logging.py -v
 ```
 

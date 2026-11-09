@@ -37,6 +37,8 @@ CONFIG_DIR = REPO_ROOT / "config"
 DATA_DIR = REPO_ROOT / "data"
 PROFILE_PATH = CONFIG_DIR / "profile.yml"
 TARGET_COMPANIES_PATH = CONFIG_DIR / "target_companies.yml"
+PROFILE_EXAMPLE_PATH = CONFIG_DIR / "profile.example.yml"
+TARGET_COMPANIES_EXAMPLE_PATH = CONFIG_DIR / "target_companies.example.yml"
 AGENT_STATE_DB = DATA_DIR / "agent_state.db"
 
 
@@ -54,6 +56,16 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
         )
     with open(path, "r", encoding="utf-8") as fh:
         return yaml.safe_load(fh) or {}
+
+
+def _load_yaml_or_example(path: Path, example_path: Path) -> Dict[str, Any]:
+    if path.is_file():
+        return _load_yaml(path)
+    if example_path.is_file():
+        log.info("Config file %s is absent; using empty example config %s", path, example_path)
+        return _load_yaml(example_path)
+    log.warning("Config file %s and example %s are both absent", path, example_path)
+    return {}
 
 
 def _classify_theme(text: str) -> str:
@@ -129,7 +141,7 @@ def _normalize_profile(raw: Dict[str, Any]) -> Dict[str, Any]:
         primary_roles = " ".join(profile.get("target_roles", {}).get("primary", []))
         seniority = ("Senior/Staff (per config/profile.yml target_roles)"
                      if any(w in primary_roles for w in ("Senior", "Staff", "Lead"))
-                     else "Mid-level")
+                     else "")
     profile["positioning"] = {
         **positioning_raw,
         "headline": headline,
@@ -192,23 +204,25 @@ def _profile_from_db(user_id: str = "default_user") -> Optional[Dict[str, Any]]:
                     "familiar": skills[8:],
                 },
                 "target_roles": {
-                    "primary": target_roles[:2] or ["Senior Backend Engineer"],
-                    "secondary": target_roles[2:] or ["Full Stack Engineer"],
+                    "primary": target_roles[:2],
+                    "secondary": target_roles[2:],
                 },
                 "location_preferences": {
-                    "remote": True,
+                    "remote": any(loc.lower() == "remote" for loc in target_locs),
                     "on_site_cities": [loc for loc in target_locs if loc.lower() != "remote"],
                 },
                 "narrative": {
-                    "summary": cp.bio_summary or f"Software Engineer with {cp.years_of_experience:g}+ years of experience in {', '.join(skills[:4])}.",
-                    "one_liner": f"Full-stack engineer with expertise in {', '.join(skills[:3])}."
+                    "summary": cp.bio_summary or ", ".join(skills[:4]),
+                    "one_liner": cp.bio_summary or ", ".join(skills[:3]),
                 },
                 "positioning": {
-                    "headline": cp.current_title or f"Software Engineer ({', '.join(skills[:3])})",
-                    "differentiators": [
-                        f"Core Tech: {', '.join(skills[:5])}",
-                        f"{cp.years_of_experience:g}+ Years Production Experience",
-                    ]
+                    "headline": cp.current_title or "",
+                    "differentiators": (
+                        [f"Skills: {', '.join(skills[:5])}"] if skills else []
+                    ) + (
+                        [f"{cp.years_of_experience:g} years of experience"]
+                        if cp.years_of_experience is not None else []
+                    ),
                 }
             }
             return _normalize_profile(raw)
@@ -266,14 +280,16 @@ class AgentContext:
               user_id: str = "default_user") -> "AgentContext":
         # First attempt to load dynamic DB profile and target companies
         db_profile = _profile_from_db(user_id)
-        profile = db_profile if db_profile else _normalize_profile(_load_yaml(profile_path))
+        profile = db_profile if db_profile else _normalize_profile(
+            _load_yaml_or_example(profile_path, PROFILE_EXAMPLE_PATH)
+        )
 
         db_companies = _companies_from_db(user_id)
         if db_companies:
             companies = db_companies
             sector_context = {}
         else:
-            target_cfg = _load_yaml(companies_path)
+            target_cfg = _load_yaml_or_example(companies_path, TARGET_COMPANIES_EXAMPLE_PATH)
             companies = target_cfg.get("companies", [])
             sector_context = target_cfg.get("sector_context", {})
 

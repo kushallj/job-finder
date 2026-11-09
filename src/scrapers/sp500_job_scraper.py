@@ -26,7 +26,7 @@ load_dotenv()
 
 from src.database import SessionLocal
 from src.models import Job
-from src.sp500_registry import SP500_REGISTRY, SP500Company, get_all_sp500_companies, filter_by_sector
+from src.company_sources.registries.sp500_registry import SP500_REGISTRY, SP500Company, get_all_sp500_companies, filter_by_sector
 
 logger = logging.getLogger("sp500_job_scraper")
 logger.setLevel(logging.INFO)

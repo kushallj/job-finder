@@ -176,7 +176,7 @@ class ResumeParser:
 
     @classmethod
     def parse_file(cls, path: str = "data/resume.txt") -> ResumeData:
-        text = Path(path).read_text(encoding="utf-8")
+        text = _read_text_any(Path(path))
         return cls.parse_text(text)
 
     @classmethod
@@ -410,3 +410,14 @@ def _clean_bullet(text: str) -> str:
     text = re.sub(r"fi\b", "fi", text)         # ligature artifact
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+def _read_text_any(path: Path) -> str:
+    """UTF-8 (with or without BOM), else Windows-1252: resumes saved by Notepad/Word on
+    Windows are often cp1252 ("·", "•"), which crashed a strict UTF-8 read."""
+    raw = path.read_bytes()
+    try:
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return raw.decode("cp1252", errors="replace")
+

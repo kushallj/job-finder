@@ -1,0 +1,39 @@
+# Strict lint profile for job sources (same as src/jobify/ruff.toml). Extends the repo baseline in pyproject.toml.
+# Promote other packages by copying this file next to them once they lint clean.
+extend = "../../pyproject.toml"
+
+[lint]
+extend-select = [
+    "E", "W",   # pycodestyle
+    "I",        # isort
+    "B",        # bugbear: likely bugs
+    "UP",       # pyupgrade: modern syntax for the target version
+    "SIM",      # simplifications
+    "C4",       # comprehensions
+    "PERF",     # performance anti-patterns
+    "RUF",      # ruff-specific
+    "FAST",     # FastAPI: Annotated dependencies, redundant response_model
+    "N",        # naming
+    "RET",      # return-statement hygiene
+    "PIE",
+    "PTH",      # pathlib over os.path
+    "DTZ",      # timezone-aware datetimes
+    "S",        # bandit security checks
+    "ASYNC",
+    "PL",       # pylint: complexity limits
+]
+ignore = [
+    "E501",     # line length is the formatter's job
+    "N803", "N815",  # camelCase params/fields are the Jobify frontend contract (jobService.js)
+    "PLR0913", "PLR0917",  # FastAPI handlers take one param per query string field
+    "PLR2004",  # magic numbers: thresholds are documented module constants or HTTP codes
+    "PLC0415",  # local imports break import cycles with src.models / Celery
+    "DTZ003", "DTZ004",  # DB stores naive UTC everywhere; migrate together (see CLAUDE.md)
+    "RUF001",   # en dash / currency symbols in UI strings are intentional
+    "FAST002",  # Annotated deps need FastAPI > 0.104 with current pydantic; see src/api/deps.py
+]
+
+[lint.flake8-bugbear]
+# FastAPI evaluates these once at import time; they are not shared mutable defaults.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Body", "fastapi.params.Depends"]
+

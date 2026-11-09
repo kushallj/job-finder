@@ -1,6 +1,6 @@
 """
 src/nextraise/client.py — NextRaise Auto-Apply Cloud & Extension Bridge Client.
-Handles OAuth authentication for canaby007@gmail.com, application dispatching,
+Handles OAuth authentication for the candidate's account, application dispatching,
 and verified cryptographic submission receipts.
 """
 from __future__ import annotations
@@ -28,14 +28,14 @@ class NextRaiseClient:
 
     def __init__(
         self,
-        account_email: str = "canaby007@gmail.com",
+        account_email: Optional[str] = None,
         oauth_token: Optional[str] = None,
         session_token: Optional[str] = None,
         widget_session_id: Optional[str] = None,
         api_url: Optional[str] = None,
         transport: Optional[httpx.AsyncBaseTransport] = None,
     ):
-        self.account_email = account_email or os.getenv("NEXTRAISE_EMAIL", "canaby007@gmail.com")
+        self.account_email = account_email or os.getenv("NEXTRAISE_EMAIL", "")
         self.oauth_token = oauth_token or os.getenv("NEXTRAISE_OAUTH_TOKEN")
         self.session_token = session_token or os.getenv("NEXTRAISE_SESSION_TOKEN")
         self.widget_session_id = widget_session_id or self.session_token or os.getenv("NEXTRAISE_WIDGET_SESSION_ID")

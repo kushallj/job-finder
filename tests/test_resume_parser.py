@@ -12,9 +12,9 @@ def test_sharpapi_parser_initialization():
 def test_sharpapi_parser_normalizes_parsed_profile():
     parser = SharpAPIResumeParser(token="mock_token")
     raw_payload = {
-        "candidate_name": "Kushall Jain",
-        "candidate_email": "kushall.jain07@gmail.com",
-        "candidate_phone": "9990079764",
+        "candidate_name": "Example Candidate",
+        "candidate_email": "candidate@example.com",
+        "candidate_phone": "+1-555-0100",
         "candidate_city": "Delhi",
         "candidate_country": "India",
         "candidate_spoken_languages": ["English", "Hindi"],
@@ -40,8 +40,8 @@ def test_sharpapi_parser_normalizes_parsed_profile():
     }
     normalized = parser._normalize_parsed_resume(raw_payload, job_id="test_job_99")
     assert normalized["status"] == "success"
-    assert normalized["candidate"]["name"] == "Kushall Jain"
-    assert normalized["candidate"]["email"] == "kushall.jain07@gmail.com"
+    assert normalized["candidate"]["name"] == "Example Candidate"
+    assert normalized["candidate"]["email"] == "candidate@example.com"
     assert normalized["candidate"]["city"] == "Delhi"
     assert "Python" in normalized["skills"]
     assert "React" in normalized["skills"]
@@ -68,8 +68,8 @@ async def test_sharpapi_parser_builds_documented_request_and_polls():
                         "status": "success",
                         "type": "hr_parse_resume",
                         "result": {
-                            "candidate_name": "Kushall Jain",
-                            "candidate_email": "kushall@example.com",
+                            "candidate_name": "Example Candidate",
+                            "candidate_email": "candidate@example.com",
                             "positions": [
                                 {"company_name": "Acme", "skills": ["Python", "AsyncIO"]}
                             ]
@@ -84,7 +84,7 @@ async def test_sharpapi_parser_builds_documented_request_and_polls():
     result = await client.parse_resume_bytes(dummy_pdf, filename="resume.pdf", poll_interval=0.01)
 
     assert result["status"] == "success"
-    assert result["candidate"]["name"] == "Kushall Jain"
+    assert result["candidate"]["name"] == "Example Candidate"
     assert result["skills"] == ["Python", "AsyncIO"]
     assert len(seen_calls) == 2
     assert seen_calls[0][0] == "POST"
@@ -105,7 +105,7 @@ async def test_sharpapi_evaluate_resume_calculates_fit_score():
                 "attributes": {
                     "status": "success",
                     "result": {
-                        "candidate_name": "Kushall Jain",
+                        "candidate_name": "Example Candidate",
                         "positions": [
                             {"skills": ["Python", "FastAPI", "PostgreSQL", "React"]}
                         ]

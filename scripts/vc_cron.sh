@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-PROJECT_DIR="/Users/kushalljain/Desktop/job-finder"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_DIR"
 
 PYTHON="${PROJECT_DIR}/.venv/bin/python"

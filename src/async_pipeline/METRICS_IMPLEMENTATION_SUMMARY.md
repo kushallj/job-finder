@@ -263,7 +263,7 @@ async def _periodic_metrics_recording(self):
 
 ### Running Tests
 ```bash
-cd /Users/kushalljain/Desktop/job-finder
+cd path/to/job-finder
 python -m pytest tests/test_metrics.py -v
 ```
 

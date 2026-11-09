@@ -4,6 +4,8 @@ src/workday/resume_tailorer.py — Dynamic ATS Resume Tailoring & PDF Document S
 from __future__ import annotations
 
 import logging
+import html
+import json
 import os
 import re
 import time
@@ -48,16 +50,18 @@ class WorkdayResumeTailorer:
             pattern = rf"\b{re.escape(kw)}\b"
             if re.search(pattern, combined):
                 matched.append(kw.title() if len(kw) > 3 else kw.upper())
-        return matched or ["Python", "FastAPI", "React", "PostgreSQL", "AWS", "Docker"]
+        return matched
 
     def calculate_ats_match_score(self, candidate_skills: List[str], job_keywords: List[str]) -> float:
-        """Calculate estimated ATS keyword match score (65-98%)."""
+        """Calculate keyword overlap from candidate-provided skills."""
         if not job_keywords:
-            return 85.0
+            return 0.0
         cand_set = {s.lower() for s in candidate_skills}
+        if not cand_set:
+            return 0.0
         matched = sum(1 for kw in job_keywords if kw.lower() in cand_set or any(kw.lower() in s for s in cand_set))
         ratio = matched / max(1, len(job_keywords))
-        return round(min(98.0, max(68.0, 65.0 + ratio * 32.0)), 1)
+        return round(ratio * 100.0, 1)
 
     def generate_tailored_summary(
         self,
@@ -67,14 +71,20 @@ class WorkdayResumeTailorer:
         matched_keywords: List[str],
     ) -> str:
         """Generate targeted executive summary matching Workday role requirements."""
-        stack_highlight = ", ".join(matched_keywords[:6])
-        return (
-            f"Versatile {profile.current_title or 'Senior Software Engineer'} with {profile.years_of_experience}+ years of hands-on "
-            f"experience architecting high-throughput distributed microservices, low-latency APIs, and scalable full-stack web applications. "
-            f"Core technical expertise in {stack_highlight}, cloud-native infrastructure, and database optimization. "
-            f"Proven track record of improving system reliability to 99.99% and accelerating release velocity. "
-            f"Excited to drive technical excellence and scalable product impact as {job_title} at {company}."
-        )
+        try:
+            skills = json.loads(profile.skills_json or "[]")
+        except (TypeError, json.JSONDecodeError):
+            skills = []
+        details = []
+        if profile.current_title:
+            details.append(profile.current_title)
+        if profile.years_of_experience is not None:
+            details.append(f"{profile.years_of_experience:g} years of experience")
+        if skills:
+            details.append(f"Skills: {', '.join(skills)}")
+        if not details:
+            return "Candidate profile details are required to generate a grounded summary."
+        return f"{'. '.join(details)}. Relevant role: {job_title} at {company}."
 
     def generate_cover_letter_text(
         self,
@@ -84,22 +94,32 @@ class WorkdayResumeTailorer:
         matched_keywords: List[str],
     ) -> str:
         """Generate personalized, high-converting Workday cover letter."""
-        stack_str = ", ".join(matched_keywords[:5])
-        return f"""Dear Hiring Team at {company},
-
-I am excited to submit my application for the {job_title} role at {company}. With {profile.years_of_experience} years of software engineering experience specializing in {stack_str}, I am confident in my ability to immediately accelerate your engineering deliverables.
-
-Throughout my tenure at {profile.current_company}, I have led backend and full-stack initiatives that scaled distributed architectures, slashed API latencies by over 40%, and maintained rigorous SLAs. My approach combines robust architectural design, test-driven development, and clear cross-functional collaboration.
-
-What particularly draws me to {company} is your commitment to engineering innovation and high-impact solutions. I would welcome the opportunity to discuss how my technical depth, scalable system design background, and passion for engineering align with your current goals.
-
-Thank you for your time and consideration.
-
-Sincerely,
-{profile.first_name} {profile.last_name}
-{profile.email if hasattr(profile, 'email') else profile.account_email} | {profile.phone}
-{profile.linkedin_url}
-"""
+        candidate_name = " ".join(
+            part for part in (profile.first_name, profile.last_name) if part
+        )
+        try:
+            skills = json.loads(profile.skills_json or "[]")
+        except (TypeError, json.JSONDecodeError):
+            skills = []
+        lines = [
+            f"Dear Hiring Team at {company},",
+            "",
+            f"I am interested in the {job_title} role at {company}.",
+        ]
+        if profile.years_of_experience is not None:
+            lines.append(f"I have {profile.years_of_experience:g} years of experience.")
+        if profile.current_company:
+            lines.append(f"My current company is {profile.current_company}.")
+        if skills:
+            lines.append(f"My listed skills include {', '.join(skills)}.")
+        lines.extend(["", "Thank you for your time and consideration."])
+        if candidate_name:
+            lines.extend(["", "Sincerely,", candidate_name])
+        contact = [profile.account_email, profile.phone, profile.linkedin_url]
+        contact = [value for value in contact if value]
+        if contact:
+            lines.extend(["", " | ".join(contact)])
+        return "\n".join(lines)
 
     def build_tailored_resume_pdf(
         self,
@@ -120,7 +140,11 @@ Sincerely,
 
         summary_text = self.generate_tailored_summary(profile, job_title, company, matched_keywords)
         skills = profile.to_dict().get("skills", [])
-        combined_skills = list(dict.fromkeys(matched_keywords + skills))
+        matched_skill_names = {keyword.casefold() for keyword in matched_keywords}
+        combined_skills = sorted(
+            dict.fromkeys(skills),
+            key=lambda skill: skill.casefold() not in matched_skill_names,
+        )
 
         doc = SimpleDocTemplate(
             pdf_path,
@@ -203,64 +227,79 @@ Sincerely,
 
         # ── Header ──
         full_name = f"{profile.first_name} {profile.last_name}".strip()
-        story.append(Paragraph(full_name, title_style))
-        story.append(Spacer(1, 2))
-        headline_text = f"{job_title} | Full-Stack & Backend Cloud Architecture"
-        story.append(Paragraph(headline_text, subtitle_style))
-        story.append(Spacer(1, 4))
-        
-        email_val = profile.account_email
-        contact_line = f"{email_val} • {profile.phone} • {profile.city}, {profile.country} • {profile.linkedin_url} • {profile.github_url}"
-        story.append(Paragraph(contact_line, contact_style))
-        story.append(Spacer(1, 8))
+        headline_text = profile.current_title or ""
+        if full_name:
+            story.append(Paragraph(html.escape(full_name), title_style))
+            story.append(Spacer(1, 2))
+        if profile.current_title:
+            story.append(Paragraph(html.escape(profile.current_title), subtitle_style))
+            story.append(Spacer(1, 4))
+
+        contact_values = [
+            profile.account_email,
+            profile.phone,
+            ", ".join(value for value in (profile.city, profile.country) if value),
+            profile.linkedin_url,
+            profile.github_url,
+        ]
+        contact_line = " • ".join(html.escape(value) for value in contact_values if value)
+        if contact_line:
+            story.append(Paragraph(contact_line, contact_style))
+            story.append(Spacer(1, 8))
         story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#cbd5e1"), spaceAfter=8))
 
         # ── Professional Summary ──
-        story.append(Paragraph("PROFESSIONAL SUMMARY", section_heading))
-        story.append(Paragraph(summary_text, body_style))
-        story.append(Spacer(1, 8))
+        if summary_text:
+            story.append(Paragraph("PROFESSIONAL SUMMARY", section_heading))
+            story.append(Paragraph(html.escape(summary_text), body_style))
+            story.append(Spacer(1, 8))
 
         # ── Core Technical Competencies ──
-        story.append(Paragraph("CORE TECHNICAL SKILLS", section_heading))
         skills_str = ", ".join(combined_skills[:18])
-        story.append(Paragraph(f"<b>Primary Technologies:</b> {skills_str}", body_style))
-        story.append(Paragraph("<b>Architecture & Cloud:</b> Microservices, RESTful APIs, GraphQL, Docker, Kubernetes, AWS, PostgreSQL, Redis, Kafka, CI/CD", body_style))
-        story.append(Spacer(1, 8))
+        if skills_str:
+            story.append(Paragraph("CORE TECHNICAL SKILLS", section_heading))
+            story.append(Paragraph(f"<b>Skills:</b> {html.escape(skills_str)}", body_style))
+            story.append(Spacer(1, 8))
 
         # ── Professional Experience ──
-        story.append(Paragraph("PROFESSIONAL EXPERIENCE", section_heading))
         work_items = profile.to_dict().get("work_history", [])
+        if work_items:
+            story.append(Paragraph("PROFESSIONAL EXPERIENCE", section_heading))
         for w in work_items:
-            comp_name = w.get("company", "Tech Company")
-            role_title = w.get("title", "Software Engineer")
-            dates = f"{w.get('start_date', '2022')} – {w.get('end_date', 'Present')}"
-            loc = w.get("location", "Remote")
-            
-            exp_header = f"<b>{role_title}</b> — {comp_name} ({loc}) <font color='#64748b'>| {dates}</font>"
-            story.append(Paragraph(exp_header, bold_body))
-            story.append(Spacer(1, 2))
-            
+            role_title = w.get("title", "")
+            comp_name = w.get("company", "")
+            loc = w.get("location", "")
+            dates = " – ".join(value for value in (w.get("start_date", ""), w.get("end_date", "")) if value)
+            exp_header = " — ".join(value for value in (role_title, comp_name) if value)
+            details = " | ".join(value for value in (loc, dates) if value)
+            if exp_header:
+                exp_header = f"<b>{html.escape(exp_header)}</b>"
+                if details:
+                    exp_header += f" <font color='#64748b'>| {html.escape(details)}</font>"
+                story.append(Paragraph(exp_header, bold_body))
+                story.append(Spacer(1, 2))
+
             desc = w.get("description", "")
             if desc:
-                story.append(Paragraph(f"• {desc}", bullet_style))
-            
-            # Tailored bullet points emphasizing matched keywords
-            kw_sample = [k for k in matched_keywords if k.lower() in ("python", "fastapi", "react", "postgresql", "aws", "docker", "redis", "kafka")][:3]
-            kw_clause = f" with {', '.join(kw_sample)}" if kw_sample else ""
-            story.append(Paragraph(f"• Engineered scalable backend services and automated REST endpoints{kw_clause}, improving throughput by 35% and system reliability.", bullet_style))
-            story.append(Paragraph(f"• Collaborated with cross-functional product teams to design low-latency API contracts and maintain 99.99% SLA availability.", bullet_style))
-            story.append(Spacer(1, 6))
+                story.append(Paragraph(f"• {html.escape(desc)}", bullet_style))
+            if exp_header or desc:
+                story.append(Spacer(1, 6))
 
         # ── Education ──
-        story.append(Paragraph("EDUCATION", section_heading))
         edu_items = profile.to_dict().get("education", [])
+        if edu_items:
+            story.append(Paragraph("EDUCATION", section_heading))
         for e in edu_items:
-            school = e.get("school", "University")
-            deg = e.get("degree", "Bachelor of Engineering")
-            fos = e.get("field_of_study", "Computer Science")
-            dates = f"{e.get('start_date', '2017')} – {e.get('end_date', '2021')}"
-            story.append(Paragraph(f"<b>{deg} in {fos}</b> — {school} <font color='#64748b'>| {dates}</font>", body_style))
-            story.append(Spacer(1, 4))
+            school = e.get("school", "")
+            degree = e.get("degree", "")
+            field_of_study = e.get("field_of_study", "")
+            dates = " – ".join(value for value in (e.get("start_date", ""), e.get("end_date", "")) if value)
+            qualification = " in ".join(value for value in (degree, field_of_study) if value)
+            education_line = " — ".join(value for value in (qualification, school) if value)
+            if education_line:
+                details = f" <font color='#64748b'>| {html.escape(dates)}</font>" if dates else ""
+                story.append(Paragraph(f"<b>{html.escape(education_line)}</b>{details}", body_style))
+                story.append(Spacer(1, 4))
 
         doc.build(story)
         logger.info(f"Generated tailored Workday PDF resume: {pdf_path}")
@@ -276,7 +315,7 @@ CORE TECHNICAL SKILLS
 Primary: {skills_str}
 
 EXPERIENCE
-{chr(10).join(f"{w.get('title')} at {w.get('company')} ({w.get('start_date')} - {w.get('end_date')})" for w in work_items)}
+{chr(10).join(f"{w.get('title', '')} at {w.get('company', '')} ({w.get('start_date', '')} - {w.get('end_date', '')}): {w.get('description', '')}" for w in work_items)}
 
 EDUCATION
 {chr(10).join(f"{e.get('degree')} in {e.get('field_of_study')} - {e.get('school')}" for e in edu_items)}
@@ -360,10 +399,10 @@ EDUCATION
         import json
         if isinstance(candidate_profile, dict):
             prof = WorkdayCandidateProfile(
-                account_email=candidate_profile.get("email") or candidate_profile.get("account_email", "canaby007@gmail.com"),
-                first_name=candidate_profile.get("first_name", "Kushall"),
+                account_email=candidate_profile.get("email") or candidate_profile.get("account_email", ""),
+                first_name=candidate_profile.get("first_name", ""),
                 last_name=candidate_profile.get("last_name", "Jain"),
-                phone=candidate_profile.get("phone", "+1 555-0199"),
+                phone=candidate_profile.get("phone", ""),  # never a placeholder phone on a real application
                 city=candidate_profile.get("city", "San Francisco"),
                 state_province=candidate_profile.get("state", "CA"),
                 country=candidate_profile.get("country", "USA"),
@@ -384,4 +423,3 @@ EDUCATION
             matched_keywords=matched_kws,
         )
         return pdf_path
-

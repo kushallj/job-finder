@@ -44,8 +44,6 @@ log = logging.getLogger(__name__)
 # Minimum hook strength to include (filters out near-empty templates)
 _MIN_STRENGTH = 0.15
 
-# My identity tokens (drawn from resume + used to make hooks first-person)
-_MY_COMPANY_NAMES = ["Progfin", "ByteDance", "TikTok"]
 
 
 class HookGenerator:
@@ -124,8 +122,7 @@ class HookGenerator:
                 type     = HookType.CONTACT_RESONANCE,
                 text     = (
                     f"I came across your post \"{_truncate(title, 60)}\" — "
-                    f"the approach you described maps closely to a problem I tackled "
-                    f"at {_my_recent_company()}."
+                    f"the approach you described stuck with me."
                 ),
                 evidence = f"blog: {title}",
                 strength = 0.90,
@@ -164,8 +161,7 @@ class HookGenerator:
             hooks.append(Hook(
                 type     = HookType.CONTACT_RESONANCE,
                 text     = (
-                    f"Your background in {_truncate(contact.bio, 60)} "
-                    f"resonates — I've been building in that space at {_my_recent_company()}."
+                    f"Your background in {_truncate(contact.bio, 60)} caught my attention."
                 ),
                 evidence = f"github_bio: {contact.bio[:40]}",
                 strength = 0.55,
@@ -246,8 +242,9 @@ class HookGenerator:
     ) -> List[Hook]:
         hooks = []
 
-        # Find overlap between their tech and my skills
-        my_skills = set(jd.required_skills + jd.tech_stack)
+        # Overlap between their tech and skills the candidate's resume actually lists
+        # (the JD's requirements are not the candidate's skills).
+        my_skills = {s.lower() for s in (getattr(resume, "all_skills", None) or [])}
         their_tech = set(company.tech_stack + contact.languages)
         overlap    = list(my_skills & {t.lower() for t in their_tech})
 
@@ -257,7 +254,7 @@ class HookGenerator:
                 type     = HookType.TECH_ALIGNMENT,
                 text     = (
                     f"Seeing {skill} in your stack caught my eye — "
-                    f"I've been working with it in production at scale at {_my_recent_company()}."
+                    f"it's part of my own stack too."
                 ),
                 evidence = f"tech_overlap: {skill}",
                 strength = 0.60,
@@ -372,10 +369,6 @@ def _generic_fallback(company: CompanyProfile, jd: "JDAnalysis") -> Hook:
         evidence = "generic",
         strength = 0.10,
     )
-
-
-def _my_recent_company() -> str:
-    return _MY_COMPANY_NAMES[0]   # Progfin (most recent)
 
 
 def _truncate(text: str, n: int) -> str:

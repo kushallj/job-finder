@@ -33,4 +33,30 @@ sidekick-desktop/dist/
 *.log
 celerybeat-schedule*
 *.sqlite3
-dsm_deploy/docker_images/
+infra/synology/docker_images/
+
+# ── Secrets and personal data: never bake into an image (CLAUDE.md section 1) ──
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.pem
+*.key
+data/
+config/profile.yml
+*.db
+*.db-shm
+*.db-wal
+logs/
+.claude/
+.kiro/
+# Not part of the API image
+jobify/
+frontend/
+extension/
+sidekick-desktop/
+docs/
+tests/
+scripts/dev/
+infra/
+create_*_resume_pdf.py

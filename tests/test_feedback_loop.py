@@ -882,6 +882,8 @@ class TestFeedbackLoop:
             assert loop._latest_snapshot is not None
             assert isinstance(loop._latest_recs, list)
         finally:
+            if "engine" in locals():
+                engine.dispose()  # Windows can't delete a SQLite file the pool still holds open
             os.unlink(db_path)
     
     @pytest.mark.asyncio
@@ -923,6 +925,8 @@ class TestFeedbackLoop:
             assert snapshot.digest_markdown != ""
             assert "Weekly Digest" in snapshot.digest_markdown
         finally:
+            if "engine" in locals():
+                engine.dispose()  # Windows can't delete a SQLite file the pool still holds open
             os.unlink(db_path)
     
     @pytest.mark.asyncio
@@ -964,6 +968,8 @@ class TestFeedbackLoop:
             recs = loop.get_recommendations()
             assert isinstance(recs, list)
         finally:
+            if "engine" in locals():
+                engine.dispose()  # Windows can't delete a SQLite file the pool still holds open
             os.unlink(db_path)
     
     def test_start_and_stop(self):

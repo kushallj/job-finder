@@ -1,0 +1,30 @@
+# Weekly dependency PRs, grouped so each ecosystem is one PR (minor/patch) and CI vets them.
+# Security updates are separate and immediate (enable "Dependabot security updates" in
+# Settings -> Code security).
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      python-minor:
+        update-types: [minor, patch]
+    commit-message: { prefix: "build(deps)" }
+
+  - package-ecosystem: npm
+    directory: /jobify
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      jobify-minor:
+        update-types: [minor, patch]
+    commit-message: { prefix: "build(deps)" }
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message: { prefix: "ci(deps)" }

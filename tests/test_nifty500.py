@@ -2,7 +2,7 @@
 Unit tests for Official Nifty 500 Database (500 NSE Companies) & Outreach Engine.
 """
 import pytest
-from src.nifty500_registry import (
+from src.company_sources.registries.nifty500_registry import (
     get_all_nifty500_companies,
     filter_by_industry,
     filter_by_sector,
@@ -10,7 +10,7 @@ from src.nifty500_registry import (
     search_by_keyword,
     get_industry_breakdown,
 )
-from src.nifty500_miner import (
+from src.company_sources.miners.nifty500_miner import (
     Nifty500Miner,
     get_role_priority,
     MAX_OUTREACH_PER_COMPANY,
@@ -65,8 +65,10 @@ def test_get_industry_breakdown():
 
 def test_compose_nifty500_outreach():
     miner = Nifty500Miner()
+    miner.sender_name = ""
+    miner.sender_linkedin = ""
     contact = {
-        "name": "Ananth Krishnan",
+        "name": "Example Person",
         "title": "Chief Technology Officer",
         "company": "Tata Consultancy Services Ltd.",
         "industry": "Information Technology",
@@ -75,9 +77,9 @@ def test_compose_nifty500_outreach():
 
     subj, text, html = miner.compose_nifty500_outreach(contact)
     assert "Tata Consultancy Services Ltd." in subj
-    assert "Nifty 500" in subj
-    assert "Ananth" in text
-    assert "Python, FastAPI, React" in text
+    assert "Example Person" not in text
+    assert "Hi Example," in text
+    assert "Python, FastAPI, React" not in text
     assert "<html>" in html
 
 

@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, Date, ForeignKey
 from sqlalchemy.orm import relationship
 
-from src.database import Base
+from src.models import Base
 
 
 class WorkdayCandidateProfile(Base):
@@ -18,97 +18,56 @@ class WorkdayCandidateProfile(Base):
     __tablename__ = "workday_candidate_profiles"
 
     id = Column(Integer, primary_key=True, index=True)
-    account_email = Column(String(255), unique=True, nullable=False, default="canaby007@gmail.com")
+    account_email = Column(String(255), unique=True, nullable=False)
     
     # ── Personal Information ──
-    first_name = Column(String(100), default="Kushall")
+    first_name = Column(String(100))
     middle_name = Column(String(100), nullable=True)
-    last_name = Column(String(100), default="Jain")
-    preferred_name = Column(String(100), default="Kushall")
-    phone = Column(String(50), default="+91 9876543210")
-    phone_device_type = Column(String(50), default="Mobile")  # Mobile, Landline
+    last_name = Column(String(100))
+    preferred_name = Column(String(100))
+    phone = Column(String(50))
+    phone_device_type = Column(String(50))
     
     # ── Address Information ──
-    country = Column(String(100), default="India")
-    address_line1 = Column(String(255), default="Sector 62, Electronic City")
+    country = Column(String(100))
+    address_line1 = Column(String(255))
     address_line2 = Column(String(255), nullable=True)
-    city = Column(String(100), default="Bengaluru")
-    state_province = Column(String(100), default="Karnataka")
-    postal_code = Column(String(50), default="560100")
+    city = Column(String(100))
+    state_province = Column(String(100))
+    postal_code = Column(String(50))
     
     # ── Online Presence & Links ──
-    linkedin_url = Column(String(255), default="https://www.linkedin.com/in/kushall-jain")
-    github_url = Column(String(255), default="https://github.com/kushallj")
-    portfolio_url = Column(String(255), default="https://kushallj.github.io")
+    linkedin_url = Column(String(255))
+    github_url = Column(String(255))
+    portfolio_url = Column(String(255))
     twitter_url = Column(String(255), nullable=True)
     
     # ── Professional Experience & Education ──
     headline = Column(
         String(255),
-        default="Software Development Engineer – Full Stack Web Development • RESTful APIs • Cloud & IoT Architecture"
     )
-    years_of_experience = Column(Float, default=4.0)
-    current_company = Column(String(100), default="Tech Innovations")
-    current_title = Column(String(100), default="Senior Software Engineer")
-    skills_json = Column(
-        Text,
-        default=json.dumps([
-            "Python", "FastAPI", "React", "TypeScript", "Node.js", "Java",
-            "PostgreSQL", "Docker", "Kubernetes", "AWS", "Redis", "Distributed Systems"
-        ])
-    )
-    work_history_json = Column(
-        Text,
-        default=json.dumps([
-            {
-                "company": "Tech Innovations",
-                "title": "Senior Software Engineer",
-                "location": "Bengaluru, India",
-                "start_date": "2023-01",
-                "end_date": "Present",
-                "is_current": True,
-                "description": "Architected high-throughput microservices using FastAPI and PostgreSQL, serving 5M+ daily requests with 99.99% uptime."
-            },
-            {
-                "company": "CloudScale Solutions",
-                "title": "Software Development Engineer",
-                "location": "Bengaluru, India",
-                "start_date": "2021-06",
-                "end_date": "2022-12",
-                "is_current": False,
-                "description": "Built resilient RESTful APIs and real-time event pipelines with Python, React, and AWS."
-            }
-        ])
-    )
-    education_json = Column(
-        Text,
-        default=json.dumps([
-            {
-                "school": "Visvesvaraya Technological University",
-                "degree": "Bachelor of Engineering",
-                "field_of_study": "Computer Science & Engineering",
-                "start_date": "2017",
-                "end_date": "2021",
-                "gpa": "8.8/10.0"
-            }
-        ])
-    )
+    years_of_experience = Column(Float)
+    current_company = Column(String(100))
+    current_title = Column(String(100))
+    skills_json = Column(Text, default=json.dumps([]))
+    work_history_json = Column(Text, default=json.dumps([]))
+    education_json = Column(Text, default=json.dumps([]))
     
     # ── Standard Workday Legal & Screening Preferences ──
-    legally_authorized = Column(Boolean, default=True)
-    requires_sponsorship = Column(Boolean, default=False)
-    notice_period_days = Column(Integer, default=30)
-    target_salary_min = Column(Float, default=120000.0)
-    target_salary_max = Column(Float, default=180000.0)
-    salary_currency = Column(String(10), default="USD")
-    willing_to_relocate = Column(Boolean, default=True)
+    legally_authorized = Column(Boolean)
+    requires_sponsorship = Column(Boolean)
+    notice_period_days = Column(Integer)
+    target_salary_min = Column(Float)
+    target_salary_max = Column(Float)
+    salary_currency = Column(String(10))
+    willing_to_relocate = Column(Boolean)
     
     # ── Voluntary EEO & Diversity Disclosures ──
-    gender = Column(String(50), default="Male")  # Male, Female, Non-Binary, Prefer not to say
-    hispanic_latino = Column(String(50), default="No")  # Yes, No, Decline
-    race_ethnicity = Column(String(100), default="Asian")  # Asian, White, Black, Decline, etc.
-    veteran_status = Column(String(100), default="I am not a protected veteran")
-    disability_status = Column(String(100), default="No, I do not have a disability")
+    gender = Column(String(50))
+    hispanic_latino = Column(String(50))
+    race_ethnicity = Column(String(100))
+    veteran_status = Column(String(100))
+    disability_status = Column(String(100))
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -131,7 +90,7 @@ class WorkdayCandidateProfile(Base):
             "id": self.id,
             "account_email": self.account_email,
             "email": self.account_email,
-            "full_name": f"{self.first_name} {self.last_name}".strip(),
+            "full_name": " ".join(part for part in (self.first_name, self.last_name) if part),
             "first_name": self.first_name,
             "middle_name": self.middle_name,
             "last_name": self.last_name,
@@ -217,7 +176,7 @@ class WorkdayApplicationSubmission(Base):
     tenant_domain = Column(String(255), nullable=False)
     company_name = Column(String(255), nullable=True)
     job_title = Column(String(255), nullable=True)
-    account_email = Column(String(255), nullable=False, default="canaby007@gmail.com")
+    account_email = Column(String(255), nullable=False)
     status = Column(String(50), default="submitted")  # account_created, resume_tailored, form_filled, submitted, failed
     receipt_id = Column(String(100), unique=True, nullable=True, index=True)
     proof_url = Column(Text, nullable=True)
@@ -278,11 +237,11 @@ class WorkdayConfigRecord(Base):
     __tablename__ = "workday_configs"
 
     id = Column(Integer, primary_key=True, index=True)
-    account_email = Column(String(255), default="canaby007@gmail.com")
-    auto_apply_enabled = Column(Boolean, default=True)
-    mode = Column(String(50), default="instant_auto")  # instant_auto | review_gate
+    account_email = Column(String(255))
+    auto_apply_enabled = Column(Boolean, default=False)
+    mode = Column(String(50), default="review_gate")
     min_fit_score = Column(Float, default=65.0)
-    daily_limit = Column(Integer, default=100)
+    daily_limit = Column(Integer, default=0)
     daily_used = Column(Integer, default=0)
     total_submitted = Column(Integer, default=0)
     total_failed = Column(Integer, default=0)

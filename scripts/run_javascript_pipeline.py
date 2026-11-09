@@ -24,9 +24,9 @@ from src.attention.service import attention_service
 from src.email_intelligence.service import email_intelligence_service
 from src.referral.service import referral_service
 from src.x_referral.service import x_referral_service
-from src.services.proof_of_work_fabricator import ProofOfWorkFabricatorService
-from src.services.interviewer_profiler import InterviewerProfilerService
-from src.services.system_design_whiteboard import SystemDesignWhiteboardService
+from src.experimental.services.proof_of_work_fabricator import ProofOfWorkFabricatorService
+from src.experimental.services.interviewer_profiler import InterviewerProfilerService
+from src.experimental.services.system_design_whiteboard import SystemDesignWhiteboardService
 from src.telegram_bot.godfather_bot import GodfatherBot
 
 

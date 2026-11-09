@@ -272,7 +272,7 @@ if __name__ == "__main__":
     q_result = agent.generate_questions(company="Perfios", num_questions=4)
     print(q_result.to_json())
     demo_answer = (
-        "At Progfin we had a query that was taking 800ms and slowing down the whole dashboard. "
+        "At my last company we had a query that was taking 800ms and slowing down the whole dashboard. "
         "I needed to fix it before the next release. I profiled the query, added the right indexes, "
         "and rewrote a join. As a result response time dropped to 200ms, a 75% improvement."
     )

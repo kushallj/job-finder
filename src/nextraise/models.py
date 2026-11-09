@@ -33,7 +33,7 @@ class NextRaiseSubmission(Base):
     cover_letter_text = Column(Text, nullable=True)
 
     # Metadata & Tracking
-    account_email = Column(String(255), default="canaby007@gmail.com", index=True)
+    account_email = Column(String(255), index=True)
     company_name = Column(String(255), nullable=True)
     job_title = Column(String(255), nullable=True)
     match_score = Column(Float, default=0.0)
@@ -86,7 +86,7 @@ class NextRaiseConfigRecord(Base):
     __tablename__ = "nextraise_config"
 
     id = Column(Integer, primary_key=True)
-    account_email = Column(String(255), default="canaby007@gmail.com", nullable=False)
+    account_email = Column(String(255), nullable=False, default="")
     oauth_access_token = Column(Text, nullable=True)
     oauth_refresh_token = Column(Text, nullable=True)
     session_token = Column(Text, nullable=True)

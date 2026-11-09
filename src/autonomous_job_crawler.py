@@ -23,11 +23,10 @@ from sqlalchemy.orm import Session
 
 from src.config import settings
 from src.database import SessionLocal
-from src.models import Job
-from src.job_data_providers import normalize_job, USAJobsClient, CareerjetClient, FantasticJobsClient, ArbeitnowClient, AIDevBoardClient, JobDataAPIClient
-from src.tier1_companies import TIER1_REGISTRY, Tier1Company, get_tier1_company
-from src.indian_app_startups import INDIAN_APP_STARTUPS, IndianAppStartup
-from src.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, FinTechFestivalCompany
+from src.models import Job, fit_to_columns
+from src.company_sources.registries.tier1_companies import TIER1_REGISTRY, Tier1Company, get_tier1_company
+from src.company_sources.registries.indian_app_startups import INDIAN_APP_STARTUPS, IndianAppStartup
+from src.company_sources.registries.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, FinTechFestivalCompany
 from src.scrapers.tier1_career_scraper import Tier1CareerScraper
 from src.scrapers.indian_app_startups_scraper import IndianAppStartupsScraper
 from src.scrapers.fintech_festival_scraper import FinTechFestivalScraper
@@ -185,7 +184,7 @@ class AutonomousJobCrawler:
             db.commit()
             return False, True
         else:
-            new_job = Job(
+            new_job = Job(**fit_to_columns(Job, dict(
                 job_id=job_id,
                 title=title,
                 company=raw_job.get("company", "Tech Firm"),
@@ -202,7 +201,7 @@ class AutonomousJobCrawler:
                 experience_level=seniority,
                 tags=json.dumps(all_tags, default=str),
                 provider_payload=json.dumps(raw_job, default=str),
-            )
+            )))
             db.add(new_job)
             db.commit()
             return True, False
@@ -269,49 +268,16 @@ class AutonomousJobCrawler:
                 elif upd:
                     stats["total_updated"] += 1
 
-            # ── 4. External Job Provider APIs (USAJOBS, Careerjet, etc.) ───────
-            self.current_source = "External Global Job APIs"
-            self.log_event("INFO", "Querying external aggregators (USAJOBS, Fantastic.jobs, Arbeitnow, AIDevBoard)...")
-            ext_jobs: List[Dict[str, Any]] = []
-            
-            # USAJOBS Remote Federal
-            usajobs = USAJobsClient()
-            if usajobs.enabled:
-                try:
-                    ext_jobs.extend(await usajobs.search(query="Software", remote_only=True, results_per_page=10))
-                except Exception:
-                    pass
+            # ── 4. Every enabled job API / feed (src/job_sources) ─────────────
+            self.current_source = "Job sources (APIs, feeds, ATS boards)"
+            self.log_event("INFO", "Querying all enabled job sources via src/job_sources...")
+            from src.job_sources import SearchQuery, fetch_jobs, upsert_jobs
 
-            # Fantastic.jobs
-            fantastic = FantasticJobsClient()
-            if fantastic.enabled:
-                try:
-                    ext_jobs.extend(await fantastic.search(query="Software Engineer", limit=10))
-                except Exception:
-                    pass
-
-            # Arbeitnow
-            arbeitnow = ArbeitnowClient()
-            try:
-                ext_jobs.extend(await arbeitnow.search(query="Software Engineer", limit=10))
-            except Exception:
-                pass
-
-            # AIDevBoard
-            aidev = AIDevBoardClient()
-            if aidev.enabled:
-                try:
-                    ext_jobs.extend(await aidev.search(query="Developer", limit=10))
-                except Exception:
-                    pass
-
-            stats["external_api_jobs"] = len(ext_jobs)
-            for j in ext_jobs:
-                ins, upd = self.upsert_job_record(db, j)
-                if ins:
-                    stats["total_inserted"] += 1
-                elif upd:
-                    stats["total_updated"] += 1
+            report = await fetch_jobs(SearchQuery("software engineer", limit=max_per_source))
+            stats["external_api_jobs"] = len(report.records)
+            ins, upd = upsert_jobs(db, report.records)
+            stats["total_inserted"] += ins
+            stats["total_updated"] += upd
 
             # ── 5. Common Crawl S3 Stealth Job Harvester ──────────────────────
             self.current_source = "Common Crawl S3 Stealth Harvester"

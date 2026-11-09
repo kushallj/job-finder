@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, patch
 
 from src.database import SessionLocal, init_db
 from src.models import Contact, StartupsGalleryCompanyRecord
-from src.startups_gallery_miner import (
+from src.company_sources.miners.startups_gallery_miner import (
     StartupsGalleryMiner,
     startups_gallery_miner,
 )
-from src.startups_gallery_registry import (
+from src.company_sources.registries.startups_gallery_registry import (
     filter_by_category,
     filter_by_location,
     get_all_startups_gallery_companies,
@@ -53,19 +53,19 @@ def test_search_and_filter_helpers():
 
 def test_compose_startups_gallery_outreach():
     miner = StartupsGalleryMiner()
+    miner.sender_name = ""
+    miner.sender_linkedin = ""
     contact = {
-        "name": "Kevin Tian",
-        "title": "Co-Founder & CEO",
-        "company": "Doppel",
-        "category": "AI",
-        "funding": "Raised $70M Series C",
+        "name": "Example Person",
+        "title": "Founder",
+        "company": "Example Company",
+        "category": "Software",
+        "funding": "Example funding",
     }
     subj, text, html = miner.compose_startups_gallery_outreach(contact)
-    assert "Doppel" in subj
-    assert "Kevin" in text
-    assert "Co-Founder & CEO" in text
-    assert "$70M Series C" in text
-    assert "Python, FastAPI, React" in text
+    assert "Example Company" in subj
+    assert "Hi Example," in text
+    assert "Python, FastAPI, React" not in text
     assert "<html>" in html
 
 

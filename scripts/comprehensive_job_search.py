@@ -282,7 +282,7 @@ async def main(use_async: bool = False):
             print(f"   Average Contacts per Job: {outreach_stats['total_contacts_found'] / max(outreach_stats['jobs_processed'], 1):.1f}")
 
         print(f"\n💡 Next Steps & Recommendations:")
-        print(f"   1. 📧 Monitor your email (canaby007@gmail.com) for replies")
+        print(f"   1. 📧 Monitor your configured email account for replies")
         print(f"   2. 📅 Set calendar reminders to follow up in 1 week")
         print(f"   3. 📊 Track response rates and adjust approach")
         print(f"   4. 🔄 Run this script weekly for new opportunities")
@@ -319,4 +319,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     asyncio.run(main(use_async=args.async_mode))
-

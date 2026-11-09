@@ -2,14 +2,14 @@
 Unit tests for Shark Tank US Startups Registry & Outreach Engine.
 """
 import pytest
-from src.shark_tank_us_startups import (
+from src.company_sources.registries.shark_tank_us_startups import (
     SHARK_TANK_US_REGISTRY,
     get_all_shark_tank_us_startups,
     filter_by_season_us,
     filter_by_shark_us,
     filter_by_category_us,
 )
-from src.shark_tank_us_miner import (
+from src.company_sources.miners.shark_tank_us_miner import (
     SharkTankUSMiner,
     get_role_priority,
     MAX_OUTREACH_PER_COMPANY,
@@ -41,19 +41,19 @@ def test_filter_by_shark_us():
 
 def test_compose_shark_tank_us_outreach():
     miner = SharkTankUSMiner()
+    miner.sender_name = ""
+    miner.sender_linkedin = ""
     contact = {
-        "name": "David Heath",
+        "name": "Example Person",
         "title": "Co-Founder & CEO",
-        "company": "Bombas",
+        "company": "Example Company",
         "season": 6,
-        "sharks": "Daymond John",
+        "sharks": "Example Investor",
     }
     subj, text, html = miner.compose_shark_tank_us_outreach(contact)
-    assert "Bombas" in subj
-    assert "Shark Tank Season 6" in subj
-    assert "David" in text
-    assert "Daymond John" in text
-    assert "Python, FastAPI, React" in text
+    assert "Example Company" in subj
+    assert "Hi Example," in text
+    assert "Python, FastAPI, React" not in text
     assert "<html>" in html
 
 

@@ -75,7 +75,7 @@ class InstagramReferralService:
     def generate_message(self, req: InstagramMessageRequest) -> InstagramMessageResponse:
         first_name = req.name.split()[0] if req.name else "there"
         clean_user = req.target_username.lstrip('@')
-        portfolio = req.portfolio_link or "https://github.com/kushallj"
+        portfolio = req.portfolio_link or ""
 
         if req.action_type == "story_reply":
             msg = (

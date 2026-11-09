@@ -35,6 +35,8 @@ PUBLIC_EXACT_PATHS: Set[str] = {
     "/",
     "/health",
     "/api/health",
+    "/healthz",   # liveness (no I/O)
+    "/readyz",    # readiness (DB/Redis ping, booleans only)
     "/docs",
     "/redoc",
     "/openapi.json",
@@ -48,7 +50,11 @@ PUBLIC_EXACT_PATHS: Set[str] = {
     "/api/auth/refresh",
     "/api/auth/webhook/clerk",
     "/api/auth/clerk/webhook",
+    "/api/gmail/callback",  # Google OAuth redirect; protected by the signed `state`
+    "/api/inbound/email",   # Cloudflare Email Worker delivery; protected by HMAC signature
 }
+
+_PORTFOLIO_PRIVATE_SEGMENTS = {"username-available", "publish", "regenerate"}
 
 PUBLIC_PREFIXES = (
     "/static/",
@@ -69,16 +75,15 @@ def is_public_path(path: str, method: str = "GET") -> bool:
         if path.startswith(prefix):
             return True
 
-    # Public portfolio viewing & GitHub heatmap (excluding administrative /seed)
-    if method == "GET" and path.startswith("/api/portfolio/") and not path.endswith("/seed"):
-        return True
+    # Public Jobify portfolio: GET /api/portfolio/{username} (published snapshot only). One path
+    # segment, and not one of the owner's static routes (those are reserved usernames).
+    if method == "GET" and path.startswith("/api/portfolio/"):
+        segment = path[len("/api/portfolio/"):].rstrip("/")
+        if segment and "/" not in segment and segment not in _PORTFOLIO_PRIVATE_SEGMENTS:
+            return True
 
     # Public startups.gallery exploration & status endpoints
     if method == "GET" and path.startswith("/api/startups-gallery"):
-        return True
-
-    # Public recruiter chatbot on hosted candidate portfolio
-    if method == "POST" and path.startswith("/api/portfolio/") and path.endswith("/chat"):
         return True
 
     return False
@@ -141,8 +146,14 @@ def get_current_user(
 
     token = credentials.credentials.strip()
 
-    # Developer convenience bypass for local automated testing
-    if settings.env.lower() == "development" and token in ("dev_token_admin", "test_admin_token"):
+    # Developer convenience bypass for local automated testing. Opt-in only: ENV defaults to
+    # "development", so gating on ENV alone would expose a superuser token on any deploy
+    # that forgot to set ENV.
+    if (
+        settings.allow_dev_auth_tokens
+        and settings.env.lower() == "development"
+        and token in ("dev_token_admin", "test_admin_token")
+    ):
         admin_user = db.query(User).filter(User.is_superuser == True).first()
         if admin_user:
             return admin_user
@@ -180,22 +191,25 @@ def get_current_user(
                     headers={"WWW-Authenticate": "Bearer"},
                 ) from exc
         else:
-            # Offline / unconfigured fallback: Validate expiration and time-based claims
-            now_ts = int(time.time())
-            exp = payload.get("exp")
-            if exp is not None and now_ts > exp:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Clerk token has expired",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-            nbf = payload.get("nbf")
-            if nbf is not None and now_ts < nbf:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Clerk token not valid yet",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
+            # Fail closed: without JWKS the signature can't be checked, and accepting an
+            # unverified token would let anyone mint one for any Clerk user id.
+            log.error("Clerk token received but CLERK_ISSUER / CLERK_JWKS_URL is not configured")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Clerk token verification is not configured on this server",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # azp = origin the token was minted for; blocks tokens issued to other apps
+        # on the same Clerk instance.
+        allowed_parties = settings.clerk_authorized_parties_list
+        azp = payload.get("azp")
+        if allowed_parties and azp and azp not in allowed_parties:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token not issued for this app",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
         clerk_user_id = str(payload.get("sub", "")).strip()
         if not clerk_user_id:
@@ -370,7 +384,34 @@ async def enforce_auth_unless_public(
 
     user = get_current_user(credentials=credentials, db=db)
     request.state.user = user
+    enforce_route_policy(request, user)
     return user
+
+
+# Production route policy. Customers (Jobify users) may call only the product API; the ~170
+# legacy main.py/router endpoints (outreach senders, scrapers, auto-apply, shared-catalog
+# writes, VC tools) were built single-tenant and stay admin-only until each is reviewed
+# and moved into src/jobify. Matched by the endpoint's module, so new Jobify routes are
+# allowed automatically and nothing legacy slips through by sharing a URL prefix.
+CUSTOMER_ROUTE_MODULES = (
+    "src.jobify.",                      # Jobify product API (one router per screen)
+    "src.api.health",                   # probes
+    "src.api.routers.billing_router",   # plans, checkout, portal, own subscription, webhooks
+    "src.api.routers.auth_router",      # /me, own credit history (top-up is require_admin)
+)
+
+
+def enforce_route_policy(request: Request, user: Optional[User]) -> None:
+    if not settings.is_production or settings.legacy_routes_enabled:
+        return
+    endpoint = request.scope.get("endpoint")
+    module = getattr(endpoint, "__module__", "") or ""
+    if module.startswith(CUSTOMER_ROUTE_MODULES):
+        return
+    if user is not None and getattr(user, "is_superuser", False):
+        return
+    # 404, not 403: don't advertise which internal endpoints exist.
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
 
 
 def require_admin(
@@ -379,7 +420,7 @@ def require_admin(
     """
     Enforce administrative privileges. Raises 403 Forbidden for non-admin users.
     """
-    if not (current_user.is_superuser or current_user.email == "admin@jobfinder.ai"):
+    if not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Administrative privileges required to perform this action",

@@ -8,9 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from main import app
-from src.services.interviewer_profiler import InterviewerProfilerService
+from src.experimental.services.interviewer_profiler import InterviewerProfilerService
 from src.services.offer_arbitrage import OfferArbitrageService, CompensationOffer
-from src.agents.agent_16_interviewer_profiler import InterviewerProfilerAgent
+from src.experimental.agents.agent_16_interviewer_profiler import InterviewerProfilerAgent
 from src.agents.base import AgentContext
 
 
@@ -30,7 +30,7 @@ def test_interviewer_profiler_service_fintech():
 
 
 def test_interviewer_profiler_agent_run():
-    ctx = AgentContext.load()
+    ctx = AgentContext()
     agent = InterviewerProfilerAgent(context=ctx)
     result = agent.run(interviewer_name="Sarah Jenkins", company_name="Walmart Global Tech", role="VP of Engineering")
     assert result.ok is True

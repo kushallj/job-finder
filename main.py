@@ -46,14 +46,15 @@ from src.job_processor import JobProcessor
 from src.database import init_db, SessionLocal
 from src.models import Application, Job, OutreachRecord, Contact, User
 from src.lifecycle import next_action, require_transition, normalize_status, sort_actions, KNOWN_STATUSES
-from src.job_data_providers import JobDataAPIClient, AIDevBoardClient, FantasticJobsClient, ArbeitnowClient, CareerjetClient, USAJobsClient, search_all
+from src.job_data_providers import AIDevBoardClient
+from src.job_sources import SearchQuery, fetch_jobs, upsert_jobs
 from src.resume_parser import SharpAPIResumeParser
-from src.tier1_companies import TIER1_REGISTRY, get_tier1_company
+from src.company_sources.registries.tier1_companies import TIER1_REGISTRY, get_tier1_company
 from src.scrapers.tier1_career_scraper import Tier1CareerScraper
 from src.referral_engine import generate_referral_xray_queries, search_company_referral_contacts, compose_referral_request
-from src.indian_app_startups import INDIAN_APP_STARTUPS, get_indian_app_startup, filter_indian_startups
+from src.company_sources.registries.indian_app_startups import INDIAN_APP_STARTUPS, get_indian_app_startup, filter_indian_startups
 from src.scrapers.indian_app_startups_scraper import IndianAppStartupsScraper
-from src.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, get_fintech_festival_company, filter_fintech_festival_companies
+from src.company_sources.registries.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, get_fintech_festival_company, filter_fintech_festival_companies
 from src.scrapers.fintech_festival_scraper import FinTechFestivalScraper
 from src.autonomous_job_crawler import autonomous_crawler, extract_tech_tags_and_seniority
 from src.config import settings
@@ -298,23 +299,11 @@ except Exception as _e:
 # Logging — structured, rotating, human-readable
 # =============================================================================
 
-LOG_DIR = Path("logs")
-LOG_DIR.mkdir(exist_ok=True)
+# JSON to stdout in production, readable + rotating file in development (src/observability.py).
+from src.observability import configure_logging, init_sentry, trace_id_var
 
-_fmt = logging.Formatter(
-    "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-for h in [
-    logging.StreamHandler(),
-    logging.handlers.RotatingFileHandler(
-        LOG_DIR / "main.log", maxBytes=5_000_000, backupCount=5, encoding="utf-8"
-    ),
-]:
-    h.setFormatter(_fmt)
-    logging.getLogger().addHandler(h)
-
-logging.getLogger().setLevel(logging.INFO)
+configure_logging(settings.env, settings.log_level)
+init_sentry(settings.sentry_dsn, settings.env)
 log = logging.getLogger("main")
 
 
@@ -808,9 +797,34 @@ async def lifespan(app: FastAPI):
 # App + middleware
 # =============================================================================
 
-from src.auth.dependencies import get_current_user
+from src.auth.dependencies import enforce_auth_unless_public, get_current_user, require_admin
 
-app = FastAPI(title="Job Search API", version="2.1.0", lifespan=lifespan)
+# Secure by default: every route requires a valid token unless its path is in
+# src/auth/dependencies.py:is_public_path. Add public routes there, not per-route.
+app = FastAPI(
+    title="Job Search API",
+    version="2.1.0",
+    lifespan=lifespan,
+    dependencies=[Depends(enforce_auth_unless_public)],
+    # The OpenAPI schema maps every route; off in production unless ENABLE_API_DOCS=true.
+    docs_url="/docs" if settings.api_docs_enabled else None,
+    redoc_url="/redoc" if settings.api_docs_enabled else None,
+    openapi_url="/openapi.json" if settings.api_docs_enabled else None,
+)
+
+# Uvicorn's access log prints full URLs; never write OAuth authorization codes or state to logs.
+import re as _re
+_OAUTH_QS = _re.compile(r"([?&](?:code|state)=)[^&\s\"]+")
+
+
+class _RedactOAuthParams(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(_OAUTH_QS.sub(r"\1<redacted>", a) if isinstance(a, str) else a for a in record.args)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_RedactOAuthParams())
 
 # Register comprehensive error handlers
 # Requirements: 23.2 (Comprehensive error responses with proper HTTP status codes)
@@ -820,12 +834,6 @@ protected_deps = [Depends(get_current_user)]
 
 if _AGENTS_ROUTER_OK:
     app.include_router(agents_router, dependencies=protected_deps)
-
-try:
-    from src.sidekick.api.sidekick_router import router as sidekick_router
-    app.include_router(sidekick_router, dependencies=protected_deps)
-except Exception as e:
-    log.warning(f"Could not load sidekick_router: {e}")
 
 try:
     from src.nextraise.api.nextraise_router import router as nextraise_router
@@ -868,19 +876,12 @@ try:
 except Exception as e:
     log.warning(f"Could not load kanban_router: {e}")
 
-try:
-    from src.api.routers.mailbox_router import router as mailbox_router
-    app.include_router(mailbox_router)
-    log.info("Loaded mailbox_router successfully")
-except Exception as e:
-    log.warning(f"Could not load mailbox_router: {e}")
+# Legacy /api/mailbox (simulated inbox) is not mounted: its matcher is not user-scoped, so
+# /simulate-inbound let one user move another user's cards. Real Gmail: jobify_gmail_router.
 
-try:
-    from src.api.routers.portfolio_router import router as portfolio_router
-    app.include_router(portfolio_router)
-    log.info("Loaded portfolio_router successfully")
-except Exception as e:
-    log.warning(f"Could not load portfolio_router: {e}")
+# Legacy /api/portfolio/{username} (+ /chat, /github-activity, /seed) is not mounted: it served
+# CandidateProfile data with no publish step and auto-seeded a personal profile on public chat.
+# Jobify portfolio (draft/publish, public = published snapshot only): jobify_portfolio_router.
 
 try:
     from src.api.routers.telegram_connector_router import router as telegram_connector_router
@@ -903,6 +904,25 @@ try:
 except Exception as e:
     log.warning(f"Could not load startups_gallery_router: {e}")
 
+# Jobify product API (jobify/docs/INTEGRATION.md). Not wrapped in try/except: the
+# product UI depends on it, so an import error should stop startup, not hide it.
+from src.jobify.routers.me_jobs import router as jobify_router
+app.include_router(jobify_router)
+from src.jobify.routers.applications import router as jobify_applications_router
+app.include_router(jobify_applications_router)
+from src.jobify.routers.gmail import router as jobify_gmail_router
+app.include_router(jobify_gmail_router)
+from src.jobify.routers.inbox import router as jobify_inbox_router
+app.include_router(jobify_inbox_router)
+from src.jobify.routers.founders import router as jobify_founders_router
+app.include_router(jobify_founders_router)
+from src.jobify.routers.portfolio import router as jobify_portfolio_router
+app.include_router(jobify_portfolio_router)
+from src.jobify.routers.chat import router as jobify_chat_router
+app.include_router(jobify_chat_router)
+from src.api.routers.ops_router import router as ops_router
+app.include_router(ops_router)
+
 
 
 
@@ -910,24 +930,50 @@ except Exception as e:
 cors_origins_list = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 if settings.frontend_url and settings.frontend_url not in cors_origins_list:
     cors_origins_list.append(settings.frontend_url)
-cors_origins_list.extend([
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-])
+_is_production = settings.env.lower() == "production"
+if not _is_production:
+    cors_origins_list.extend([
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ])
 cors_kwargs = {
     "allow_origins": list(dict.fromkeys(cors_origins_list)),
     "allow_credentials": True,
     "allow_methods": ["*"],
     "allow_headers": ["*"],
 }
-if settings.env.lower() != "production":
-    cors_kwargs["allow_origin_regex"] = r"https?://.*"
+if not _is_production:
+    # Any local port for dev tooling. Never a wildcard: with allow_credentials, an
+    # "any origin" regex lets every website call a reachable dev/staging API as the visitor.
+    cors_kwargs["allow_origin_regex"] = r"https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?"
 
 app.add_middleware(CORSMiddleware, **cors_kwargs)
+
+if _is_production:
+    from src.production_checks import production_problems
+
+    _problems = production_problems(settings)
+    if _problems:
+        raise RuntimeError("Refusing to start with ENV=production:\n  - " + "\n  - ".join(_problems))
+
+from src.api.hardening import BodySizeLimitMiddleware, SecurityHeadersMiddleware, safe_trace_id
+
+# Added after CORS, so these wrap it: oversized bodies are rejected before any work,
+# and every response (errors and preflights too) carries the security headers.
+from src.api.health import router as health_router
+
+app.include_router(health_router)  # /healthz liveness, /readyz readiness
+app.add_middleware(SecurityHeadersMiddleware, hsts=_is_production)
+app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes,
+                   overrides={"/api/inbound/email": settings.max_inbound_email_bytes})
+if settings.allowed_hosts_list:
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts_list)
 
 
 @app.middleware("http")
@@ -943,8 +989,9 @@ async def trace_middleware(request: Request, call_next):
     """
     # Generate unique trace ID (full UUID for better uniqueness)
     # Accept trace ID from client if provided (for distributed tracing)
-    tid = request.headers.get("X-Trace-ID") or str(uuid.uuid4())
-    
+    tid = safe_trace_id(request.headers.get("X-Trace-ID"))  # client ids are validated (log injection)
+    _trace_token = trace_id_var.set(tid)
+
     # Store in request state for access in route handlers
     request.state.trace_id = tid
     
@@ -1003,19 +1050,17 @@ async def trace_middleware(request: Request, call_next):
             exc_info=True,
         )
         
-        # Return error response with trace ID for client debugging
+        # Same {error:{code,message}} envelope as every other error (src/api/contract.py),
+        # so the frontend can always read error.code; trace_id lets support find the log line.
+        from src.api.contract import error_payload
         return JSONResponse(
-            {
-                "detail": "Internal server error",
-                "trace_id": tid,
-                "path": request.url.path,
-                "method": request.method,
-            },
+            error_payload(500, "An internal server error occurred. Please try again later.", trace_id=tid),
             status_code=500,
             headers={"X-Trace-ID": tid},
         )
     
     finally:
+        trace_id_var.reset(_trace_token)
         # Clear correlation ID for async_pipeline (cleanup)
         if _ASYNC_PIPELINE_OK:
             try:
@@ -1430,7 +1475,7 @@ async def health(state: AppState = Depends(get_state)):
     return health_status
 
 
-@app.get("/metrics", tags=["observability"])
+@app.get("/metrics", tags=["observability"], dependencies=[Depends(require_admin)])
 async def metrics_endpoint(state: AppState = Depends(get_state)):
     """
     Prometheus metrics export endpoint.
@@ -2175,68 +2220,31 @@ def _to_job_data(j: Job, match_score: Optional[float] = None, application_status
 
 @app.post("/api/providers/sync", tags=["providers"], response_model=ProviderSyncResponse)
 async def sync_external_providers(request: ProviderSyncRequest):
-    """Fetch structured jobs from both providers and upsert into the local catalog."""
-    results = await search_all(query=request.query, location=request.location,
-                               max_age=request.max_age_days, limit=request.limit)
+    """Fetch from every enabled job source (src/job_sources) and upsert into the local catalog."""
+    query = SearchQuery(request.query, location=request.location or "", limit=request.limit,
+                        max_age_days=request.max_age_days)
+    report = await fetch_jobs(query)
+    by_source: Dict[str, list] = {}
+    for rec in report.records:
+        by_source.setdefault(rec.source, []).append(rec)
     source_results: List[ProviderSyncSource] = []
     inserted = updated = 0
     async with db_session() as db:
-        for provider, rows in results.items():
-            ins = upd = 0
-            try:
-                for row in rows:
-                    existing = None
-                    if row.get("provider_id"):
-                        existing = db.query(Job).filter(Job.job_id == row["job_id"]).first()
-                    if existing is None and row.get("url"):
-                        existing = db.query(Job).filter(Job.url == row["url"]).first()
-                    if existing is None:
-                        existing = db.query(Job).filter(Job.title == row["title"], Job.company == row.get("company"), Job.url == row.get("url")).first()
-                    if existing:
-                        current_sources = []
-                        try:
-                            current_sources = json.loads(existing.provider_sources) if existing.provider_sources else []
-                        except Exception:
-                            current_sources = [existing.source] if existing.source else []
-                        current_sources = list(dict.fromkeys([x for x in (current_sources + [provider]) if x]))
-                        existing.provider_sources = json.dumps(current_sources)
-                        existing.title = row["title"]
-                        existing.company = row.get("company") or existing.company
-                        existing.location = row.get("location") or existing.location
-                        existing.description = row.get("description") or existing.description
-                        existing.url = row.get("url") or existing.url
-                        existing.source = provider
-                        existing.posted_date = row.get("posted_date") or existing.posted_date
-                        existing.provider_id = row.get("provider_id") or existing.provider_id
-                        existing.company_website = row.get("company_website") or existing.company_website
-                        existing.salary_min = row.get("salary_min")
-                        existing.salary_max = row.get("salary_max")
-                        existing.salary_currency = row.get("salary_currency")
-                        existing.has_remote = row.get("has_remote")
-                        existing.work_mode = row.get("work_mode")
-                        existing.experience_level = row.get("experience_level")
-                        existing.tags = json.dumps(row.get("tags", []))
-                        existing.expired_at = row.get("expired_at")
-                        existing.provider_payload = json.dumps(row.get("provider_payload", {}), default=str)
-                        upd += 1
-                    else:
-                        db.add(Job(job_id=row["job_id"], title=row["title"], company=row.get("company"),
-                                   location=row.get("location"), description=row.get("description"), url=row.get("url"),
-                                   source=provider, posted_date=row.get("posted_date"), provider_id=row.get("provider_id"),
-                                   company_website=row.get("company_website"), salary_min=row.get("salary_min"), salary_max=row.get("salary_max"),
-                                   salary_currency=row.get("salary_currency"), has_remote=row.get("has_remote"), work_mode=row.get("work_mode"),
-                                   experience_level=row.get("experience_level"), tags=json.dumps(row.get("tags", [])), expired_at=row.get("expired_at"),
-                                   provider_payload=json.dumps(row.get("provider_payload", {}), default=str),
-                                   provider_sources=json.dumps([provider])))
-                        ins += 1
-                db.commit()
-            except Exception as exc:
-                db.rollback()
-                source_results.append(ProviderSyncSource(provider=provider, fetched=len(rows), inserted=0, updated=0, failed=True, error=str(exc)))
+        for src in report.sources:
+            recs = by_source.get(src.name, [])
+            if src.status in ("failed", "timeout"):
+                source_results.append(ProviderSyncSource(provider=src.name, failed=True, error=src.error))
                 continue
-            inserted += ins; updated += upd
-            source_results.append(ProviderSyncSource(provider=provider, fetched=len(rows), inserted=ins, updated=upd))
-    return ProviderSyncResponse(status="success", total_fetched=sum(len(v) for v in results.values()),
+            try:
+                ins, upd = upsert_jobs(db, recs)
+            except Exception as exc:  # noqa: BLE001 - reported per source
+                db.rollback()
+                source_results.append(ProviderSyncSource(provider=src.name, fetched=len(recs), failed=True, error=str(exc)))
+                continue
+            inserted += ins
+            updated += upd
+            source_results.append(ProviderSyncSource(provider=src.name, fetched=len(recs), inserted=ins, updated=upd))
+    return ProviderSyncResponse(status="success", total_fetched=len(report.records),
                                 total_inserted=inserted, total_updated=updated, sources=source_results)
 
 
@@ -2252,194 +2260,7 @@ async def market_intelligence():
 
 # ── Jobs ──────────────────────────────────────────────────────────────────────
 
-@app.get("/api/jobs", tags=["jobs"], response_model=JobsResponse)
-async def get_jobs(
-    page: int = Query(default=1, ge=1, le=10000, description="Page number (1-indexed)"),
-    limit: int = Query(default=50, ge=1, le=500, description="Items per page (1-500)"),
-    search: Optional[str] = Query(default=None, description="Fuzzy search title, company, description, or tags"),
-    region: Optional[str] = Query(default=None, description="Region filter: 'india', 'us', 'remote', 'europe', 'apac' or city name"),
-    experience_level: Optional[str] = Query(default=None, description="Level: 'Junior / Entry', 'Mid-Level', 'Senior', 'Lead / Staff / Principal'"),
-    years_of_experience: Optional[int] = Query(default=None, ge=0, le=30, description="Numeric years of experience (e.g. 1, 4, 7, 10)"),
-    date_posted: Optional[str] = Query(default=None, description="Posting time: '24h', '7d', '30d', 'anytime'"),
-    tech_stack: Optional[str] = Query(default=None, description="Comma-separated tech keywords, e.g. 'Python,FastAPI,AWS'"),
-    source: Optional[str] = Query(default=None, description="Job source filter, e.g. 'greenhouse_direct', 'greenhouse_startup'"),
-    has_remote: Optional[bool] = Query(default=None, description="Filter remote positions only"),
-    sort_by: Optional[str] = Query(default="fetched_at", description="Sort field: 'fetched_at', 'posted_date', 'title', 'company'"),
-    sort_order: Optional[str] = Query(default="desc", description="Sort direction: 'asc', 'desc'"),
-):
-    """
-    Get all jobs with multi-facet ORM filtering across region, YOE, posting date, tech stack, and keywords.
-    """
-    from sqlalchemy import or_, and_, func
-    from datetime import datetime, timedelta, timezone
-
-    try:
-        async with db_session() as db:
-            query = db.query(Job)
-
-            # 1. Search Query across title, company, location, tags, description
-            if search and search.strip():
-                term = f"%{search.strip().lower()}%"
-                query = query.filter(
-                    or_(
-                        func.lower(Job.title).like(term),
-                        func.lower(Job.company).like(term),
-                        func.lower(Job.location).like(term),
-                        func.lower(Job.tags).like(term),
-                        func.lower(Job.description).like(term),
-                    )
-                )
-
-            # 2. Region / Location Filtering
-            if region and region.strip() and region.lower() != "all":
-                reg = region.strip().lower()
-                if reg in ("remote", "global_remote", "work_from_home"):
-                    query = query.filter(
-                        or_(
-                            Job.has_remote == True,
-                            Job.work_mode == "remote",
-                            Job.work_mode == "remote_any",
-                            func.lower(Job.location).like("%remote%"),
-                            func.lower(Job.location).like("%anywhere%"),
-                        )
-                    )
-                elif reg in ("india", "in", "bengaluru", "bangalore", "mumbai", "delhi", "hyderabad", "pune", "chennai", "noida", "gurgaon"):
-                    query = query.filter(
-                        or_(
-                            func.lower(Job.location).like("%india%"),
-                            func.lower(Job.location).like("%bengaluru%"),
-                            func.lower(Job.location).like("%bangalore%"),
-                            func.lower(Job.location).like("%mumbai%"),
-                            func.lower(Job.location).like("%delhi%"),
-                            func.lower(Job.location).like("%hyderabad%"),
-                            func.lower(Job.location).like("%pune%"),
-                            func.lower(Job.location).like("%chennai%"),
-                            func.lower(Job.location).like("%noida%"),
-                            func.lower(Job.location).like("%gurgaon%"),
-                        )
-                    )
-                elif reg in ("us", "usa", "united states", "san francisco", "new york", "seattle", "austin"):
-                    query = query.filter(
-                        or_(
-                            func.lower(Job.location).like("%u.s%"),
-                            func.lower(Job.location).like("%united states%"),
-                            func.lower(Job.location).like("%ca%"),
-                            func.lower(Job.location).like("%ny%"),
-                            func.lower(Job.location).like("%wa%"),
-                            func.lower(Job.location).like("%san francisco%"),
-                            func.lower(Job.location).like("%new york%"),
-                            func.lower(Job.location).like("%seattle%"),
-                        )
-                    )
-                elif reg in ("europe", "eu", "germany", "uk", "london", "singapore"):
-                    query = query.filter(
-                        or_(
-                            func.lower(Job.location).like("%europe%"),
-                            func.lower(Job.location).like("%uk%"),
-                            func.lower(Job.location).like("%london%"),
-                            func.lower(Job.location).like("%germany%"),
-                            func.lower(Job.location).like("%singapore%"),
-                        )
-                    )
-                else:
-                    query = query.filter(func.lower(Job.location).like(f"%{reg}%"))
-
-            # 3. Experience Level & Years of Experience (YOE) Filtering
-            if years_of_experience is not None:
-                if years_of_experience <= 2:
-                    query = query.filter(or_(Job.experience_level.like("%Junior%"), Job.experience_level.like("%Entry%"), func.lower(Job.title).like("%intern%"), func.lower(Job.title).like("%junior%")))
-                elif years_of_experience <= 5:
-                    query = query.filter(or_(Job.experience_level.like("%Mid%"), Job.experience_level.like("%SWE II%"), Job.experience_level.like("%L4%"), func.lower(Job.title).like("%sde 2%"), func.lower(Job.title).like("%sde ii%")))
-                elif years_of_experience <= 8:
-                    query = query.filter(or_(Job.experience_level.like("%Senior%"), Job.experience_level.like("%L5%"), func.lower(Job.title).like("%senior%"), func.lower(Job.title).like("%sr%")))
-                else:
-                    query = query.filter(or_(Job.experience_level.like("%Lead%"), Job.experience_level.like("%Staff%"), Job.experience_level.like("%Principal%"), Job.experience_level.like("%Director%"), func.lower(Job.title).like("%lead%"), func.lower(Job.title).like("%staff%"), func.lower(Job.title).like("%principal%")))
-            elif experience_level and experience_level.strip() and experience_level.lower() != "all":
-                exp_lower = experience_level.strip().lower()
-                if "junior" in exp_lower or "entry" in exp_lower or "0-2" in exp_lower:
-                    query = query.filter(or_(Job.experience_level.like("%Junior%"), Job.experience_level.like("%Entry%"), func.lower(Job.title).like("%intern%"), func.lower(Job.title).like("%junior%")))
-                elif "mid" in exp_lower or "3-5" in exp_lower:
-                    query = query.filter(or_(Job.experience_level.like("%Mid%"), Job.experience_level.like("%SWE II%"), Job.experience_level.like("%L4%")))
-                elif "senior" in exp_lower or "5-8" in exp_lower:
-                    query = query.filter(or_(Job.experience_level.like("%Senior%"), Job.experience_level.like("%L5%"), func.lower(Job.title).like("%senior%"), func.lower(Job.title).like("%sr%")))
-                elif "lead" in exp_lower or "staff" in exp_lower or "principal" in exp_lower or "8+" in exp_lower:
-                    query = query.filter(or_(Job.experience_level.like("%Lead%"), Job.experience_level.like("%Staff%"), Job.experience_level.like("%Principal%"), Job.experience_level.like("%Director%"), func.lower(Job.title).like("%lead%"), func.lower(Job.title).like("%staff%"), func.lower(Job.title).like("%principal%")))
-                else:
-                    query = query.filter(func.lower(Job.experience_level).like(f"%{exp_lower}%"))
-
-            # 4. Date Posted Filtering
-            if date_posted and date_posted.strip() and date_posted.lower() not in ("anytime", "all"):
-                now = datetime.now(timezone.utc).replace(tzinfo=None)
-                dp_lower = date_posted.strip().lower()
-                cutoff = None
-                if dp_lower in ("24h", "1d", "today"):
-                    cutoff = now - timedelta(days=1)
-                elif dp_lower in ("7d", "1w", "week"):
-                    cutoff = now - timedelta(days=7)
-                elif dp_lower in ("14d", "2w"):
-                    cutoff = now - timedelta(days=14)
-                elif dp_lower in ("30d", "1m", "month"):
-                    cutoff = now - timedelta(days=30)
-                
-                if cutoff:
-                    query = query.filter(or_(Job.posted_date >= cutoff, Job.fetched_at >= cutoff))
-
-            # 5. Tech Stack Filter
-            if tech_stack and tech_stack.strip() and tech_stack.lower() != "all":
-                stacks = [s.strip() for s in tech_stack.split(",") if s.strip()]
-                for s in stacks:
-                    s_term = f"%{s.lower()}%"
-                    query = query.filter(or_(func.lower(Job.tags).like(s_term), func.lower(Job.title).like(s_term), func.lower(Job.description).like(s_term)))
-
-            # 6. Source Filter
-            if source and source.strip() and source.lower() != "all":
-                src_clean = source.strip().lower()
-                if src_clean == "tier1":
-                    query = query.filter(Job.source.in_(["greenhouse_direct", "lever_direct", "smartrecruiters_direct"]))
-                elif src_clean == "startups":
-                    query = query.filter(Job.source.in_(["greenhouse_startup", "lever_startup"]))
-                elif src_clean == "fintech":
-                    query = query.filter(Job.source.in_(["greenhouse_fintech", "smartrecruiters_fintech"]))
-                elif src_clean == "usajobs":
-                    query = query.filter(Job.source == "usajobs")
-                else:
-                    query = query.filter(func.lower(Job.source).like(f"%{src_clean}%"))
-
-            if has_remote is True:
-                query = query.filter(or_(Job.has_remote == True, Job.work_mode == "remote", Job.work_mode == "remote_any"))
-
-            # 7. Sorting
-            sort_col = Job.fetched_at
-            if sort_by == "posted_date":
-                sort_col = Job.posted_date
-            elif sort_by == "title":
-                sort_col = Job.title
-            elif sort_by == "company":
-                sort_col = Job.company
-
-            if sort_order and sort_order.lower() == "asc":
-                query = query.order_by(sort_col.asc())
-            else:
-                query = query.order_by(sort_col.desc())
-
-            total = query.count()
-            jobs = query.offset((page - 1) * limit).limit(limit).all()
-            job_data = [_to_job_data(j) for j in jobs]
-
-            return JobsResponse(
-                status="success",
-                jobs=job_data,
-                pagination=PaginationData(
-                    page=page,
-                    limit=limit,
-                    total=total,
-                    pages=(total + limit - 1) // limit if limit > 0 else 0,
-                ),
-            )
-    except Exception as exc:
-        log.error("Failed to retrieve filtered jobs: %s", exc, exc_info=True)
-        raise DatabaseError(f"Failed to retrieve filtered jobs: {str(exc)}")
-
+# GET /api/jobs and GET /api/jobs/{job_id} moved to src/jobify/routers/me_jobs.py (Jobify contract).
 
 
 @app.get("/api/jobs/pending-outreach", tags=["jobs"], response_model=PendingOutreachResponse)
@@ -2487,26 +2308,6 @@ async def pending_outreach(
     except Exception as exc:
         log.error("Failed to retrieve pending outreach jobs: %s", exc, exc_info=True)
         raise DatabaseError(f"Failed to retrieve pending outreach jobs: {str(exc)}")
-
-
-@app.get("/api/jobs/{job_id}", tags=["jobs"], response_model=JobData)
-async def get_job_by_id(job_id: int):
-    """Get a single job by ID."""
-    try:
-        async with db_session() as db:
-            j = db.query(Job).filter(Job.id == job_id).first()
-            if not j:
-                raise ResourceNotFoundError("Job", job_id)
-
-            app_rec = db.query(Application).filter(Application.job_id == job_id).order_by(Application.id.desc()).first()
-            match_score = app_rec.match_score if app_rec else None
-            app_status = app_rec.status if app_rec else None
-            return _to_job_data(j, match_score=match_score, application_status=app_status)
-    except ResourceNotFoundError:
-        raise
-    except Exception as exc:
-        log.error("Failed to retrieve job %s: %s", job_id, exc, exc_info=True)
-        raise DatabaseError(f"Failed to retrieve job: {str(exc)}")
 
 
 # ── Opportunities & Applications ──────────────────────────────────────────────
@@ -3976,6 +3777,13 @@ async def tailor_resume_bullets_with_attention(request: AttentionTailorRequest, 
 @app.post("/api/attention/outreach", tags=["attention"], response_model=AttentionOutreachResponse)
 async def generate_cross_attention_outreach(request: AttentionOutreachRequest, req: Request):
     """Cross-attends target contact persona against candidate portfolio wins to generate personalized hooks."""
+    from src.attention.tokenizer import clause_tokenizer
+
+    if not clause_tokenizer.extract_keys_and_values()[0]:
+        raise HTTPException(
+            status_code=422,
+            detail="Candidate profile evidence is required before generating personalized outreach.",
+        )
     try:
         result = attention_service.synthesize_outreach_hooks(
             contact_name=request.contact_name,
@@ -4390,7 +4198,7 @@ async def find_tier1_referral_contacts(payload: Tier1ReferralRequest):
                 company_name=payload.company_name,
                 role_title=payload.role_title or "Software Engineer",
                 job_id_or_url=payload.job_id_or_url,
-                candidate_name=getattr(settings, "sender_name", "Kushall Jain") or "Kushall Jain",
+                candidate_name=getattr(settings, "sender_name", "") or "",
             )
             enriched_leads.append({
                 **lead,
@@ -4594,9 +4402,9 @@ async def trigger_crawler_single_pass(payload: CrawlerSinglePassRequest = Crawle
 async def get_enterprise_crawler_metrics():
     """Returns enterprise-grade metrics for CTO / VC pitch: tech stack distribution, remote ratio, salary benchmarks."""
     from collections import Counter
-    from src.tier1_companies import TIER1_REGISTRY
-    from src.indian_app_startups import INDIAN_APP_STARTUPS
-    from src.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY
+    from src.company_sources.registries.tier1_companies import TIER1_REGISTRY
+    from src.company_sources.registries.indian_app_startups import INDIAN_APP_STARTUPS
+    from src.company_sources.registries.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY
 
     db = SessionLocal()
     try:
@@ -4657,7 +4465,7 @@ async def trigger_fintech_decision_maker_mining(
     payload: FinTechMineRequest = FinTechMineRequest()
 ):
     """Triggers autonomous mining of technical & executive decision makers across 150+ FinTech Fest companies."""
-    from src.fintech_decision_maker_miner import fintech_miner
+    from src.company_sources.miners.fintech_decision_maker_miner import fintech_miner
     try:
         # Run asynchronous sweep in background
         asyncio.create_task(fintech_miner.run_full_gff_decision_maker_sweep(auto_send=payload.auto_send))
@@ -4714,7 +4522,7 @@ async def get_mined_fintech_decision_makers(
 @app.post("/api/fintech/auto-outreach", tags=["fintech-decision-makers"])
 async def trigger_fintech_auto_outreach(limit: int = Query(default=20, ge=1, le=100)):
     """Dispatches hyper-personalized cold outreach emails to pending discovered decision makers."""
-    from src.fintech_decision_maker_miner import fintech_miner, DecisionMakerContact
+    from src.company_sources.miners.fintech_decision_maker_miner import fintech_miner, DecisionMakerContact
     db = SessionLocal()
     sent_count = 0
     errors = 0
@@ -4766,7 +4574,7 @@ async def trigger_fintech_auto_outreach(limit: int = Query(default=20, ge=1, le=
 @app.get("/api/fintech/miner-status", tags=["fintech-decision-makers"])
 async def get_fintech_miner_status():
     """Returns real-time telemetry, worker state, and event logs for the GFF decision maker engine."""
-    from src.fintech_decision_maker_miner import fintech_miner
+    from src.company_sources.miners.fintech_decision_maker_miner import fintech_miner
     return {
         "status": "running" if fintech_miner.is_running else "idle",
         "total_mined": fintech_miner.total_mined,
@@ -4795,7 +4603,7 @@ async def get_accelerator_companies(
     stage: Optional[str] = Query(default=None),
 ):
     """Lists startups from Y Combinator, Surge by Peak XV, Accel Atoms, Antler, Techstars, and Blume Ventures."""
-    from src.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator, filter_by_category
+    from src.company_sources.registries.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator, filter_by_category
     startups = ACCELERATORS_REGISTRY
     if accelerator:
         startups = filter_by_accelerator(accelerator)
@@ -4813,8 +4621,8 @@ async def get_accelerator_companies(
 @app.post("/api/accelerators/sync-jobs", tags=["accelerators"])
 async def sync_accelerator_jobs(payload: AcceleratorSyncRequest = AcceleratorSyncRequest()):
     """Concurrently scrapes live engineering opportunities from YC and accelerator startups."""
-    from src.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator
-    from src.accelerator_miner import accelerator_miner
+    from src.company_sources.registries.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator
+    from src.company_sources.miners.accelerator_miner import accelerator_miner
     startups = ACCELERATORS_REGISTRY
     if payload.accelerator:
         startups = filter_by_accelerator(payload.accelerator)
@@ -4835,8 +4643,8 @@ async def sync_accelerator_jobs(payload: AcceleratorSyncRequest = AcceleratorSyn
 @app.post("/api/accelerators/mine-and-outreach", tags=["accelerators"])
 async def mine_and_outreach_accelerator_startups(payload: AcceleratorOutreachRequest = AcceleratorOutreachRequest()):
     """Mines founders & CTOs across accelerator startups and dispatches cold outreach (strictly <= 2/company)."""
-    from src.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator
-    from src.accelerator_miner import accelerator_miner
+    from src.company_sources.registries.accelerators_registry import ACCELERATORS_REGISTRY, filter_by_accelerator
+    from src.company_sources.miners.accelerator_miner import accelerator_miner
     startups = ACCELERATORS_REGISTRY
     if payload.accelerator:
         startups = filter_by_accelerator(payload.accelerator)
@@ -4874,7 +4682,7 @@ async def get_shark_tank_companies(
     shark: Optional[str] = Query(default=None),
 ):
     """Lists startups from Shark Tank India across Seasons 1, 2, 3, 4, and 5."""
-    from src.shark_tank_india_startups import (
+    from src.company_sources.registries.shark_tank_india_startups import (
         SHARK_TANK_INDIA_REGISTRY,
         filter_by_season,
         filter_by_shark,
@@ -4900,11 +4708,11 @@ async def mine_and_outreach_shark_tank_startups(
     payload: SharkTankOutreachRequest = SharkTankOutreachRequest()
 ):
     """Mines founders & CTOs across Shark Tank India startups and dispatches outreach (strictly <= 2/company)."""
-    from src.shark_tank_india_startups import (
+    from src.company_sources.registries.shark_tank_india_startups import (
         SHARK_TANK_INDIA_REGISTRY,
         filter_by_season,
     )
-    from src.shark_tank_miner import shark_tank_miner
+    from src.company_sources.miners.shark_tank_miner import shark_tank_miner
 
     startups = SHARK_TANK_INDIA_REGISTRY
     if payload.season:
@@ -4945,7 +4753,7 @@ async def get_shark_tank_us_companies(
     shark: Optional[str] = Query(default=None),
 ):
     """Lists startups from Shark Tank US across Seasons 1 to 16."""
-    from src.shark_tank_us_startups import (
+    from src.company_sources.registries.shark_tank_us_startups import (
         SHARK_TANK_US_REGISTRY,
         filter_by_season_us,
         filter_by_shark_us,
@@ -4971,11 +4779,11 @@ async def mine_and_outreach_shark_tank_us_startups(
     payload: SharkTankUSOutreachRequest = SharkTankUSOutreachRequest()
 ):
     """Mines founders & CTOs across US Shark Tank startups and dispatches outreach (strictly <= 2/company)."""
-    from src.shark_tank_us_startups import (
+    from src.company_sources.registries.shark_tank_us_startups import (
         SHARK_TANK_US_REGISTRY,
         filter_by_season_us,
     )
-    from src.shark_tank_us_miner import shark_tank_us_miner
+    from src.company_sources.miners.shark_tank_us_miner import shark_tank_us_miner
 
     startups = SHARK_TANK_US_REGISTRY
     if payload.season:
@@ -5015,7 +4823,7 @@ async def get_suniel_shetty_companies(
     category: Optional[str] = Query(default=None),
 ):
     """Lists startups from Suniel Shetty's shows ('Bharat Ke Super Founders', 'Horses Stable') & portfolio."""
-    from src.suniel_shetty_startups import (
+    from src.company_sources.registries.suniel_shetty_startups import (
         SUNIEL_SHETTY_STARTUPS_REGISTRY,
         filter_by_show,
         filter_by_shetty_category,
@@ -5038,11 +4846,11 @@ async def mine_and_outreach_suniel_shetty_startups(
     payload: SunielShettyOutreachRequest = SunielShettyOutreachRequest()
 ):
     """Mines founders & CTOs across Suniel Shetty show startups and dispatches outreach (strictly <= 2/company)."""
-    from src.suniel_shetty_startups import (
+    from src.company_sources.registries.suniel_shetty_startups import (
         SUNIEL_SHETTY_STARTUPS_REGISTRY,
         filter_by_show,
     )
-    from src.suniel_shetty_miner import suniel_shetty_miner
+    from src.company_sources.miners.suniel_shetty_miner import suniel_shetty_miner
 
     startups = SUNIEL_SHETTY_STARTUPS_REGISTRY
     if payload.show:
@@ -5081,7 +4889,7 @@ async def get_nifty500_companies(
     search: Optional[str] = Query(default=None),
 ):
     """Lists official enterprise companies from the NSE Nifty 500 index (500 companies)."""
-    from src.nifty500_registry import (
+    from src.company_sources.registries.nifty500_registry import (
         get_all_nifty500_companies,
         filter_by_industry,
         search_by_keyword,
@@ -5108,11 +4916,11 @@ async def mine_and_outreach_nifty500_companies(
     payload: Nifty500OutreachRequest = Nifty500OutreachRequest()
 ):
     """Mines tech decision makers across Nifty 500 enterprises and dispatches outreach (strictly <= 2/company)."""
-    from src.nifty500_registry import (
+    from src.company_sources.registries.nifty500_registry import (
         get_all_nifty500_companies,
         filter_by_industry,
     )
-    from src.nifty500_miner import nifty500_miner
+    from src.company_sources.miners.nifty500_miner import nifty500_miner
 
     companies = get_all_nifty500_companies()
     target_ind = payload.sector
@@ -5152,7 +4960,7 @@ async def get_sp500_companies(
     search: Optional[str] = Query(default=None),
 ):
     """Lists official constituent corporations from the US S&P 500 index (503 companies)."""
-    from src.sp500_registry import (
+    from src.company_sources.registries.sp500_registry import (
         get_all_sp500_companies,
         filter_by_sector,
         filter_by_sub_industry,
@@ -5181,11 +4989,11 @@ async def mine_and_outreach_sp500_companies(
     payload: SP500OutreachRequest = SP500OutreachRequest()
 ):
     """Mines tech decision makers across S&P 500 giants and dispatches outreach (strictly <= 2/company)."""
-    from src.sp500_registry import (
+    from src.company_sources.registries.sp500_registry import (
         get_all_sp500_companies,
         filter_by_sector,
     )
-    from src.sp500_miner import sp500_miner
+    from src.company_sources.miners.sp500_miner import sp500_miner
 
     companies = get_all_sp500_companies()
     if payload.sector:
@@ -5486,9 +5294,10 @@ async def harvest_company_community_intel(request: CommunityHarvestRequest, req:
 async def get_job_community_intel(job_id: int, req: Request = None):
     """Retrieves synthesized interview loops and community intel auto-mapped to a specific Job ID."""
     try:
-        job = db.get_job(job_id)
-        company = (job.get("company") or "Target Company") if job else "Target Company"
-        title = (job.get("title") or "Software Engineer") if job else "Software Engineer"
+        async with db_session() as db:  # was an undefined `db`: every call raised NameError
+            job = db.get(Job, job_id)
+        company = (job.company if job and job.company else "Target Company")
+        title = (job.title if job and job.title else "Software Engineer")
         result = await community_intel_service.get_company_intel(company=company, role=title)
         return CommunityIntelResponse(
             status="success",
@@ -5502,7 +5311,7 @@ async def get_job_community_intel(job_id: int, req: Request = None):
         )
     except Exception as exc:
         log.error("Failed to get community intel for job %s: %s", job_id, exc, exc_info=True)
-        raise APIError(f"Job community intel failed: {str(exc)}")
+        raise APIError("Job community intel failed")  # details stay in the log, not the response
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -6093,7 +5902,7 @@ async def get_labor_market_intelligence(
 # Sprint 1: Interviewer Cognitive Profiler & Offer Arbitrage War-Room
 # ═══════════════════════════════════════════════════════════════════════════
 
-from src.services.interviewer_profiler import InterviewerProfilerService
+from src.experimental.services.interviewer_profiler import InterviewerProfilerService
 from src.services.offer_arbitrage import OfferArbitrageService, CompensationOffer
 
 class InterviewerProfileRequest(BaseModel):
@@ -6195,11 +6004,11 @@ def generate_voice_scorecard(req: VoiceScorecardRequest) -> Dict[str, Any]:
 # Sprint 3: Proof-of-Work Fabricator & Anti-Ghosting SLA Radar Endpoints
 # ═══════════════════════════════════════════════════════════════════════════
 
-from src.services.proof_of_work_fabricator import (
+from src.experimental.services.proof_of_work_fabricator import (
     ProofOfWorkFabricatorService,
     FabricatePoWRequest,
 )
-from src.services.anti_ghosting_service import (
+from src.experimental.services.anti_ghosting_service import (
     AntiGhostingService,
     EscalationRequest,
 )
@@ -6246,24 +6055,24 @@ def synthesize_anti_ghosting_escalation(req: EscalationRequest) -> Dict[str, Any
 # Sprint 4: Frontier AI Arbitrage Radar & Executive Decision Memo Endpoints
 # ═══════════════════════════════════════════════════════════════════════════
 
-from src.services.frontier_ai_radar import (
+from src.experimental.services.frontier_ai_radar import (
     FrontierAiRadarService,
     BenchmarkRequest,
 )
-from src.services.executive_decision_memo import (
+from src.experimental.services.executive_decision_memo import (
     ExecutiveDecisionMemoService,
     SynthesizeMemoRequest,
 )
 
-from src.services.reverse_headhunter_service import (
+from src.experimental.services.reverse_headhunter_service import (
     ReverseHeadhunterService,
     PitchPackRequest,
 )
-from src.services.geo_arbitrage_service import (
+from src.experimental.services.geo_arbitrage_service import (
     GeoArbitrageService,
     PppCalculationRequest,
 )
-from src.services.web3_bounty_harvester import (
+from src.experimental.services.web3_bounty_harvester import (
     Web3BountyHarvesterService,
     BountyProposalRequest,
 )
@@ -6363,15 +6172,15 @@ def synthesize_web3_bounty_proposal(req: BountyProposalRequest) -> Dict[str, Any
 
 # ── Sprint 6 Endpoints: System Design Whiteboard, Executive Outreach & Sandbox ─
 
-from src.services.system_design_whiteboard import (
+from src.experimental.services.system_design_whiteboard import (
     SystemDesignWhiteboardService,
     WhiteboardRequest,
 )
-from src.services.executive_outreach_service import (
+from src.experimental.services.executive_outreach_service import (
     ExecutiveOutreachService,
     ExecutiveCampaignRequest,
 )
-from src.services.sandbox_simulation_service import (
+from src.experimental.services.sandbox_simulation_service import (
     SandboxSimulationService,
     SimulationRequest,
 )

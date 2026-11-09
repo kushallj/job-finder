@@ -7,12 +7,12 @@ test_sprint6_features.py — Unit & Integration tests for Sprint 6:
 import pytest
 from fastapi.testclient import TestClient
 from main import app
-from src.services.system_design_whiteboard import SystemDesignWhiteboardService
-from src.agents.agent_24_system_design_whiteboard import SystemDesignWhiteboardAgent
-from src.services.executive_outreach_service import ExecutiveOutreachService
-from src.agents.agent_25_executive_outreach import ExecutiveOutreachAgent
-from src.services.sandbox_simulation_service import SandboxSimulationService
-from src.agents.agent_26_sandbox_simulation import SandboxSimulationAgent
+from src.experimental.services.system_design_whiteboard import SystemDesignWhiteboardService
+from src.experimental.agents.agent_24_system_design_whiteboard import SystemDesignWhiteboardAgent
+from src.experimental.services.executive_outreach_service import ExecutiveOutreachService
+from src.experimental.agents.agent_25_executive_outreach import ExecutiveOutreachAgent
+from src.experimental.services.sandbox_simulation_service import SandboxSimulationService
+from src.experimental.agents.agent_26_sandbox_simulation import SandboxSimulationAgent
 
 client = TestClient(app)
 

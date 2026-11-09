@@ -116,19 +116,6 @@ class SemanticClauseTokenizer:
                 except Exception:
                     pass
 
-        if not bullets:
-            # Canonical candidate experience bullets for Kushall Jain
-            bullets = [
-                "Architected and deployed high-throughput async microservices using Python, FastAPI, and PostgreSQL with <50ms p99 latency.",
-                "Built DevFrnds: full-stack developer collaboration platform with real-time WebSockets, Redis pub/sub, and React/TypeScript frontend.",
-                "Engineered robust distributed workflows, background task queues with Celery/Redis, and high-concurrency API gateways.",
-                "Led database schema design, index optimization, and complex query tuning in PostgreSQL, reducing query latency by 45%.",
-                "Spearheaded end-to-end full-stack feature development with React.js, TypeScript, Next.js, and automated CI/CD deployment pipelines.",
-                "Authored comprehensive technical architecture RFCs, led sprint planning, and conducted rigorous peer code reviews.",
-                "Collaborated with ByteDance engineers on frontend performance profiling and optimized web vitals to sub-second load times.",
-                "Implemented secure authentication architectures including OAuth 2.0 PKCE, JWT stateless sessions, and role-based access control.",
-            ]
-
         key_tokens: List[KeyToken] = []
         value_payloads: List[ValuePayload] = []
 

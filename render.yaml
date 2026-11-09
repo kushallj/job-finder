@@ -2,13 +2,15 @@
 # Reference: https://render.com/docs/blueprint-spec
 
 services:
-  # ── Core Unified SaaS Application (FastAPI + React SPA + Playwright) ──────
+  # ── API (FastAPI). Jobify UI is on Vercel; no Playwright in this image ──────
   - type: web
     name: job-finder-api
     env: docker
     dockerfilePath: Dockerfile
     plan: standard
-    healthCheckPath: /health
+    healthCheckPath: /readyz
+    # Schema changes ship before new code serves traffic (one run per deploy, not per instance).
+    preDeployCommand: alembic upgrade head
     region: oregon
     envVars:
       - key: ENV
@@ -36,6 +38,75 @@ services:
         sync: false
       - key: FRONTEND_URL
         value: https://job-finder-api.onrender.com
+
+  # ── Celery worker: runs the job-catalog scrape (and Gmail sync / ghosted sweep) ──
+  # Same image as the API (it includes the scrapers + Playwright). Scale this freely.
+  # Never set AUTO_SEND_EMAILS here: no scheduled task may send email (CLAUDE.md §1).
+  - type: worker
+    name: job-finder-worker
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerCommand: celery -A src.tasks worker --loglevel=info --concurrency=2 --queues=celery
+    plan: standard
+    region: oregon
+    envVars:
+      - key: ENV
+        value: production
+      - key: MULTI_TENANT_ENABLED
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: job-finder-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: job-finder-redis
+          property: connectionString
+      - key: JWT_SECRET_KEY        # required at import when ENV=production; workers never sign tokens
+        generateValue: true
+      - key: CATALOG_QUERIES       # comma-separated job-board searches; empty = defaults in src/tasks.py
+        sync: false
+      - key: ADZUNA_APP_ID
+        sync: false
+      - key: ADZUNA_APP_KEY
+        sync: false
+      - key: CAREERJET_API_KEY
+        sync: false
+      - key: USAJOBS_API_KEY
+        sync: false
+      - key: USAJOBS_EMAIL
+        sync: false
+      - key: FIRECRAWL_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+  # ── Celery beat: the scheduler. EXACTLY ONE instance, or every job runs twice ──
+  # It only enqueues tasks (no DB or scraping), so the smallest plan is enough. The
+  # schedule is read at startup: change CATALOG_REFRESH_* here, then restart beat.
+  - type: worker
+    name: job-finder-beat
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerCommand: celery -A src.tasks beat --loglevel=info --schedule /tmp/celerybeat-schedule
+    plan: starter
+    numInstances: 1
+    region: oregon
+    envVars:
+      - key: ENV
+        value: production
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: job-finder-redis
+          property: connectionString
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: CATALOG_REFRESH_HOURS_UTC   # 2,14 = 08:00 + 20:00 IST
+        value: "2,14"
+      - key: CATALOG_REFRESH_MINUTE
+        value: "30"
 
   # ── Redis Cache & Celery Task Queue ───────────────────────────────────────
   - type: redis

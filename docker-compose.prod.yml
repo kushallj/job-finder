@@ -2,6 +2,29 @@
 # Production Docker Compose for Self-Hosted VPS / Cloud Deployments
 # ==============================================================================
 
+# Shared by app, celery_worker and celery_beat. Never add AUTO_SEND_EMAILS: no
+# scheduled task may send email (CLAUDE.md §1).
+x-app-env: &app-env
+  ENV: production
+  MULTI_TENANT_ENABLED: "true"
+  DATABASE_URL: postgresql://${POSTGRES_USER:-jf_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-job_finder_production}
+  REDIS_URL: redis://redis:6379/0
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env.production}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8000}
+  # Job-catalog refresh: 2,14 UTC = 08:00 + 20:00 IST; queries empty = src/tasks.py defaults
+  CATALOG_REFRESH_HOURS_UTC: ${CATALOG_REFRESH_HOURS_UTC:-2,14}
+  CATALOG_REFRESH_MINUTE: ${CATALOG_REFRESH_MINUTE:-30}
+  CATALOG_QUERIES: ${CATALOG_QUERIES:-}
+  ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
+  ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
+  CAREERJET_API_KEY: ${CAREERJET_API_KEY:-}
+  USAJOBS_API_KEY: ${USAJOBS_API_KEY:-}
+  USAJOBS_EMAIL: ${USAJOBS_EMAIL:-}
+  FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+
 services:
   # ── 1. Production PostgreSQL Database ───────────────────────────────────────
   postgres:
@@ -38,7 +61,19 @@ services:
       timeout: 3s
       retries: 5
 
-  # ── 3. Core SaaS Application (FastAPI + React SPA + Headless Chromium) ─────
+  # ── 3a. One-shot migration: runs to completion before app/workers start ────
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── 3b. API (FastAPI). Jobify UI is on Vercel; no Playwright in this image ───
   app:
     build:
       context: .
@@ -46,30 +81,55 @@ services:
     container_name: jf_prod_app
     restart: always
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     ports:
       - "${PORT:-8000}:8000"
-    environment:
-      - ENV=production
-      - MULTI_TENANT_ENABLED=true
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-jf_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-job_finder_production}
-      - REDIS_URL=redis://redis:6379/0
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env.production}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8000}
+    environment: *app-env
     volumes:
       - app_data:/app/data
       - app_logs:/app/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/readyz"]
       interval: 20s
       timeout: 5s
       retries: 3
+
+  # ── 4. Celery worker: job-catalog scrape, Gmail sync, ghosted sweep ─────────
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jf_prod_worker
+    restart: always
+    command: ["celery", "-A", "src.tasks", "worker", "--loglevel=info", "--concurrency=2", "--queues=celery"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment: *app-env
+    healthcheck:
+      disable: true   # the image's HEALTHCHECK probes the HTTP API, which workers don't serve
+
+  # ── 5. Celery beat: the scheduler. Exactly one; never `--scale` it ──────────
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jf_prod_beat   # fixed name also blocks accidental scaling
+    restart: always
+    command: ["celery", "-A", "src.tasks", "beat", "--loglevel=info", "--schedule", "/tmp/celerybeat-schedule"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment: *app-env
+    healthcheck:
+      disable: true
 
 volumes:
   postgres_data:

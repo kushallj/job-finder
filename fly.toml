@@ -7,10 +7,29 @@ primary_region = "iad"
 [build]
   dockerfile = "Dockerfile"
 
+# Runs once per deploy in a temporary machine, before new code receives traffic.
+[deploy]
+  release_command = "alembic upgrade head"
+
 [env]
   ENV = "production"
   MULTI_TENANT_ENABLED = "true"
   PORT = "8000"
+  # Job-catalog refresh (read by beat at startup). 2,14 UTC = 08:00 + 20:00 IST.
+  CATALOG_REFRESH_HOURS_UTC = "2,14"
+  CATALOG_REFRESH_MINUTE = "30"
+
+# One image, three process groups. Secrets (DATABASE_URL, REDIS_URL e.g. Upstash,
+# JWT_SECRET_KEY, job-source keys, CATALOG_QUERIES) go in `fly secrets set`; every
+# group gets them. Never set AUTO_SEND_EMAILS: no scheduled task may send email.
+#
+# beat must run on EXACTLY ONE machine, or every scheduled job runs twice. After the
+# first deploy (and whenever you scale), check with `fly scale show` and run:
+#   fly scale count app=1 worker=1 beat=1
+[processes]
+  app = "uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips='*' --no-server-header"
+  worker = "celery -A src.tasks worker --loglevel=info --concurrency=2 --queues=celery"
+  beat = "celery -A src.tasks beat --loglevel=info --schedule /tmp/celerybeat-schedule"
 
 [http_service]
   internal_port = 8000
@@ -30,10 +49,19 @@ primary_region = "iad"
     interval = "30s"
     method = "GET"
     timeout = "5s"
-    path = "/health"
+    path = "/readyz"
 
 [[vm]]
+  processes = ["app", "worker"]
   size = "shared-cpu-2x"
   memory = "2048mb"
   cpu_kind = "shared"
   cpus = 2
+
+# beat only enqueues tasks
+[[vm]]
+  processes = ["beat"]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

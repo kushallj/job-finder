@@ -1,0 +1,5 @@
+# Opt-in scraper worker (JOB_SOURCES_ALLOW_SCRAPING=true). Not installed in the API image.
+# Build a separate image: pip install -r requirements-scrapers.txt && playwright install --with-deps chromium
+-r requirements.txt
+playwright==1.40.0      # VC-intelligence enrichers (lazy import)
+python-jobspy           # job_sources "jobspy" scrape-tier source (Indeed/Glassdoor/Naukri; never LinkedIn)

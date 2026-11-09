@@ -10,8 +10,11 @@ from alembic import context
 # Add project root to path so we can import src modules
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.models import Base
 from src.config import settings
+from src.model_registry import load_all_models
+from src.models import Base
+
+load_all_models()  # without this, tables from other model modules look like drops
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

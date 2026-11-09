@@ -3,8 +3,9 @@ from sqlalchemy import create_engine, event, inspect, text as _text  # type: ign
 from sqlalchemy.orm import sessionmaker, Session  # type: ignore # pyrefly: ignore [missing-import]
 from src.config import settings
 from src.models import Base
-from src.answer_bank import models as _answer_bank_models  # noqa: F401  (registers AnsweredQuestion on Base.metadata)
-from src.nextraise import models as _nextraise_models      # noqa: F401  (registers NextRaise on Base.metadata)
+from src.model_registry import load_all_models
+
+load_all_models()  # every table on Base.metadata (same set Alembic sees)
 
 def normalize_database_url(url: str) -> str:
     """Normalize database URL for SQLAlchemy 2.0 (e.g. postgres:// -> postgresql://)."""
@@ -50,9 +51,18 @@ def db_session():
 
 
 def init_db():
-    """Initialize database tables and add nullable columns to existing SQLite/PostgreSQL DBs."""
-    Base.metadata.create_all(bind=engine)
-    if engine.url.get_backend_name() in ("sqlite", "postgresql"):
+    """Initialize database tables and add nullable columns to existing SQLite/PostgreSQL DBs.
+
+    Production: schema changes come only from `alembic upgrade head` (release step). The
+    create_all/ALTER shortcuts below would race across replicas and drift from migrations,
+    so they run only outside production; data seeding below still runs everywhere.
+    """
+    from src.config import settings as _cfg
+
+    dev_schema = not _cfg.is_production
+    if dev_schema:
+        Base.metadata.create_all(bind=engine)
+    if dev_schema and engine.url.get_backend_name() in ("sqlite", "postgresql"):
         inspector = inspect(engine)
         tables = set(inspector.get_table_names())
         if "jobs" in tables:
@@ -80,6 +90,13 @@ def init_db():
             existing_apps = {c["name"] for c in inspector.get_columns("applications")}
             app_additions = {
                 "user_id": "INTEGER",
+                # Jobify card fields (alembic f9feca078a08)
+                "company": "VARCHAR(500)",
+                "position": "VARCHAR(500)",
+                "notes": "TEXT",
+                "source": "VARCHAR(50)",
+                "events_json": "TEXT",
+                "offer_json": "TEXT",
                 "ats_detected": "VARCHAR(100)",
                 "customized_resume_path": "TEXT",
                 "cover_letter_path": "TEXT",
@@ -128,36 +145,69 @@ def init_db():
                     if name not in existing_sg:
                         conn.execute(_text(f"ALTER TABLE startups_gallery_companies ADD COLUMN {name} {ddl}"))
 
-    # Seed default user for backward compatibility and local development
-    try:
-        from src.models import User, CreditTransaction
-        from src.auth.crypto import hash_password
-        with SessionLocal() as session:
-            existing_user = session.query(User).filter(User.email == "admin@jobfinder.ai").first()
-            if not existing_user:
-                admin_user = User(
-                    email="admin@jobfinder.ai",
-                    hashed_password=hash_password("admin123"),
-                    full_name="Default Administrator",
-                    subscription_tier="unlimited",
-                    credits_balance=1000,
-                    is_active=True,
-                    is_superuser=True,
-                )
-                session.add(admin_user)
-                session.flush()
-                # Record welcome transaction
-                tx = CreditTransaction(
-                    user_id=admin_user.id,
-                    amount=1000,
-                    balance_after=1000,
-                    action="system_seed",
-                    notes="Initial system administrator provisioning",
-                )
-                session.add(tx)
-                session.commit()
-    except Exception as exc:
-        print(f"[WARN] Notice on default user seed: {exc}")
+    # Jobify Gmail OAuth columns on existing DBs (alembic revision for Phase 3)
+    if engine.url.get_backend_name() in ("sqlite", "postgresql"):
+        _insp = inspect(engine)
+        if "mailbox_accounts" in _insp.get_table_names():
+            _existing = {c["name"] for c in _insp.get_columns("mailbox_accounts")}
+            _adds = {"oauth_refresh_token_enc": "TEXT", "sync_status": "VARCHAR(30)",
+                     "last_error": "TEXT", "next_scan_at": "TIMESTAMP"}
+            with engine.begin() as conn:
+                for name, ddl in _adds.items():
+                    if name not in _existing:
+                        conn.execute(_text(f"ALTER TABLE mailbox_accounts ADD COLUMN {name} {ddl}"))
+        for _table, _adds in (("portfolio_companies", {"location": "VARCHAR(255)", "funding_summary": "VARCHAR(500)",
+                                                       "investors": "TEXT", "jobs_count": "INTEGER"}),
+                              ("company_founders", {"email_verified": "BOOLEAN"})):
+            if _table in _insp.get_table_names():
+                _existing = {c["name"] for c in _insp.get_columns(_table)}
+                with engine.begin() as conn:
+                    for name, ddl in _adds.items():
+                        if name not in _existing:
+                            conn.execute(_text(f"ALTER TABLE {_table} ADD COLUMN {name} {ddl}"))
+        if "inbound_recruiter_messages" in _insp.get_table_names():
+            _existing = {c["name"] for c in _insp.get_columns("inbound_recruiter_messages")}
+            _adds = {"direction": "VARCHAR(10)", "is_read": "BOOLEAN", "in_reply_to": "VARCHAR(500)",
+                     "sender_verified": "BOOLEAN"}
+            with engine.begin() as conn:
+                for name, ddl in _adds.items():
+                    if name not in _existing:
+                        conn.execute(_text(f"ALTER TABLE inbound_recruiter_messages ADD COLUMN {name} {ddl}"))
+
+    # Local dev superuser: opt-in only (SEED_DEV_ADMIN=true + DEV_ADMIN_PASSWORD), never in
+    # production. It used to be seeded unconditionally with a public password, which made
+    # admin@jobfinder.ai / admin123 a working superuser login on every deployment.
+    from src.config import settings as _settings
+    if _settings.env.lower() != "production" and _settings.seed_dev_admin and _settings.dev_admin_password:
+        try:
+            from src.models import User, CreditTransaction
+            from src.auth.crypto import hash_password
+            with SessionLocal() as session:
+                existing_user = session.query(User).filter(User.email == "admin@jobfinder.ai").first()
+                if not existing_user:
+                    admin_user = User(
+                        email="admin@jobfinder.ai",
+                        hashed_password=hash_password(_settings.dev_admin_password),
+                        full_name="Default Administrator",
+                        subscription_tier="unlimited",
+                        credits_balance=1000,
+                        is_active=True,
+                        is_superuser=True,
+                    )
+                    session.add(admin_user)
+                    session.flush()
+                    # Record welcome transaction
+                    tx = CreditTransaction(
+                        user_id=admin_user.id,
+                        amount=1000,
+                        balance_after=1000,
+                        action="system_seed",
+                        notes="Initial system administrator provisioning",
+                    )
+                    session.add(tx)
+                    session.commit()
+        except Exception as exc:
+            print(f"[WARN] Notice on default user seed: {exc}")
 
     # Seed premier VC firms for VC Intelligence Engine
     try:

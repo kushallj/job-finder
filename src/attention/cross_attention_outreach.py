@@ -27,6 +27,8 @@ class CrossAttentionOutreachSynthesizer:
         Cross-attends the contact's persona and job requirements to generate tailored outreach angles.
         """
         _, values = self.tokenizer.extract_keys_and_values()
+        if not values:
+            raise ValueError("Candidate profile evidence is required to generate outreach hooks.")
 
         # Build contact query string
         t_low = contact_title.lower()

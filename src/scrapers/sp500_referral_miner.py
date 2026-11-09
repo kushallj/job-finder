@@ -28,7 +28,7 @@ load_dotenv()
 
 from src.database import SessionLocal
 from src.models import Contact, Job, OutreachRecord
-from src.sp500_registry import SP500_REGISTRY, KNOWN_DOMAINS, derive_sp500_domain
+from src.company_sources.registries.sp500_registry import SP500_REGISTRY, KNOWN_DOMAINS, derive_sp500_domain
 
 logger = logging.getLogger("sp500_referral_miner")
 logger.setLevel(logging.INFO)

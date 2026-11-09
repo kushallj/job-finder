@@ -55,7 +55,7 @@ services:
       dockerfile: Dockerfile
     container_name: jf_api
     restart: unless-stopped
-    command: ["sh", "-c", "python migrate_database.py || true && uvicorn main:app --host 0.0.0.0 --port 8000"]
+    command: ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000"]
     environment:
       - ENV=${ENV:-development}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -215,7 +215,7 @@ services:
       - GENERIC_TIMEZONE=UTC
     volumes:
       - n8n_data:/home/node/.n8n
-      - ./n8n_workflows:/data/workflows
+      - ./infra/n8n/workflows:/data/workflows
     profiles:
       - optional
 

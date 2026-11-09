@@ -24,6 +24,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+# Python packaging only; Jobify keeps source in jobify/src/lib/
+!jobify/src/lib/
 lib64/
 parts/
 sdist/
@@ -48,9 +50,9 @@ ENV/
 # ===============================
 .env
 .env.*
-*.env
 !.env.example
 !.env.production.example
+*.env
 
 # ===============================
 # Logs
@@ -144,6 +146,9 @@ data/resume_v*.pdf
 data/workday_resumes/
 scratch/
 data/applications.md
+data/resume.txt
+data/resume_*.txt
+data/resume.pdf
 data/outreach_queue.json
 celerybeat-schedule
 celerybeat.pid
@@ -162,13 +167,13 @@ job311/
 # Configuration Files
 # ===============================
 config/*
-!config/profile.yml
-!config/target_companies.yml
-!config/boolean_queries.yml
+# profile.yml is personal data: kept local, never committed
+!config/profile.example.yml
+!config/target_companies.example.yml
 .blackboxcli/
 .env
 .env
-dsm_deploy/docker_images
+infra/synology/docker_images
 
 # Node
 node_modules/
@@ -177,3 +182,6 @@ npm-debug.log*
 # Jobify Frontend external repo
 Jobify-frontend/
 data/sample_*_founders.json
+
+# Personal one-off scripts (hardcoded candidate data; never commit)
+create_*_resume_pdf.py

@@ -1,60 +1,53 @@
+# syntax=docker/dockerfile:1.7
 # ==============================================================================
-# Multi-Stage Production Dockerfile: React SPA + FastAPI Cloud Runtime
+# Production image: FastAPI API + Celery worker/beat (same image, different CMD).
+#
+# - Jobify (the UI) deploys separately to Vercel; no frontend is built here.
+# - No Playwright/Chromium: scrape-tier job sources are opt-in and run from a separate
+#   scraper image (requirements-scrapers.txt), per CLAUDE.md "slim API image".
+# - Build tools live only in the builder stage; the runtime has no compiler.
+# - Runs as an unprivileged user. Migrations run as a release step, not per container
+#   (render.yaml preDeployCommand, fly.toml release_command).
 # ==============================================================================
 
-# ── Stage 1: Compile React / TypeScript Frontend ──────────────────────────────
-FROM node:20-alpine AS frontend-builder
-WORKDIR /app/frontend
+FROM python:3.12-slim AS builder
+ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential libpq-dev \
+ && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+RUN pip wheel --wheel-dir /wheels -r requirements.txt
 
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm install
 
-COPY frontend/ ./
-RUN npm run build
-
-# ── Stage 2: Production Python Backend & Playwright Runtime ───────────────────
-FROM python:3.11-slim AS runtime
-
+FROM python:3.12-slim AS runtime
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    DEBIAN_FRONTEND=noninteractive \
-    PORT=8000
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PORT=8000 \
+    WEB_CONCURRENCY=2
+
+# libpq5: runtime client lib for psycopg2. curl: container healthcheck only.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libpq5 curl \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --system app && useradd --system --gid app --home-dir /app --shell /usr/sbin/nologin app
 
 WORKDIR /app
-
-# Install system dependencies including PostgreSQL client libs, curl, and build tools
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    git \
-    libpq-dev \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies
+COPY --from=builder /wheels /wheels
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir flower
+RUN pip install --no-index --find-links /wheels -r requirements.txt && rm -rf /wheels
 
-# Install Playwright Chromium headless for autonomous Workday & NextRaise auto-apply
-RUN python -m playwright install --with-deps chromium || true
+# .dockerignore keeps .env, data/, config/profile.yml, tests and UIs out of the image.
+COPY --chown=app:app . .
+RUN mkdir -p /app/data /app/logs && chown -R app:app /app/data /app/logs
 
-# Copy application source code
-COPY . .
+USER app
+EXPOSE 8000
 
-# Copy compiled frontend SPA bundle from Stage 1 into FastAPI static distribution
-COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
+# Liveness only (no DB/LLM calls): restarts must not cascade when a dependency blips.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS "http://127.0.0.1:${PORT}/healthz" || exit 1
 
-# Ensure data and config directories exist
-RUN mkdir -p /app/data /app/config
-
-# Expose API port & Flower celery dashboard port
-EXPOSE 8000 5555
-
-# Container healthcheck targeting /health liveness probe
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
-
-# Default entrypoint runs FastAPI server
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# --proxy-headers: trust X-Forwarded-* from the platform's load balancer for client IPs/scheme.
+CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers ${WEB_CONCURRENCY} --proxy-headers --forwarded-allow-ips='*' --no-server-header"]

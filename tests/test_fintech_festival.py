@@ -1,6 +1,6 @@
 import pytest
 import httpx
-from src.fintech_festival_companies import (
+from src.company_sources.registries.fintech_festival_companies import (
     FINTECH_FESTIVAL_REGISTRY,
     get_fintech_festival_company,
     filter_fintech_festival_companies,

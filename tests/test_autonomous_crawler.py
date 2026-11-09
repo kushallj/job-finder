@@ -4,8 +4,26 @@ from src.autonomous_job_crawler import (
     AutonomousJobCrawler,
     autonomous_crawler,
 )
-from src.database import SessionLocal
-from src.models import Job
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from src.models import Base, Job, fit_to_columns
+
+
+def _isolated_session():
+    """In-memory DB: tests must not write into whatever DATABASE_URL .env points at."""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    return sessionmaker(bind=engine)()
+
+
+def test_fit_to_columns_clips_to_declared_lengths():
+    row = fit_to_columns(Job, {"experience_level": "x" * 250, "salary_currency": "EURO-DOLLARS", "description": "y" * 5000})
+    assert len(row["experience_level"]) == 100   # String(100)
+    assert row["salary_currency"] == "EURO-DOLLA"  # String(10)
+    assert len(row["description"]) == 5000      # Text: unlimited, untouched
+    assert len("Lead / Staff / Principal") <= Job.__table__.c.experience_level.type.length
 
 
 def test_tech_stack_and_seniority_extraction():
@@ -34,7 +52,7 @@ def test_tech_stack_ai_and_mobile_extraction():
 
 
 def test_crawler_upsert_job_record():
-    db = SessionLocal()
+    db = _isolated_session()
     crawler = AutonomousJobCrawler()
 
     test_raw = {

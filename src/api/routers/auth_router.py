@@ -74,7 +74,16 @@ class TopupRequest(BaseModel):
 
 # --- Endpoints ---
 
-@router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+def legacy_password_auth_guard() -> None:
+    """Clerk is the only customer login in production (CLAUDE.md section 8). The legacy
+    password routes 404 there unless LEGACY_PASSWORD_AUTH_ENABLED=true."""
+    from src.config import settings
+
+    if settings.is_production and not settings.legacy_password_auth_enabled:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+@router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(legacy_password_auth_guard)])
 def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
     """
     Register a new candidate user account.
@@ -127,7 +136,10 @@ def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/login", response_model=AuthResponse)
+KNOWN_DEFAULT_PASSWORDS = frozenset({"admin123"})
+
+
+@router.post("/login", response_model=AuthResponse, dependencies=[Depends(legacy_password_auth_guard)])
 def login_user(req: LoginRequest, db: Session = Depends(get_db)):
     """
     Authenticate user credentials and issue an access token.
@@ -147,7 +159,15 @@ def login_user(req: LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account has been deactivated",
         )
-    
+
+    # Databases initialised before 2026-11-05 contain admin@jobfinder.ai / admin123 (a public
+    # default). Refuse it everywhere until the password is changed.
+    if req.password in KNOWN_DEFAULT_PASSWORDS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Default credentials are disabled. Set a new password for this account.",
+        )
+
     token = create_access_token(data={"sub": str(user.id), "email": user.email})
     return AuthResponse(
         access_token=token,
@@ -225,7 +245,7 @@ async def clerk_webhook_handler(request: Request, db: Session = Depends(get_db))
             log.warning(f"Clerk webhook verification failed: {exc}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Webhook signature verification failed: {exc}",
+                detail="Webhook signature verification failed",
             )
     else:
         if settings.env.lower() == "production":

@@ -1,35 +1,10 @@
 """
-Job Scrapers Package
-
-This package provides:
-- Multiple platform-specific scrapers (Naukri, LinkedIn, Indeed, etc.)
-- ATS scrapers (Greenhouse, Lever)
-- Unified scraper orchestrator for parallel execution and deduplication
-
-Main components:
-- ScraperOrchestrator: Unified interface for all scrapers
-- create_orchestrator: Factory function for easy setup
-- quick_search: Convenience function for simple searches
+Legacy scrapers. Job fetching goes through src/job_sources (the single entry point);
+modules here are wrapped there as sources (ats_scraper, jobspy, foorilla, firecrawl,
+company career-page scrapers) or used by the VC-intelligence scrapers via BaseScraper.
 """
-
-try:
-    from src.scrapers.orchestrator import (
-        ScraperOrchestrator,
-        ScraperConfig,
-        ScraperResult,
-        OrchestratorResult,
-        ScraperStatus,
-        NormalizedJob,
-        JobDeduplicator,
-        UnifiedScraperInterface,
-        create_orchestrator,
-        quick_search,
-    )
-except ImportError:
-    pass
 
 try:
     from src.scrapers.base import BaseScraper
 except ImportError:
     pass
-

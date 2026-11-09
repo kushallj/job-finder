@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/nextraise", tags=["nextraise-auto-apply"])
 
 
 class NextRaiseOAuthAuthorizeRequest(BaseModel):
-    account_email: str = Field(default="canaby007@gmail.com")
+    account_email: str = Field(..., min_length=3, max_length=255)
     oauth_access_token: str
     oauth_refresh_token: Optional[str] = None
     session_token: Optional[str] = None
@@ -29,7 +29,7 @@ class NextRaiseBatchApplyRequest(BaseModel):
 
 
 class NextRaiseConfigUpdateRequest(BaseModel):
-    account_email: Optional[str] = "canaby007@gmail.com"
+    account_email: Optional[str] = None
     daily_target: Optional[int] = Field(default=300, ge=50, le=1000)
     min_fit_score: Optional[float] = Field(default=60.0, ge=0.0, le=100.0)
     mode: Optional[str] = "instant_auto"
@@ -47,7 +47,7 @@ def get_nextraise_status(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 @router.post("/oauth/authorize")
 def authorize_nextraise_oauth(req: NextRaiseOAuthAuthorizeRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Updates OAuth tokens and connects account (canaby007@gmail.com)."""
+    """Updates OAuth tokens and connects the candidate's NextRaise account."""
     cfg = db.query(NextRaiseConfigRecord).first()
     if not cfg:
         cfg = NextRaiseConfigRecord()

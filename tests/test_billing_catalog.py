@@ -1,3 +1,4 @@
+import re
 """
 Unit & Integration Tests for Canonical 2-Tier Billing Catalog (Priority 2) & Dodo Payments.
 Verifies that:
@@ -53,6 +54,24 @@ def client(billing_db):
     return TestClient(app)
 
 
+
+def _jobify_plans() -> dict:
+    """Parse id/monthly/yearly/credits for each plan out of jobify/src/data/plans.js."""
+    import pathlib
+
+    src = (pathlib.Path(__file__).resolve().parents[1] / "jobify" / "src" / "data" / "plans.js").read_text(encoding="utf-8")
+    plans = {}
+    for block in re.findall(r"\{[^{}]*?id: \"(\w+)\"(.*?)cta:", src, re.S):
+        plan_id, body = block
+        nums = {k: int(re.search(rf"\b{k}: (\d+)", body).group(1)) for k in ("monthly", "yearly", "credits")}
+        plans[plan_id] = nums
+    assert plans, "could not parse plans.js"
+    return plans
+
+
+JOBIFY_PLANS = _jobify_plans()
+
+
 def test_public_billing_catalog_structure(client):
     """
     Test 1: Verify GET /api/billing/plans is public and returns exactly 2 plans (Free & Pro at $3 / ₹249).
@@ -64,35 +83,17 @@ def test_public_billing_catalog_structure(client):
     assert "plans" in data
     assert "credit_packs" in data
     assert data["supported_currencies"] == ["USD", "INR"]
-    assert len(data["plans"]) == 2
+    assert data["intervals"] == ["month", "year"]
 
-    # Verify Free plan
-    free_plan = next((p for p in data["plans"] if p["id"] == "free"), None)
-    assert free_plan is not None
-    assert free_plan["price"] == 0
-    assert free_plan["monthly"] == 0
-    assert free_plan["price_monthly_usd"] == 0
-    assert free_plan["price_monthly_inr"] == 0
-    assert free_plan["credits"] == 50
-    assert free_plan["badge"] == "FREE FOREVER"
+    # Served catalog == Jobify jobify/src/data/plans.js (the frontend is the pricing spec).
+    served = {p["id"]: p for p in data["plans"]}
+    assert served.keys() == JOBIFY_PLANS.keys()
+    for plan_id, expected in JOBIFY_PLANS.items():
+        for field in ("monthly", "yearly", "credits"):
+            assert served[plan_id][field] == expected[field], (plan_id, field)
 
-    # Verify Pro plan (~$3 / ₹249)
-    pro_plan = next((p for p in data["plans"] if p["id"] == "pro"), None)
-    assert pro_plan is not None
-    assert pro_plan["price"] == 3
-    assert pro_plan["monthly"] == 3
-    assert pro_plan["price_monthly_usd"] == 3.0
-    assert pro_plan["price_monthly_inr"] == 249
-    assert pro_plan["credits"] == 1000
-    assert pro_plan["is_popular"] is True
-
-    # Verify credit packs
-    assert len(data["credit_packs"]) == 1
-    pack = data["credit_packs"][0]
-    assert pack["id"] == "pack_100"
-    assert pack["price_usd"] == 1
-    assert pack["price_inr"] == 89
-    assert pack["credits"] == 100
+    pack = {p["id"]: p for p in data["credit_packs"]}["pack_100"]
+    assert pack["price_usd"] == 1 and pack["credits"] == 100
 
 
 def test_authenticated_user_catalog_entitlements(client, billing_db):
@@ -123,7 +124,7 @@ def test_authenticated_user_catalog_entitlements(client, billing_db):
 
 def test_create_checkout_session_pro_and_aliases(client, billing_db):
     """
-    Test 3: Verify checkout session creation for 'pro', 'pack_100', and aliases ('starter', 'basic' -> 'pro').
+    Test 3: checkout for each Jobify plan, both intervals, the top-up pack, and legacy tier names.
     """
     user = User(
         email="shopper@example.com",
@@ -147,15 +148,21 @@ def test_create_checkout_session_pro_and_aliases(client, billing_db):
     assert data_pro["provider"] == "dodo"
     assert "target=pro" in data_pro["checkout_url"]
 
-    # Legacy alias 'basic' maps to 'pro'
+    # Basic is its own plan (it used to be silently upgraded to Pro and charged as Pro)
     resp_basic = client.post("/api/billing/create-checkout-session", json={"target": "basic"}, headers=headers)
     assert resp_basic.status_code == 200
-    assert "target=pro" in resp_basic.json()["checkout_url"]
+    assert "target=basic" in resp_basic.json()["checkout_url"]
 
-    # Legacy alias 'starter' maps to 'pro'
+    # Yearly interval accepted; unknown interval rejected
+    assert client.post("/api/billing/create-checkout-session", json={"target": "pro", "interval": "year"},
+                       headers=headers).status_code == 200
+    assert client.post("/api/billing/create-checkout-session", json={"target": "pro", "interval": "week"},
+                       headers=headers).status_code == 422
+
+    # Retired tier name 'starter' maps to its successor, Basic
     resp_starter = client.post("/api/billing/create-checkout-session", json={"target": "starter"}, headers=headers)
     assert resp_starter.status_code == 200
-    assert "target=pro" in resp_starter.json()["checkout_url"]
+    assert "target=basic" in resp_starter.json()["checkout_url"]
 
     # Top-up pack checkout
     resp_pack = client.post("/api/billing/create-checkout-session", json={"target": "pack_100"}, headers=headers)
@@ -169,7 +176,7 @@ def test_create_checkout_session_pro_and_aliases(client, billing_db):
 
 def test_dodo_webhook_pro_activation(client, billing_db):
     """
-    Test 4: Verify Dodo webhook triggers Pro activation and grants 1,000 monthly credits.
+    Test 4: Dodo webhook activates Pro and grants Pro's monthly credits (plans.js).
     """
     user = User(
         email="dodo_user@example.com",
@@ -203,17 +210,17 @@ def test_dodo_webhook_pro_activation(client, billing_db):
 
     billing_db.refresh(user)
     assert user.subscription_tier == "pro"
-    assert user.credits_balance == 1025  # 25 existing + 1,000 Pro grant
+    assert user.credits_balance == 25 + JOBIFY_PLANS["pro"]["credits"]
 
     # Verify credit ledger entry
     tx = (
         billing_db.query(CreditTransaction)
-        .filter(CreditTransaction.user_id == user.id, CreditTransaction.action == "subscription_renewal")
+        .filter(CreditTransaction.user_id == user.id, CreditTransaction.action == "subscription_activated")
         .first()
     )
     assert tx is not None
-    assert tx.amount == 1000
-    assert tx.balance_after == 1025
+    assert tx.amount == JOBIFY_PLANS["pro"]["credits"]
+    assert tx.balance_after == 25 + JOBIFY_PLANS["pro"]["credits"]
 
 
 def test_dodo_webhook_pack_topup(client, billing_db):

@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  # Safe defaults so importing the app never needs real secrets.
+  ENV: test
+  JWT_SECRET_KEY: ci-only-secret-not-used-in-production
+  AUTO_SEND_EMAILS: "false"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - run: pip install ruff==0.17.4
+      # Repo-wide: only definite bugs (syntax errors, undefined names). Legacy style debt is not gated.
+      - run: ruff check src main.py scripts --select E9,F63,F7,F82
+      # Production path: strict profiles (src/jobify/ruff.toml, src/job_sources/ruff.toml).
+      - run: >-
+          ruff check src/jobify src/job_sources src/api/deps.py src/api/contract.py src/api/hardening.py
+          src/api/health.py src/observability.py src/production_checks.py src/model_registry.py
+      - name: Deploy scripts (shellcheck)
+        run: shellcheck -S warning infra/gcp/*.sh
+      - name: Workflow files (actionlint)
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: ci, POSTGRES_PASSWORD: ci, POSTGRES_DB: ci }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "${{ env.PYTHON_VERSION }}"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - run: python -m compileall -q src main.py
+      - run: alembic upgrade head
+      # Release gate: product API, job sources, auth/contract, migrations-backed models, tasks.
+      - run: >-
+          pytest -q
+          tests/test_jobify_phase1.py tests/test_jobify_phase2.py tests/test_jobify_phase3.py
+          tests/test_jobify_phase4.py tests/test_jobify_phase5.py tests/test_jobify_phase6.py
+          tests/test_jobify_inbox.py tests/test_chat_providers.py
+          tests/test_job_sources.py tests/test_job_sources_adapters.py tests/test_provider_endpoints.py
+          tests/test_groundwork_contract_auth.py tests/test_multi_tenant_auth_and_credits.py tests/test_tenant_isolation.py
+          tests/test_catalog_refresh.py tests/test_production_hardening.py
+          tests/test_models.py tests/test_database.py tests/test_database_schema.py
+
+  full-suite:
+    # Every test, blocking. Runs on the suite's isolated SQLite DB (tests/conftest.py) exactly
+    # as developers run it locally; the `test` job above covers the Postgres-backed release
+    # gate. Live third-party tests (@pytest.mark.network) are skipped unless RUN_NETWORK_TESTS=1.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "${{ env.PYTHON_VERSION }}"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q tests -p no:cacheprovider
+
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: ci, POSTGRES_PASSWORD: ci, POSTGRES_DB: ci }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "${{ env.PYTHON_VERSION }}"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements.txt
+      - name: Fresh database reaches head
+        run: alembic upgrade head
+      - name: Models and migrations agree
+        run: alembic check
+      - name: Downgrade/upgrade round trip of the latest revision
+        run: alembic downgrade -1 && alembic upgrade head
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - run: pip install pip-audit==2.9.0
+      - name: Known CVEs in pinned dependencies
+        run: pip-audit -r requirements.txt --progress-spinner off
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production image
+        run: docker build -t job-finder-api:ci .
+      - name: Image runs as non-root and imports the app
+        run: |
+          test "$(docker run --rm --entrypoint id job-finder-api:ci -u)" != "0"
+          docker run --rm -e ENV=test -e JWT_SECRET_KEY=x -e DATABASE_URL=sqlite:////tmp/ci.db \
+            --entrypoint python job-finder-api:ci -c "import main; print('import ok')"
+      - name: No secrets or personal data baked in
+        run: docker run --rm --entrypoint sh job-finder-api:ci -c 'test ! -e /app/.env && test ! -e /app/config/profile.yml && test -z "$(ls -A /app/data)"'
+
+  jobify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run: { working-directory: jobify }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: jobify/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - name: Known vulnerabilities in production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  ci-passed:
+    # The one check to mark as required in branch protection: green only if every job passed.
+    if: always()
+    needs: [lint, test, full-suite, migrations, security, docker, jobify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: All CI jobs succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'to_entries | all(.value.result == "success")' >/dev/null

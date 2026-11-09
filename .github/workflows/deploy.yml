@@ -1,0 +1,146 @@
+name: Deploy
+
+# Continuous deployment to the GCP VM (infra/gcp). Runs only after the CI workflow succeeds on a
+# push to main, and deploys exactly the commit that CI tested. Manual runs (Actions -> Deploy ->
+# Run workflow) deploy latest main, or any older commit / prod-* tag on main to roll back.
+#
+# Configuration (repo Settings -> Secrets and variables -> Actions); until DEPLOY_HOST is set
+# the workflow logs a notice and skips, so CI stays green before the VM exists:
+#   secrets.DEPLOY_HOST          VM address (IP or DNS name)
+#   secrets.DEPLOY_SSH_KEY       private half of the CI key (setup_vm.sh pins it to
+#                                /usr/local/bin/jobify-ci-deploy: deploy <sha> | rollback | status)
+#   secrets.DEPLOY_KNOWN_HOSTS   output of `ssh-keyscan -t ed25519 <host>` (host key pinning)
+#   vars.DEPLOY_USER             SSH user (default: jobify)
+#   vars.PUBLIC_URL              e.g. https://app.example.com (smoke test after deploy)
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit SHA or prod-* tag on main (empty = latest main). Use an older tag to roll back."
+        required: false
+        default: ""
+
+permissions:
+  contents: write   # push the prod-* release tag
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false   # never interrupt a deploy halfway
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Resolve the commit to deploy
+        id: target
+        env:
+          INPUT_REF: ${{ github.event.inputs.ref }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          git fetch --quiet origin main --tags
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            sha="$RUN_SHA"
+            # A newer commit landed while CI ran: its own CI run will deploy it. Skipping keeps
+            # deploys in order (an older run finishing late must not roll production back).
+            if [ "$(git rev-parse origin/main)" != "$sha" ]; then
+              echo "::notice::$sha is no longer the tip of main; the newer commit deploys itself."
+              echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          else
+            sha="$(git rev-parse --verify "${INPUT_REF:-origin/main}^{commit}")"
+            git merge-base --is-ancestor "$sha" origin/main || { echo "::error::$sha is not on main"; exit 1; }
+          fi
+          { echo "sha=$sha"; echo "short=${sha::7}"; echo "skip=false"; } >> "$GITHUB_OUTPUT"
+
+      - name: Check deploy configuration
+        id: config
+        if: steps.target.outputs.skip == 'false'
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$HOST" ]; then
+            echo "::notice::DEPLOY_HOST is not set: skipping deploy (see the header of .github/workflows/deploy.yml)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ -z "$KEY" ] || [ -z "$KNOWN" ]; then
+            echo "::error::DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS are required with DEPLOY_HOST"; exit 1
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: SSH setup (pinned host key)
+        if: steps.config.outputs.ready == 'true'
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host jobify-vm
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          EOF
+
+      - name: Deploy ${{ steps.target.outputs.short }}
+        if: steps.config.outputs.ready == 'true'
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER_: ${{ vars.DEPLOY_USER || 'jobify' }}
+        # deploy.sh rolls back by itself if any step or the /readyz check fails.
+        run: ssh -F ~/.ssh/config -o HostName="$HOST" "$USER_@jobify-vm" "deploy ${{ steps.target.outputs.sha }}"
+
+      - name: Smoke test the public site
+        id: smoke
+        if: steps.config.outputs.ready == 'true' && vars.PUBLIC_URL != ''
+        env:
+          URL: ${{ vars.PUBLIC_URL }}
+        run: |
+          check() { curl -fsS --retry 5 --retry-delay 3 --retry-all-errors -o /dev/null -w "%{http_code} $1\n" "$URL$1"; }
+          check /healthz
+          check /readyz
+          check /
+          curl -fsS "$URL/" | grep -qi '<div id="root"' || { echo "::error::frontend shell not served"; exit 1; }
+
+      - name: Roll back (smoke test failed)
+        if: failure() && steps.smoke.conclusion == 'failure'
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER_: ${{ vars.DEPLOY_USER || 'jobify' }}
+        run: ssh -F ~/.ssh/config -o HostName="$HOST" "$USER_@jobify-vm" "rollback"
+
+      - name: Tag the release
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          tag="prod-$(date -u +%Y%m%d-%H%M)-${{ steps.target.outputs.short }}"
+          git tag "$tag" "${{ steps.target.outputs.sha }}"
+          git push origin "$tag"
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+
+      - name: Summary
+        if: always() && steps.target.outputs.skip == 'false'
+        run: |
+          {
+            echo "### Deploy ${{ steps.target.outputs.short }}"
+            echo "- commit: \`${{ steps.target.outputs.sha }}\`"
+            echo "- configured: ${{ steps.config.outputs.ready || 'false' }}"
+            echo "- smoke test: ${{ steps.smoke.conclusion || 'skipped' }}"
+            echo "- release tag: ${TAG:-none}"
+            echo "- roll back: Actions -> Deploy -> Run workflow with an older prod-* tag"
+          } >> "$GITHUB_STEP_SUMMARY"

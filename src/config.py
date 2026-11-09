@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import model_validator
-from typing import Optional
+from typing import List, Optional
 
 class Settings(BaseSettings):
     # Pydantic v2 settings configuration
@@ -25,6 +25,24 @@ class Settings(BaseSettings):
     # Job APIs
     adzuna_app_id: str = ""
     adzuna_app_key: str = ""
+    adzuna_country: str = "in"  # Adzuna country endpoint (in, gb, us, de, ...)
+    reed_api_key: Optional[str] = None              # reed.co.uk/developers
+    jooble_api_key: Optional[str] = None            # jooble.org/api/about
+    jooble_host: str = "jooble.org"                # keys are per country site, e.g. in.jooble.org
+    findwork_api_key: Optional[str] = None          # findwork.dev/developers
+    careeronestop_user_id: Optional[str] = None     # careeronestop.org/Developers
+    careeronestop_api_token: Optional[str] = None
+    rapidapi_key: Optional[str] = None              # JSearch on RapidAPI
+    theirstack_api_key: Optional[str] = None        # theirstack.com (each job costs a credit)
+    theirstack_max_results: int = 25
+    france_travail_client_id: Optional[str] = None  # francetravail.io
+    france_travail_client_secret: Optional[str] = None
+
+    # Job sources (src/job_sources). Empty JOB_SOURCES = every source whose keys are set.
+    # Scrape-tier sources (HTML scraping) stay off until JOB_SOURCES_ALLOW_SCRAPING=true.
+    job_sources: str = ""
+    job_sources_allow_scraping: bool = False
+    job_source_timeout_seconds: float = 120.0
     jobdata_api_key: Optional[str] = None
     aidevboard_api_key: Optional[str] = None
     fantastic_jobs_api_key: Optional[str] = None
@@ -106,7 +124,61 @@ class Settings(BaseSettings):
     # App
     env: str = "development"
     log_level: str = "INFO"
+    # Production hardening (src/api/hardening.py, src/observability.py, src/production_checks.py)
+    sentry_dsn: Optional[str] = None
+    enable_api_docs: Optional[bool] = None       # default: on outside production, off in production
+    allowed_hosts: str = ""                      # comma-separated Host allow-list; empty = any
+    max_request_bytes: int = 2_000_000           # body cap; inbound email gets max_inbound_email_bytes
+    max_inbound_email_bytes: int = 25_000_000
+    legacy_password_auth_enabled: bool = False   # /api/auth/register|login|refresh in production (Clerk is the login)
+    legacy_routes_enabled: bool = False          # production: non-product (legacy main.py) routes for non-admins
+
+    @property
+    def is_production(self) -> bool:
+        return self.env.lower() == "production"
+
+    @property
+    def api_docs_enabled(self) -> bool:
+        return (not self.is_production) if self.enable_api_docs is None else self.enable_api_docs
+
+    @property
+    def allowed_hosts_list(self) -> List[str]:
+        return [h.strip() for h in self.allowed_hosts.split(",") if h.strip()]
     auto_send_emails: bool = False  # Human-in-the-loop review gate by default
+    # Shared Jobify job catalog (src/tasks.refresh_job_catalog). Celery beat runs it at
+    # minute catalog_refresh_minute of each hour in catalog_refresh_hours_utc (crontab
+    # syntax). Default 02:30 + 14:30 UTC = 08:00 + 20:00 IST.
+    catalog_refresh_hours_utc: str = "2,14"
+    catalog_refresh_minute: int = 30
+    # Comma-separated job-board title searches; empty = the defaults in src/tasks.py.
+    catalog_queries: str = ""
+    # GET /api/admin/catalog-runs reports stale when no run succeeded within this window.
+    catalog_stale_after_hours: int = 26
+    # Jobify chat (src/jobify/services/chat_providers.py). Comma-separated fallback chain, tried in
+    # order until one starts replying, e.g. "ollama" (dev) or "openrouter,hf". "echo" = stub.
+    chat_provider: str = "echo"
+    chat_echo_delay_ms: int = 40  # per streamed word, so Stop is testable against the stub
+    # Per-user send limits: protect shared free-tier quotas (OpenRouter :free is per account).
+    chat_rate_per_minute: int = 6
+    chat_rate_per_day: int = 150
+    # Let thinking models reason before answering (always hidden from users). Off = fast but weaker at
+    # maths and at refusing "add a fake claim" requests (measured with scripts/chat_eval.py on qwen3:8b).
+    # Turn on for hosted GPU providers; reasoning tokens count against chat_reasoning_max_tokens.
+    chat_reasoning: bool = False
+    chat_reasoning_max_tokens: int = 4096
+    chat_max_tokens: int = 1024
+    chat_temperature: float = 0.4
+    chat_timeout_s: float = 60.0  # max wait for the next chunk
+    chat_ollama_base_url: str = "http://localhost:11434/v1"
+    chat_ollama_model: str = "qwen3:8b"
+    openrouter_api_key: Optional[str] = None
+    chat_openrouter_model: str = ""  # e.g. a ":free" Qwen/Kimi id from openrouter.ai/models
+    hf_token: Optional[str] = None
+    chat_hf_model: str = ""  # Hugging Face router model id
+    # Any other OpenAI-compatible API (Alibaba Qwen, Moonshot Kimi, MiniMax, NVIDIA NIM...)
+    chat_custom_base_url: str = ""
+    chat_custom_api_key: Optional[str] = None
+    chat_custom_model: str = ""
 
 
     # Sender identity (used in outreach emails, cover letters, etc.)
@@ -133,6 +205,40 @@ class Settings(BaseSettings):
     clerk_jwks_url: Optional[str] = None
     clerk_webhook_secret: Optional[str] = None
     clerk_secret_key: Optional[str] = None
+    # Comma-separated frontend origins allowed in the token's azp claim, e.g.
+    # "https://app.jobify.com,http://localhost:3000". Empty = azp not checked.
+    clerk_authorized_parties: str = ""
+    allow_dev_auth_tokens: bool = False  # enables dev_token_admin when ENV=development
+    # Local-only superuser seed. Never runs in production; needs both flags (no default password).
+    seed_dev_admin: bool = False
+    dev_admin_password: Optional[str] = None
+
+    # Gmail (Jobify Applications sync). Read-only scope; refresh tokens are Fernet-encrypted
+    # with TOKEN_ENCRYPTION_KEY. Redirect URI must be registered on the Google OAuth client.
+    google_oauth_client_id: Optional[str] = None
+    google_oauth_client_secret: Optional[str] = None
+    google_oauth_redirect_uri: str = "http://localhost:8000/api/gmail/callback"
+    token_encryption_key: Optional[str] = None
+    gmail_sync_lookback_days: int = 30
+    gmail_sync_max_messages: int = 50
+
+    # Jobify job-hunt inbox: every user gets name.xxxx@INBOX_DOMAIN. Inbound mail arrives via a
+    # Cloudflare Email Worker (infra/cloudflare/inbox-worker) that POSTs the raw message to
+    # /api/inbound/email signed with INBOUND_WEBHOOK_SECRET. Replies go out over plain SMTP
+    # (any provider's free tier: Brevo, Resend, SES...).
+    inbox_domain: Optional[str] = None
+    inbound_webhook_secret: Optional[str] = None
+    inbound_max_bytes: int = 10 * 1024 * 1024
+    inbox_smtp_host: Optional[str] = None
+    inbox_smtp_port: int = 587
+    inbox_smtp_username: Optional[str] = None
+    inbox_smtp_password: Optional[str] = None
+    inbox_smtp_starttls: bool = True
+    inbox_daily_send_limit: int = 50
+
+    @property
+    def clerk_authorized_parties_list(self) -> List[str]:
+        return [p.strip().rstrip("/") for p in self.clerk_authorized_parties.split(",") if p.strip()]
 
     # Stripe Billing & Subscriptions
     stripe_secret_key: Optional[str] = None

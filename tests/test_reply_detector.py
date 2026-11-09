@@ -167,7 +167,7 @@ class TestPollingInterval:
         )
         
         # Manually set credentials to avoid early return
-        detector._email = "test@gmail.com"
+        detector._email = "test@example.com"
         detector._password = "test_password"
         
         # Mock IMAP fetch to return empty
@@ -795,7 +795,7 @@ class TestLifecycleManagement:
     async def test_stop_cleans_up_resources(self, db_session_factory):
         """Verify stop cleans up resources properly."""
         detector = ReplyDetector(db_session_factory)
-        detector._email = "test@gmail.com"
+        detector._email = "test@example.com"
         detector._password = "test_password"
         detector._running = True
         
@@ -810,7 +810,7 @@ class TestLifecycleManagement:
     async def test_poll_once_for_testing(self, db_session_factory):
         """Verify poll_once method works for testing."""
         detector = ReplyDetector(db_session_factory)
-        detector._email = "test@gmail.com"
+        detector._email = "test@example.com"
         detector._password = "test_password"
         
         with patch.object(detector, '_fetch_replies', return_value=[]):

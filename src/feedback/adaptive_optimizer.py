@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+from contextlib import closing
 import time
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -253,7 +254,7 @@ class AdaptiveOptimizer:
 
     def _init_db(self) -> None:
         _LEARNING_DB.parent.mkdir(exist_ok=True)
-        with sqlite3.connect(_LEARNING_DB) as conn:
+        with closing(sqlite3.connect(_LEARNING_DB)) as conn, conn:  # closing(): the bare form never closes
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS hook_weights (
                     hook_type    TEXT PRIMARY KEY,
@@ -278,7 +279,7 @@ class AdaptiveOptimizer:
 
     def _load_hook_weights(self) -> Dict[str, float]:
         try:
-            with sqlite3.connect(_LEARNING_DB) as conn:
+            with closing(sqlite3.connect(_LEARNING_DB)) as conn, conn:  # closing(): the bare form never closes
                 rows = conn.execute("SELECT hook_type, weight FROM hook_weights").fetchall()
                 return {r[0]: r[1] for r in rows}
         except Exception:
@@ -287,7 +288,7 @@ class AdaptiveOptimizer:
     def _save_hook_weights(self, weights: Dict[str, float]) -> None:
         try:
             now = int(time.time())
-            with sqlite3.connect(_LEARNING_DB) as conn:
+            with closing(sqlite3.connect(_LEARNING_DB)) as conn, conn:  # closing(): the bare form never closes
                 for hook_type, weight in weights.items():
                     conn.execute(
                         """INSERT OR REPLACE INTO hook_weights (hook_type, weight, updated_at)
@@ -299,7 +300,7 @@ class AdaptiveOptimizer:
 
     def _load_send_time_prefs(self) -> Dict[str, float]:
         try:
-            with sqlite3.connect(_LEARNING_DB) as conn:
+            with closing(sqlite3.connect(_LEARNING_DB)) as conn, conn:  # closing(): the bare form never closes
                 rows = conn.execute("SELECT hour, reply_rate FROM send_time_prefs").fetchall()
                 return {r[0]: r[1] for r in rows}
         except Exception:
@@ -308,7 +309,7 @@ class AdaptiveOptimizer:
     def _save_send_time_prefs(self, prefs: Dict[str, float]) -> None:
         try:
             now = int(time.time())
-            with sqlite3.connect(_LEARNING_DB) as conn:
+            with closing(sqlite3.connect(_LEARNING_DB)) as conn, conn:  # closing(): the bare form never closes
                 for hour, rate in prefs.items():
                     conn.execute(
                         """INSERT OR REPLACE INTO send_time_prefs (hour, reply_rate, updated_at)
@@ -322,7 +323,7 @@ class AdaptiveOptimizer:
         """Archive recommendations for audit trail."""
         try:
             now = int(time.time())
-            with sqlite3.connect(_LEARNING_DB) as conn:
+            with closing(sqlite3.connect(_LEARNING_DB)) as conn, conn:  # closing(): the bare form never closes
                 for r in recs:
                     conn.execute(
                         """INSERT INTO recommendations (type, action, evidence, impact, created_at)

@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -27,12 +28,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.database import SessionLocal
 from src.models import Job
-from src.nifty500_registry import get_all_nifty500_companies
-from src.accelerators_registry import get_all_accelerator_startups
-from src.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY
-from src.shark_tank_india_startups import get_all_shark_tank_startups
-from src.shark_tank_us_startups import get_all_shark_tank_us_startups
-from src.suniel_shetty_startups import get_all_suniel_shetty_startups
+from src.company_sources.registries.nifty500_registry import get_all_nifty500_companies
+from src.company_sources.registries.accelerators_registry import get_all_accelerator_startups
+from src.company_sources.registries.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY
+from src.company_sources.registries.shark_tank_india_startups import get_all_shark_tank_startups
+from src.company_sources.registries.shark_tank_us_startups import get_all_shark_tank_us_startups
+from src.company_sources.registries.suniel_shetty_startups import get_all_suniel_shetty_startups
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("master_crawler")
@@ -266,7 +267,7 @@ class MasterJobCrawler:
             tasks.append(self.crawl_lever_board(c.name, sym_lower, src_tag))
 
         # 7. Official S&P 500 Corporations
-        from src.sp500_registry import get_all_sp500_companies
+        from src.company_sources.registries.sp500_registry import get_all_sp500_companies
         sp500 = get_all_sp500_companies()
         logger.info(f"Indexing {len(sp500)} official S&P 500 corporations...")
         for c in sp500:

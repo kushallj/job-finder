@@ -1,179 +1,170 @@
-# Job Finder
+# Job Finder + Jobify
 
-Job Finder is a job-intelligence and workflow platform focused on job discovery, candidate profiling, application tracking, outreach preparation, and startup/VC research. The repository mixes a Python FastAPI backend, a React frontend, automation tasks, and domain-specific data pipelines.
+Job-search intelligence platform. **Job Finder** (this repo root) is the FastAPI backend: job discovery and scoring, application tracking, outreach drafting, startup/VC research, and a target-company agent layer. **Jobify** (`jobify/`) is the new customer-facing React frontend being taken to an MVP on top of it.
 
-## Repository goals
+Human-in-the-loop by design: the system drafts, scores, and tracks. It never auto-applies, auto-sends email, or posts to social platforms without explicit approval.
 
-- Keep the application understandable and modular
-- Keep operational logic separate from generated data and research artifacts
-- Keep deployment and environment configuration explicit
-- Keep onboarding friction low for contributors and operators
-- Preserve compatibility with the existing stack while improving documentation and structure
+> **Docs policy:** this repo has exactly two docs, this `README.md` (humans: what it is, how to run it) and [`CLAUDE.md`](./CLAUDE.md) (agents and contributors: rules, architecture, current state, MVP plan). Don't add more Markdown docs; extend one of these or put rationale in module docstrings.
 
-## Repository overview
+## Layout
 
 ```text
 job-finder/
-├── main.py                     # FastAPI app entrypoint
-├── src/                       # Python backend: app logic, models, routers, services
-├── frontend/                  # Vite/React frontend and UI logic
-├── sidekick-desktop/          # desktop integration shell
-├── extension/                 # browser extension helpers
-├── config/                    # candidate and sourcing profiles
-├── data/                      # resumes, generated outputs, pipeline and tracker data
-├── docs/                      # canonical docs + legacy archive
-├── docker/                    # containerized service definitions
-├── scripts/                   # operational scripts
-├── tests/                     # repository-level test documentation and additions
-├── .github/                   # CI/workflow definitions
-├── alembic/                   # migration support
-├── .env.example               # example environment variables
-├── .pre-commit-config.yaml    # basic repository checks
-├── pytest.ini                 # pytest defaults
-├── pyproject.toml             # minimal Python project metadata/tooling config
-├── package.json               # repo-level npm scripts
-├── README.md                  # canonical user-facing entry point
-├── agent.md                   # architecture, operations, and contributor guide
-├── docker-compose.yml         # local runtime stack
-├── Dockerfile                 # app image
-└── requirements.txt           # Python dependency lockfile
+├── main.py              FastAPI app (≈6.6k lines, ≈170 routes) + router composition
+├── src/                 Backend: models, auth, routers, services, scrapers, agents
+│   ├── jobify/          the product API: routers/ (one per screen) + services/ (business logic)
+│   ├── api/             contract.py (envelope, paginate, scoped) + routers/ (ops, agents, auth, billing, legacy)
+│   ├── services/        shared services (credits, billing, catalog runs, email classifier) + legacy
+│   ├── agents/          core agents 1-15 + orchestrator.py
+│   ├── experimental/    agents 16-26 + their services (unwired; audit before use)
+│   ├── auth/            Clerk RS256 + legacy HS256 JWT verification
+│   ├── job_sources/     the one job-fetch entry point: 52 sources (31 keyless), concurrent, deduped (`python -m src.job_sources --list`)
+│   ├── company_sources/ registries/ (curated company lists) + miners/ (careers/contact miners)
+│   ├── models.py        SQLAlchemy models    database.py  engine/session
+│   ├── tasks.py         Celery tasks         cli.py       NEXUS CLI
+│   └── config.py        Pydantic settings (reads .env)
+├── jobify/              Product frontend: React 19, Vite 8, Tailwind 4, Clerk
+├── config/              safe profile and target-company examples; personal configs are local-only
+├── data/                local-only resume, tracker, pipeline, and agent state
+├── alembic/             migrations: baseline + one revision per Jobify phase
+├── tests/               pytest suite (≈130 test files)
+├── scripts/             one-off and ops scripts; dev/ has start.sh (API + Celery + Flower)
+├── infra/               cloudflare/ (inbox worker), n8n/ (workflows), synology/ (NAS deploy)
+├── docker/              per-service Dockerfiles used by docker-compose
+├── docker-compose*.yml  Dockerfile  Procfile  render.yaml  fly.toml
+└── README.md  CLAUDE.md
 ```
 
-## What is in the codebase
+The public snapshot omits personal job-search files, scraped founder datasets, retired UIs, and the interview HUD. Copy the example YAML files to their non-example names for local configuration; never commit personal data.
 
-The platform currently includes:
+## Run locally
 
-- FastAPI backend for jobs, contacts, outreach, profile data, and startup signals
-- SQLAlchemy + PostgreSQL support with optional SQLite compatibility
-- Celery + Redis task workers for background jobs
-- React frontend and a Vite-based dashboard
-- startup/VC research, networking, and lead-sourcing workflows
-- recruiter/outreach and candidate match pipelines
-- target-company agents for interviews, fit scoring, and outreach prep
-
-## Runtime stack
-
-- Python 3.11+
-- FastAPI + Uvicorn
-- SQLAlchemy / Alembic
-- PostgreSQL (current desired local DB)
-- Redis + Celery
-- React + Vite
-- Docker Compose for orchestration
-
-## Quick start
-
-### 1. Create a local environment
+**Backend** (Python 3.11+)
 
 ```bash
 python -m venv .venv
-# Windows PowerShell
-.\.venv\Scripts\Activate.ps1
-# macOS/Linux
-source .venv/bin/activate
+.\.venv\Scripts\Activate.ps1          # macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+copy env.example .env                  # SQLite + mock providers work with zero keys
+python -m alembic upgrade head         # existing create_all DB: run `alembic stamp head` once first
+python -m uvicorn main:app --reload --port 8000
 ```
 
-### 2. Install dependencies
+API docs at http://localhost:8000/docs, health check at `/api/health`.
+
+The full stack (Postgres, Redis, API, Celery worker/beat/flower, Ollama) runs with `docker compose up --build`.
+
+**Jobify frontend** (Node 22)
 
 ```bash
-python -m pip install -r requirements.txt
+cd jobify
+npm install
+copy env.example .env.local            # set VITE_CLERK_PUBLISHABLE_KEY
+npm run dev                            # http://localhost:3000
+npm run check                          # typecheck + build
 ```
 
-### 3. Configure environment variables
+`/demo/*` works with no login and mock data. `/app/*` needs a Clerk session. To point Jobify at the local API, set `VITE_API_BASE_URL=http://localhost:8000/api` (the backend CORS default already allows `:3000`). Leave it empty to stay on mocks.
 
-Use the repo root `.env` file (or copy from `.env.example`). Keep secrets out of version control.
+**Background jobs** (need Redis)
 
 ```bash
-copy .env.example .env
+celery -A src.tasks worker --loglevel=info
+celery -A src.tasks beat --loglevel=info      # exactly one beat, anywhere
+python -m src.tasks catalog                   # trigger a job-catalog refresh now
 ```
 
-The repo already supports PostgreSQL via the env variable configuration used by the application and Compose files.
+Beat refreshes the shared job catalog twice a day (`CATALOG_REFRESH_HOURS_UTC`, default 08:00 and 20:00 IST; searches from `CATALOG_QUERIES`), syncs Gmail hourly, and marks stale applications ghosted daily. No scheduled task sends email. Admins can see refresh history and a `stale` flag at `GET /api/admin/catalog-runs`.
 
-### 4. Start the backend
+## Use it for your own job search
 
-```bash
-python -m uvicorn main:app --reload
-```
+1. Put your resume in `data/resume.txt` and your profile (target roles, stack, comp, location) in `config/profile.yml`. Both are git-ignored personal data.
+2. Add job URLs or descriptions to `data/pipeline.md` (or paste them to Claude Code) and run `/nexus pipeline`. Each job gets a 0–100 fit score with the matching resume lines and gaps; 65+ is worth applying, below 50 is never recommended.
+3. Tailored resumes reorder and reword only what is already in your resume. Nothing is invented, and nothing is submitted or sent for you.
 
-API docs: `http://localhost:8000/docs`
-
-### 5. Start the stack with Docker (optional)
+Agents and CLI for the same flow:
 
 ```bash
-docker compose up --build
-```
-
-## Database and operations
-
-This repo expects a PostgreSQL-backed runtime for production-style usage, with Redis and Celery for async work. The authoritative local configuration is described in:
-
-- `.env`
-- `docker-compose.yml`
-- `src/config.py`
-- `src/database.py`
-
-## Key directories
-
-- `src/`: backend implementation. Most business logic lives here.
-- `frontend/`: UI and frontend API layer.
-- `docs/`: operational reference documentation and archive of older design notes.
-- `config/`: profiles, search configs, target company definitions.
-- `data/`: persisted job data, resumes, generated artifacts, and research state.
-- `scripts/`: one-off automation and environment setup helpers.
-
-## Documentation hierarchy
-
-This repo is intentionally consolidating its documentation. The canonical order is:
-
-1. `README.md`
-2. `agent.md`
-3. `docs/architecture/README.md`
-4. `docs/repository-structure.md`
-5. `docs/legacy/README.md`
-6. deeper domain docs under `docs/`
-
-## Repository structure optimization
-
-The repository is in a safe first pass of folder structure optimization. The current plan and migration checklist live in [docs/repository-structure.md](./docs/repository-structure.md). This pass keeps production logic intact while clarifying ownership, archives, and documentation boundaries.
-
-## Target-company agents
-
-The project contains an agent-oriented workflow for research, fit scoring, interview prep, and outreach. Review drafts before action; the system is designed to support human approval rather than autonomous sending.
-
-```bash
-python -m src.agents.orchestrator --stage daily
-python -m src.agents.orchestrator --stage leads
+python -m src.agents.orchestrator --stage daily          # signal → ATS → fit → schedule → tailor → contacts → drafts
 python -m src.agents.orchestrator --stage interview-prep --company "Company"
+python -m src.agents.orchestrator --stage negotiate-counter --company "Company" --offer 22
+python -m src.cli tracker | verify | drafts | scan "<query>"
 ```
 
-See [`docs/AGENT_STRATEGIES.md`](./docs/AGENT_STRATEGIES.md) for the agent rationale and [`agent.md`](./agent.md) for repo operations.
+Output is written to `data/` (for example `data/agent_run_report.md`) for review. The full `/nexus` command list is in [`CLAUDE.md` §2](./CLAUDE.md).
 
-## Testing and quality checks
+## Deploy on GCP (one VM: nginx + PM2)
+
+Production runs frontend and backend on one Compute Engine VM (Ubuntu 24.04): **nginx** serves the
+built Jobify app and proxies `/api` to the FastAPI app; **PM2** runs and restarts the API, the
+Celery worker and exactly one Celery beat, and captures their logs. Use **Cloud SQL (Postgres)**
+for the database; Redis runs locally on the VM (or use Memorystore).
+
+```bash
+# 1. VM: e2-standard-2+, Ubuntu 24.04, allow HTTP/HTTPS; point your domain's A record at it.
+# 2. CI key (on your machine): ssh-keygen -t ed25519 -N "" -C github-actions -f jobify_ci
+# 3. Bootstrap (Python 3.12, Node 22, nginx, certbot, PM2 + logrotate, Redis, firewall). The repo
+#    is private: the first run prints the VM's read-only deploy key; add it under GitHub ->
+#    Settings -> Deploy keys and run it again.
+sudo bash infra/gcp/setup_vm.sh git@github.com:devnoid1/Jobify.git app.your-domain.com "$(cat jobify_ci.pub)"
+# 4. Secrets: fill /opt/jobify/.env (template: .env.production.example) and
+#    /opt/jobify/jobify/.env.production (template: jobify/.env.production.example).
+# 5. First deploy by hand: deps -> frontend build -> migrations -> PM2 reload -> /readyz
+sudo -u jobify bash /opt/jobify/infra/gcp/deploy.sh
+```
+
+Operate with `pm2 status`, `pm2 logs jobify-api`, `pm2 monit`; logs also land in `/var/log/jobify/`
+(rotated by `pm2-logrotate`, 14 kept). Health: `https://app.your-domain.com/readyz`.
+The API refuses to start in production if a required setting is missing and prints which one.
+
+### CI/CD
+
+| Workflow | When | What |
+|---|---|---|
+| `CI` (`.github/workflows/backend-ci.yml`) | every PR, push to `main`, merge queue | lint (ruff, shellcheck, actionlint), Postgres release-gate tests, full suite, migrations up/check/down, pip-audit, Docker image checks, Jobify build + `npm audit`; `ci-passed` sums them up |
+| `Deploy` (`deploy.yml`) | after `CI` passes on `main`; or by hand | SSH to the VM and deploy **that exact commit**, smoke-test `PUBLIC_URL`, tag `prod-<date>-<sha>` |
+| `Security & Secret Scan` | PRs and `main` | TruffleHog verified-secret scan |
+| Dependabot | weekly | grouped pip / npm / Actions updates, vetted by CI |
+
+Deploy safety: one deploy at a time; a run whose commit is no longer the tip of `main` skips
+itself (the newer commit deploys); `deploy.sh` redeploys the previous commit if any step or
+`/readyz` fails, and the workflow rolls back if the public smoke test fails. The CI key can only
+run `deploy <sha> | rollback | status` (forced command `infra/gcp/ci_deploy.sh`), never a shell.
+Roll back by hand: Actions -> Deploy -> Run workflow with an older `prod-*` tag. Migrations are
+not reversed, so keep them backward compatible (expand, deploy, then contract).
+
+One-time GitHub setup (repo owner): secrets `DEPLOY_HOST`, `DEPLOY_SSH_KEY` (contents of
+`jobify_ci`), `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <host>`); variables `PUBLIC_URL`
+(and `DEPLOY_USER` if not `jobify`). Until `DEPLOY_HOST` exists, `Deploy` skips with a notice.
+Protect `main`: require PRs and the `ci-passed` check.
+
+
+## Checks
 
 ```bash
 python -m pytest
 python -m compileall src main.py
+cd jobify && npm run check
 ```
 
-The repo also includes basic pre-commit and CI conventions to catch common issues early.
+## Status
 
-## Security and production readiness
+**Not production-ready yet.** Every API route requires a Clerk token unless it is on an explicit public allow-list, and every Jobify query is filtered to the signed-in user.
 
-- Never commit secrets or API keys.
-- Keep all production-sensitive values in `.env` or platform secrets.
-- Prefer environment-based config over hardcoded credentials.
-- Review generated outreach and job automation output before sending or applying.
-- Treat `config/`, `data/`, and logs as operationally sensitive assets.
+| Jobify feature | State |
+|---|---|
+| Jobs, Applications, Founders, Portfolio | Live on the API |
+| Jobify inbox (per-user forwarding address) | Live; needs Cloudflare Email Routing set up |
+| Gmail sync | Code done; needs a Google OAuth client (restricted scope, verification cost) |
+| Chat | Live with streaming; LLM provider not chosen yet (echo stub by default; OpenRouter, Ollama and HF supported) |
+| Payments (Dodo) | Not started; checkout page is still a simulation |
+| Deploy | `render.yaml`, `fly.toml` and `docker-compose.prod.yml` run the API, a Celery worker and one beat |
 
-## Contributing
+The gap list and the MVP plan are in [`CLAUDE.md` → Production MVP](./CLAUDE.md#production-mvp-jobify).
 
-Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for the contributor workflow and expectations.
+## Security
 
-- Keep production logic stable unless specifically requested.
-- Prefer documentation and structure changes before behavior changes.
-- Use consistent naming, keep module boundaries clear, and avoid duplicate source-of-truth files.
-- Add or update docs when adding new workflows or significant tooling changes.
-
-## Maintainer notes
-
-This repository has grown into a monorepo-like structure with multiple workloads. The top-level docs and the repo-level conventions are intentionally more opinionated than the older scattered Markdown. The goal is to make onboarding and architecture review simpler without freezing the technical direction.
+- Never commit secrets. `.env*` is git-ignored; use platform secret stores in deployment.
+- Treat `config/`, `data/`, and logs as personal data. `config/profile.yml` and `data/resume*.txt` are git-ignored; keep them that way.
+- `AUTO_SEND_EMAILS=false` is the default and must stay that way. Nothing on the beat schedule may send email (enforced by `tests/test_catalog_refresh.py`).
+- Only `VITE_*` variables reach the browser. Never put a secret in one.

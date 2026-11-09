@@ -12,7 +12,6 @@ Executes every job pipeline, scraper, miner, and crawler across the entire syste
   8. Specialized DevOps, SRE & Cloud Engineering Pipeline
   9. Specialized Flutter, Mobile & Dart Engineering Pipeline
   10. Specialized JavaScript, TypeScript & Full-Stack Pipeline
-  11. Delhi NCR & Accounting / FinOps Pipeline (Samta Jain Corpus)
 """
 from __future__ import annotations
 
@@ -281,7 +280,9 @@ class MasterPipelineRunner:
         t0 = time.time()
         logger.info("🌐 [7/11] Running Multi-Provider Global Search Engine (AIDevBoard, FantasticJobs, USAJobs)...")
         try:
-            from src.job_data_providers import search_all
+            from dataclasses import asdict
+
+            from src.job_sources import fetch_jobs
             queries = [
                 "Software Engineer",
                 "Backend Engineer Python",
@@ -292,10 +293,8 @@ class MasterPipelineRunner:
             ]
             all_jobs = []
             for q in queries:
-                res_dict = await search_all(query=q, limit=50)
-                for prov_name, job_list in res_dict.items():
-                    if job_list:
-                        all_jobs.extend(job_list)
+                report = await fetch_jobs(q)
+                all_jobs.extend({**asdict(r), "tags": list(r.tags)} for r in report.records)
 
             new_saved, dups = self.save_normalized_jobs(all_jobs, "multi_provider_search")
             self.pipeline_results["Multi-Provider Global Search"] = {
@@ -409,31 +408,6 @@ class MasterPipelineRunner:
                 "status": f"error: {e}",
             }
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # 11. Delhi NCR & Accounting / FinOps Pipeline (Samta Jain Corpus)
-    # ──────────────────────────────────────────────────────────────────────────
-    async def run_delhi_accounting_pipeline(self):
-        t0 = time.time()
-        logger.info("📊 [11/11] Running Delhi NCR & Accounting / FinOps Pipeline...")
-        try:
-            from scripts.fetch_bulk_samta_jain_jobs import generate_delhi_accounting_jobs_corpus
-            corpus = generate_delhi_accounting_jobs_corpus()
-            new_saved, dups = self.save_normalized_jobs(corpus, "samta_jain_delhi_corpus")
-            self.pipeline_results["Delhi NCR & FinOps Pipeline"] = {
-                "fetched": len(corpus),
-                "saved": new_saved,
-                "duplicates": dups,
-                "duration_s": round(time.time() - t0, 2),
-                "status": "success",
-            }
-        except Exception as e:
-            logger.error(f"Delhi accounting pipeline error: {e}")
-            self.pipeline_results["Delhi NCR & FinOps Pipeline"] = {
-                "fetched": 0, "saved": 0, "duplicates": 0,
-                "duration_s": round(time.time() - t0, 2),
-                "status": f"error: {e}",
-            }
-
     async def run_all(self):
         start_overall = time.time()
         print("\n" + "=" * 80)
@@ -453,8 +427,6 @@ class MasterPipelineRunner:
         await self.run_devops_specialized_pipeline()
         await self.run_flutter_specialized_pipeline()
         await self.run_javascript_specialized_pipeline()
-        await self.run_delhi_accounting_pipeline()
-
         final_count = self.session.query(Job).count()
         total_new_saved = final_count - self.initial_count
         total_time = round(time.time() - start_overall, 2)

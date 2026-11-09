@@ -1,0 +1,96 @@
+"""
+jobify_inbox_router.py — the user's job-hunt email address and in-app inbox.
+
+  POST /api/inbound/email            public; Cloudflare Email Worker delivery (HMAC-signed)
+  GET  /api/inbox                    { address, receiving, sending, unread }
+  GET  /api/inbox/messages           list shape; ?applicationId= filters to one card
+  GET  /api/inbox/messages/{id}      full message (marks it read)
+  POST /api/inbox/messages/{id}/reply  { body } -> sent message (explicit user action only)
+
+Logic lives in src/jobify/services/inbox.py.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from src.api.contract import paginate
+from src.api.deps import CURRENT_USER, DB_SESSION
+from src.config import settings
+from src.jobify.services import inbox as ib
+from src.models import InboundRecruiterMessage, MailboxAccount, User
+
+router = APIRouter(tags=["Jobify"])
+
+
+def _raise(exc: ib.InboxError):
+    raise HTTPException(exc.status, {"code": exc.code, "message": exc.message})
+
+
+@router.post("/api/inbound/email", status_code=202, include_in_schema=False)
+async def inbound_email(request: Request, db: Session = DB_SESSION) -> dict[str, Any]:
+    length = int(request.headers.get("content-length") or 0)
+    if length > settings.inbound_max_bytes:
+        _raise(ib.InboxError("TOO_LARGE", "Message too large", 413))
+    raw = await request.body()
+    if len(raw) > settings.inbound_max_bytes:
+        _raise(ib.InboxError("TOO_LARGE", "Message too large", 413))
+    try:
+        ib.verify_signature(request.headers.get("x-jobify-timestamp"), request.headers.get("x-jobify-signature"), raw)
+        return ib.receive(db, raw, request.headers.get("x-jobify-envelope-to", ""))
+    except ib.InboxError as exc:
+        _raise(exc)
+
+
+@router.get("/api/inbox")
+def get_inbox(user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
+    try:
+        mb = ib.get_or_create_inbox(db, user)
+    except ib.InboxError as exc:
+        _raise(exc)
+    unread = 0
+    if mb is not None:
+        unread = (db.query(InboundRecruiterMessage)
+                  .filter(InboundRecruiterMessage.mailbox_id == mb.id, InboundRecruiterMessage.direction == "in",
+                          InboundRecruiterMessage.is_read.isnot(True)).count())
+    return {"address": mb.email_address if mb else None, "receiving": ib.receiving_configured(),
+            "sending": ib.sending_configured(), "unread": unread}
+
+
+@router.get("/api/inbox/messages")
+def list_messages(user: User = CURRENT_USER, db: Session = DB_SESSION, applicationId: int | None = None, page: int = Query(default=1, ge=1), pageSize: int = Query(default=50, ge=1, le=100)) -> dict[str, Any]:
+    query = (db.query(InboundRecruiterMessage)
+             .join(MailboxAccount, InboundRecruiterMessage.mailbox_id == MailboxAccount.id)
+             .filter(MailboxAccount.user_id == user.id, MailboxAccount.provider == ib.PROVIDER))
+    if applicationId is not None:
+        query = query.filter(InboundRecruiterMessage.application_id == applicationId)
+    query = query.order_by(InboundRecruiterMessage.received_at.desc(), InboundRecruiterMessage.id.desc())
+    return paginate(query, page, pageSize, mapper=ib.to_ui)
+
+
+@router.get("/api/inbox/messages/{msg_id:int}")
+def get_message(msg_id: int, user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
+    try:
+        row = ib.owned_message(db, user, msg_id)
+    except ib.InboxError as exc:
+        _raise(exc)
+    if not row.is_read:
+        row.is_read = True
+        db.commit()
+    return ib.to_ui(row, full=True)
+
+
+class ReplyBody(BaseModel):
+    body: str = Field(min_length=1, max_length=20_000)
+
+
+@router.post("/api/inbox/messages/{msg_id:int}/reply", status_code=201)
+def reply(msg_id: int, payload: ReplyBody, user: User = CURRENT_USER, db: Session = DB_SESSION) -> dict[str, Any]:
+    try:
+        return ib.to_ui(ib.reply(db, user, msg_id, payload.body), full=True)
+    except ib.InboxError as exc:
+        _raise(exc)

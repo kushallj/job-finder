@@ -9,19 +9,19 @@ from typing import Any, Dict, List, Optional
 from src.telegram_bot.models import BotMessageResponse
 
 # Import all 13 underlying intelligence engines
-from src.services.interviewer_profiler import InterviewerProfilerService
+from src.experimental.services.interviewer_profiler import InterviewerProfilerService
 from src.services.offer_arbitrage import OfferArbitrageService
 from src.services.cadence_coach_service import CadenceCoachService
-from src.services.proof_of_work_fabricator import ProofOfWorkFabricatorService
-from src.services.anti_ghosting_service import AntiGhostingService
-from src.services.frontier_ai_radar import FrontierAiRadarService
-from src.services.executive_decision_memo import ExecutiveDecisionMemoService
-from src.services.reverse_headhunter_service import ReverseHeadhunterService
-from src.services.geo_arbitrage_service import GeoArbitrageService
-from src.services.web3_bounty_harvester import Web3BountyHarvesterService
-from src.services.system_design_whiteboard import SystemDesignWhiteboardService
-from src.services.executive_outreach_service import ExecutiveOutreachService
-from src.services.sandbox_simulation_service import SandboxSimulationService
+from src.experimental.services.proof_of_work_fabricator import ProofOfWorkFabricatorService
+from src.experimental.services.anti_ghosting_service import AntiGhostingService
+from src.experimental.services.frontier_ai_radar import FrontierAiRadarService
+from src.experimental.services.executive_decision_memo import ExecutiveDecisionMemoService
+from src.experimental.services.reverse_headhunter_service import ReverseHeadhunterService
+from src.experimental.services.geo_arbitrage_service import GeoArbitrageService
+from src.experimental.services.web3_bounty_harvester import Web3BountyHarvesterService
+from src.experimental.services.system_design_whiteboard import SystemDesignWhiteboardService
+from src.experimental.services.executive_outreach_service import ExecutiveOutreachService
+from src.experimental.services.sandbox_simulation_service import SandboxSimulationService
 from src.email_engine.common_crawl_miner import common_crawl_miner
 
 logger = logging.getLogger("godfather_bot.router")

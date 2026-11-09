@@ -110,7 +110,7 @@ async def test_tsenta_client_submission_and_receipt(db_session):
     
     packet = {
         "job": {"id": 202, "company": "Figma", "title": "Senior Software Engineer"},
-        "applicant": {"full_name": "Kushall Jain", "email": "canaby007@gmail.com"},
+        "applicant": {"full_name": "Example Candidate", "email": "candidate@example.com"},
         "screening_questions": [{"question": "Notice period?", "answer": "Immediate"}],
     }
 

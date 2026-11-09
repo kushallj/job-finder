@@ -681,6 +681,20 @@ def cmd_digest(_args):
 # VC Intelligence (100 Global VC Firms)
 # ---------------------------------------------------------------------------
 
+def cmd_founders_import(args):
+    """Load every founder/startup dataset in the repo into the Jobify Founders tables (idempotent)."""
+    from src.database import SessionLocal
+    from src.vc_intelligence.import_founder_data import run_import
+    db = SessionLocal()
+    try:
+        stats = run_import(db)
+        print("Founder data import complete:")
+        for k, v in stats.items():
+            print(f"  {k:22} {v}")
+    finally:
+        db.close()
+
+
 def cmd_vc_seed_100(args):
     """Seed all 100 global VC firms into the database."""
     from src.database import SessionLocal
@@ -814,6 +828,7 @@ COMMANDS = {
     "digest":    cmd_digest,
     "firecrawl-scan": cmd_firecrawl_scan,
     "vc-seed-100": cmd_vc_seed_100,
+    "founders-import": cmd_founders_import,
     "vc-scrape-single": cmd_vc_scrape_single,
     "vc-scrape-batch": cmd_vc_scrape_batch,
     "vc-scrape-continuous": cmd_vc_scrape_continuous,
@@ -899,6 +914,7 @@ def main():
 
     # VC Intelligence subparsers
     subparsers.add_parser("vc-seed-100", help="Seed 100 global VC firms into DB across 6 regions")
+    subparsers.add_parser("founders-import", help="Import all repo founder/startup datasets into the Founders tables")
 
     p_vc_single = subparsers.add_parser("vc-scrape-single", help="Scrape portfolio companies and founders for a specific VC")
     p_vc_single.add_argument("--slug", required=True, help="VC slug (e.g. peak-xv-partners, a16z, accel)")

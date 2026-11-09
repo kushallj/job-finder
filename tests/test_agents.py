@@ -10,7 +10,7 @@ Outreach Composer) are exercised only for their graceful-fallback paths.
 
 import pytest
 
-from src.agents.base import AgentContext
+from src.agents.base import AgentContext, _normalize_profile
 from src.agents.agent_01_signal_scout import SignalScoutAgent
 from src.agents.agent_03_fit_scorer import FitScorerAgent, APPLY_THRESHOLD, FLOOR_THRESHOLD
 from src.agents.agent_04_resume_tailor import ResumeTailorAgent
@@ -25,7 +25,45 @@ from src.agents.agent_15_negotiator import NegotiatorAgent
 
 @pytest.fixture(scope="module")
 def ctx():
-    return AgentContext.load()
+    profile = _normalize_profile({
+        "candidate": {"name": "Test Candidate", "experience_years": 0},
+        "tech_stack": {"strong": ["Python", "FastAPI", "PostgreSQL"], "familiar": []},
+        "narrative": {
+            "summary": "Test-only profile summary.",
+            "proof_points": [{"name": "Example project", "metric": "test-only evidence"}],
+        },
+        "target_roles": {"primary": ["Backend Engineer"], "secondary": []},
+        "location_preferences": {"on_site_cities": ["Test City"], "remote": True},
+        "compensation": {"target_ctc_lakhs_min": 0, "target_ctc_lakhs_max": 0},
+        "positioning": {"headline": "Test role", "lead_with": ["Python"]},
+    })
+    companies = [
+        {
+            "name": "ExampleCo",
+            "tier": 1,
+            "industry": "Technology",
+            "headquarters": "Test City",
+            "stage": "Series B",
+            "comp_benchmark_inr_lpa": {
+                "median": 15,
+                "max": 20,
+                "source": "test fixture",
+                "as_of": "test fixture",
+            },
+        },
+        {
+            "name": "FundingCo",
+            "tier": 1,
+            "signals": [{"type": "funding", "detail": "test-only funding signal"}],
+        },
+        {
+            "name": "CautionCo",
+            "tier": 2,
+            "signals": [{"type": "caution", "detail": "test-only caution signal"}],
+        },
+        {"name": "NoBenchmarkCo", "tier": 2, "comp_benchmark_inr_lpa": None},
+    ]
+    return AgentContext(profile=profile, companies=companies)
 
 
 def test_context_loads_profile_and_companies(ctx):
@@ -35,9 +73,9 @@ def test_context_loads_profile_and_companies(ctx):
 
 
 def test_company_lookup_is_case_insensitive(ctx):
-    found = ctx.company("PERFIOS")
+    found = ctx.company("EXAMPLECO")
     assert found is not None
-    assert found["name"] == "Perfios"
+    assert found["name"] == "ExampleCo"
 
 
 def test_companies_by_tier_filters_correctly(ctx):
@@ -57,9 +95,22 @@ def test_signal_scout_ingests_and_classifies(ctx, tmp_path, monkeypatch):
     assert "stale_companies" in result.data
 
 
+def test_context_uses_empty_examples_when_user_config_is_missing(monkeypatch, tmp_path):
+    import src.agents.base as base_mod
+
+    monkeypatch.setattr(base_mod, "_profile_from_db", lambda _user_id: None)
+    monkeypatch.setattr(base_mod, "_companies_from_db", lambda _user_id: [])
+    ctx = AgentContext.load(
+        profile_path=tmp_path / "missing-profile.yml",
+        companies_path=tmp_path / "missing-companies.yml",
+    )
+    assert ctx.profile["candidate"] == {}
+    assert ctx.companies == []
+
+
 def test_fit_scorer_recommends_apply_for_strong_match(ctx):
     roles = [{
-        "company": "Perfios",
+        "company": "ExampleCo",
         "title": "Backend Software Engineer (Python)",
         "description": "Django REST Framework, FastAPI, PostgreSQL, JWT auth, RBAC",
         "location": "Bangalore, India",
@@ -88,7 +139,7 @@ def test_fit_scorer_never_recommends_apply_below_floor(ctx):
 
 def test_resume_tailor_never_invents_differentiators(ctx):
     result = ResumeTailorAgent(ctx).run(
-        company="Perfios", job_description="Django, FastAPI, RBAC", use_llm=False
+        company="ExampleCo", job_description="FastAPI, role-based access controls", use_llm=False
     )
     assert result.ok
     profile_diffs = set(ctx.profile["positioning"]["differentiators"])
@@ -123,7 +174,7 @@ def test_priority_scheduler_caps_daily_queue(ctx):
 def test_challenge_solver_extracts_grounded_challenge_from_jd(ctx):
     jd = ("We need to scale our microservices and improve API reliability while "
           "maintaining strict compliance and audit trails for BFSI customers.")
-    result = ChallengeSolverAgent(ctx).run(company="Perfios", job_description=jd)
+    result = ChallengeSolverAgent(ctx).run(company="ExampleCo", job_description=jd)
     assert result.ok
     assert result.data["identified_challenge"]
     # Every matched proof point must come verbatim from config/profile.yml —
@@ -135,10 +186,9 @@ def test_challenge_solver_extracts_grounded_challenge_from_jd(ctx):
 
 
 def test_challenge_solver_falls_back_to_signal_when_no_jd(ctx):
-    result = ChallengeSolverAgent(ctx).run(company="SolarSquare", job_description="")
+    result = ChallengeSolverAgent(ctx).run(company="FundingCo", job_description="")
     assert result.ok
-    # SolarSquare has a "funding" signal in target_companies.yml, so a
-    # signal-derived challenge should be found even with no JD text.
+    # A test funding signal should produce a challenge without JD text.
     assert result.data["identified_challenge"] or result.warnings
 
 
@@ -160,14 +210,14 @@ def test_query_hunter_bank_has_at_least_25_queries():
 
 def test_influencer_never_exceeds_x_char_limit(ctx):
     from src.agents.agent_12_influencer import X_CHAR_LIMIT
-    result = InfluencerAgent(ctx).run(angle="signal_reaction", company="SolarSquare")
+    result = InfluencerAgent(ctx).run(angle="signal_reaction", company="FundingCo")
     assert result.ok
     assert len(result.data["platform_drafts"]["x"]) <= X_CHAR_LIMIT
 
 
 def test_influencer_draft_reflects_real_signal_not_generic(ctx):
-    result = InfluencerAgent(ctx).run(angle="signal_reaction", company="SolarSquare")
-    company_cfg = ctx.company("SolarSquare")
+    result = InfluencerAgent(ctx).run(angle="signal_reaction", company="FundingCo")
+    company_cfg = ctx.company("FundingCo")
     signal_detail = company_cfg["signals"][0]["detail"]
     assert signal_detail in result.data["platform_drafts"]["linkedin"]
 
@@ -202,7 +252,7 @@ def test_profile_differentiators_trace_back_to_real_proof_points(ctx):
 
 def test_pitcher_builds_win_pitch_from_real_evidence(ctx):
     jd = "Scale our microservices and improve API reliability while maintaining strict compliance."
-    result = PitcherAgent(ctx).run(company="Perfios", job_description=jd)
+    result = PitcherAgent(ctx).run(company="FundingCo", job_description=jd)
     assert result.ok
     assert result.data["problem"]
     assert result.data["solution_points"]
@@ -213,8 +263,8 @@ def test_pitcher_builds_win_pitch_from_real_evidence(ctx):
 
 
 def test_pitcher_warns_when_no_jd_given(ctx):
-    result = PitcherAgent(ctx).run(company="Zenatix", job_description="")
-    # Zenatix has only a "caution" signal type with no implied-challenge mapping,
+    result = PitcherAgent(ctx).run(company="CautionCo", job_description="")
+    # CautionCo has no mapped challenge signal,
     # so with no JD this should either find nothing or warn, never invent a problem.
     if not result.data["problem"]:
         assert result.warnings
@@ -223,7 +273,7 @@ def test_pitcher_warns_when_no_jd_given(ctx):
 # ── Interviewer (agent 14) ──────────────────────────────────────────────
 
 def test_interviewer_generates_requested_question_count(ctx):
-    result = InterviewerAgent(ctx).generate_questions(company="Perfios", num_questions=4)
+    result = InterviewerAgent(ctx).generate_questions(company="ExampleCo", num_questions=4)
     assert result.ok
     assert len(result.data["questions"]) <= 4
     assert all({"id", "text", "type", "focus_area"} <= q.keys() for q in result.data["questions"])
@@ -231,9 +281,9 @@ def test_interviewer_generates_requested_question_count(ctx):
 
 def test_interviewer_scores_strong_star_answer_highly(ctx):
     answer = (
-        "At Progfin we had a query that was taking 800ms and slowing down the whole dashboard. "
-        "I needed to fix it before the next release. I profiled the query, added the right indexes, "
-        "and rewrote a join. As a result response time dropped to 200ms, a 75% improvement."
+        "In a test scenario, when a query slowed the dashboard, I needed to address it. "
+        "I profiled the query and changed the test implementation. As a result, "
+        "test latency moved from 800ms to 200ms."
     )
     result = InterviewerAgent(ctx).score_answer("Tell me about a performance fix.", answer)
     assert result.ok
@@ -248,22 +298,22 @@ def test_interviewer_scores_empty_answer_zero(ctx):
 
 # ── Negotiator (agent 15) ───────────────────────────────────────────────
 
-def test_negotiator_benchmark_uses_real_comp_data(ctx):
-    result = NegotiatorAgent(ctx).benchmark("Perfios")
+def test_negotiator_benchmark_uses_configured_test_data(ctx):
+    result = NegotiatorAgent(ctx).benchmark("ExampleCo")
     assert result.ok
-    company_cfg = ctx.company("Perfios")
+    company_cfg = ctx.company("ExampleCo")
     assert result.data["band"] == company_cfg["comp_benchmark_inr_lpa"]
 
 
 def test_negotiator_flags_missing_benchmark_instead_of_inventing(ctx):
-    result = NegotiatorAgent(ctx).benchmark("GPS Renewables")  # has empty comp_benchmark_inr_lpa
+    result = NegotiatorAgent(ctx).benchmark("NoBenchmarkCo")
     assert result.ok
     assert result.data["suggested_ask_lpa"] is None
     assert result.warnings
 
 
 def test_negotiator_counter_script_never_exceeds_reasonable_bump(ctx):
-    result = NegotiatorAgent(ctx).counter_script("Perfios", 14.0)
+    result = NegotiatorAgent(ctx).counter_script("ExampleCo", 14.0)
     assert result.ok
     assert result.data["counter_ask_lpa"] > 14.0
     assert result.data["counter_ask_lpa"] < 14.0 * 1.5  # sanity: no wild overshoot
@@ -308,4 +358,3 @@ def test_query_hunter_executes_serpapi_mock(ctx, monkeypatch, tmp_path):
         assert results[0]["title"] == "Founding Engineer - AI"
         assert results[0]["url"] == "https://example.com/job"
         assert results[0]["snippet"] == "FastAPI + PyTorch"
-

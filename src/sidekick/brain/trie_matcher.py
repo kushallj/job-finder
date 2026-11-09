@@ -65,6 +65,11 @@ class InterviewKnowledgeTrie:
                     current.children[char] = TrieNode()
                 current = current.children[char]
 
+            # First writer wins on a normalized-key collision: "design lru cache" (Java/Kotlin
+            # entry) normalizes to "lru cache" and used to overwrite the general LRU answer.
+            # The bank lists general concepts before language-specific variants.
+            if current.is_terminal and current.payload is not None:
+                return
             current.is_terminal = True
             current.payload = payload
             self.total_indexed_keys += 1

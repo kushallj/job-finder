@@ -90,13 +90,13 @@ def sample_resume_data():
     )
     
     return ResumeData(
-        name="John Doe",
+        name="Candidate Example",
         tagline="Software Engineer · Full Stack Development",
-        email="john@example.com",
-        phone="1234567890",
-        linkedin="linkedin.com/in/johndoe",
-        github="github.com/johndoe",
-        website="johndoe.com",
+        email="candidate@example.com",
+        phone="2025550147",
+        linkedin="linkedin.com/in/example",
+        github="github.com/example",
+        website="example.com",
         sections=[
             ResumeSection(type="summary", title="Professional Summary", bullets=[summary_bullet]),
             ResumeSection(type="skills", title="Technical Skills", bullets=[skills_bullet]),
@@ -601,9 +601,9 @@ B.S. Computer Science · University · 2018
     def test_parser_extracts_contact_info(self):
         """Test that parser extracts contact information."""
         # Note: Parser expects name on first line, no leading blank lines
-        resume_text = """Jane Smith
+        resume_text = """Candidate Example
 Developer
-jane.smith@company.com | linkedin.com/in/janesmith | github.com/janesmith | 9876543210
+candidate@example.com | linkedin.com/in/example | github.com/example | 2025550147
 
 TECHNICAL SKILLS
 Python, JavaScript
@@ -611,7 +611,7 @@ Python, JavaScript
         
         resume = ResumeParser.parse_text(resume_text)
         
-        assert "jane.smith@company.com" in resume.email
+        assert "candidate@example.com" in resume.email
         assert "linkedin" in resume.linkedin.lower()
         assert "github" in resume.github.lower()
 
@@ -624,7 +624,7 @@ Python, JavaScript
         cloned.name = "Modified Name"
         
         # Original should be unchanged
-        assert original.name == "John Doe"
+        assert original.name == "Candidate Example"
         assert cloned.name == "Modified Name"
 
     def test_resume_data_modified_bullets(self, sample_resume_data):
@@ -672,7 +672,7 @@ Software engineer with experience.
 
 TECHNICAL SKILLS
 Python, JavaScript, React
-""")
+""", encoding="utf-8")
         
         engine = ResumeEngine(resume_path=str(resume_path))
         assert engine is not None
@@ -699,7 +699,7 @@ Software Engineer
 TechCorp · 2020 - Present
 • Built REST APIs with Django
 • Managed PostgreSQL databases
-""")
+""", encoding="utf-8")
         
         engine = ResumeEngine(resume_path=str(resume_path))
         report = await engine.score_only(sample_jd)
@@ -732,7 +732,7 @@ StartupXYZ · 2020 - Present
 
 EDUCATION
 B.S. Computer Science · University · 2018
-""")
+""", encoding="utf-8")
         
         # Create data dir for PDFs
         data_dir = tmp_path / "data"
@@ -767,7 +767,7 @@ email@example.com
 
 TECHNICAL SKILLS
 Python
-""")
+""", encoding="utf-8")
         
         engine = ResumeEngine(resume_path=str(resume_path))
         
@@ -782,7 +782,7 @@ email@example.com
 
 TECHNICAL SKILLS
 Python
-""")
+""", encoding="utf-8")
         
         # Still cached
         base2 = engine._get_base_resume()
@@ -950,3 +950,13 @@ class TestJDAnalysisProperties:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_parse_file_accepts_windows_1252_resume(tmp_path):
+    """Resumes saved on Windows are often cp1252 ("·", "•"); they must parse, not crash."""
+    from src.resume_engine.resume_model import ResumeData, ResumeParser
+
+    path = tmp_path / "resume.txt"
+    path.write_bytes("Jane Doe\nPROFESSIONAL EXPERIENCE\nEngineer\nAcme · 2020 - Present\n• Built APIs\n".encode("cp1252"))
+    data = ResumeParser.parse_file(str(path))
+    assert isinstance(data, ResumeData)

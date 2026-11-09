@@ -539,7 +539,7 @@ class CareerjetClient:
         work_hours: Optional[str] = None,
         fragment_size: int = 500,
         user_ip: str = "161.248.229.81",
-        user_agent: str = "JobFinder/2.1 (Python/FastAPI; +https://github.com/kushallj/job-finder)",
+        user_agent: str = "Jobify/1.0 (Python/FastAPI; +https://github.com/devnoid1/Jobify)",
     ) -> List[Dict[str, Any]]:
         """Search jobs using Careerjet API v4 with Basic authentication."""
         if not self.enabled:
@@ -567,7 +567,7 @@ class CareerjetClient:
         auth_str = base64.b64encode(f"{self.api_key}:".encode()).decode()
         headers = {
             "Authorization": f"Basic {auth_str}",
-            "Referer": "https://github.com/kushallj/job-finder",
+            "Referer": "https://github.com/devnoid1/Jobify",
             "User-Agent": user_agent,
         }
 
@@ -597,7 +597,7 @@ class USAJobsClient:
         transport=None,
     ) -> None:
         self.api_key = api_key or getattr(settings, "usajobs_api_key", None)
-        self.email = email or getattr(settings, "usajobs_email", None) or "kushall.jain07@gmail.com"
+        self.email = email or getattr(settings, "usajobs_email", None) or ""
         self.timeout = timeout
         self.transport = transport
 
@@ -667,51 +667,6 @@ class USAJobsClient:
         search_result = payload.get("SearchResult", {})
         raw_items = search_result.get("SearchResultItems", [])
         return [normalize_job(item, "usajobs") for item in raw_items]
-
-
-async def search_all(*, query: str, location: Optional[str] = None,
-                     max_age: int = 30, limit: int = 50) -> Dict[str, List[Dict[str, Any]]]:
-    """Sequentially query all providers; each provider may independently fail."""
-    results: Dict[str, List[Dict[str, Any]]] = {
-        "jobdataapi": [],
-        "aidevboard": [],
-        "fantastic_jobs": [],
-        "arbeitnow": [],
-        "careerjet": [],
-        "usajobs": [],
-    }
-    jobdata = JobDataAPIClient()
-    aidev = AIDevBoardClient()
-    fantastic = FantasticJobsClient()
-    arbeitnow = ArbeitnowClient()
-    careerjet = CareerjetClient()
-    usajobs = USAJobsClient()
-
-    try:
-        results["jobdataapi"] = await jobdata.search(query=query, location=location, max_age=max_age, page_size=limit)
-    except Exception:
-        pass
-    try:
-        results["aidevboard"] = await aidev.search(query=query, location=location, limit=limit)
-    except Exception:
-        pass
-    try:
-        results["fantastic_jobs"] = await fantastic.search(query=query, location=location, limit=limit)
-    except Exception:
-        pass
-    try:
-        results["arbeitnow"] = await arbeitnow.search(query=query, location=location, limit=limit)
-    except Exception:
-        pass
-    try:
-        results["careerjet"] = await careerjet.search(query=query, location=location, page_size=limit)
-    except Exception:
-        pass
-    try:
-        results["usajobs"] = await usajobs.search(query=query, location=location, results_per_page=limit, remote_only=True)
-    except Exception:
-        pass
-    return results
 
 
 

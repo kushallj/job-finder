@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+from contextlib import closing
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -189,7 +190,7 @@ class DigestGenerator:
         """Persist snapshot to SQLite for week-over-week comparison."""
         try:
             _LEARNING_DB.parent.mkdir(exist_ok=True)
-            with sqlite3.connect(_LEARNING_DB) as conn:
+            with closing(sqlite3.connect(_LEARNING_DB)) as conn, conn:  # closing(): the bare form never closes
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS learning_snapshots (
                         id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -224,7 +225,7 @@ class DigestGenerator:
     def load_prior_snapshot(self) -> Optional[dict]:
         """Load previous snapshot for week-over-week comparison."""
         try:
-            with sqlite3.connect(_LEARNING_DB) as conn:
+            with closing(sqlite3.connect(_LEARNING_DB)) as conn, conn:  # closing(): the bare form never closes
                 row = conn.execute(
                     "SELECT metrics_json FROM learning_snapshots ORDER BY created_at DESC LIMIT 1 OFFSET 1"
                 ).fetchone()

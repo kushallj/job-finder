@@ -21,6 +21,8 @@ from src.services.billing_service import (
     get_plans_catalog,
     create_checkout_session,
     create_customer_portal_session,
+    apply_purchase,
+    verify_dodo_signature,
     verify_webhook_signature,
     process_webhook_event,
 )
@@ -42,7 +44,8 @@ class SpendCreditsRequest(BaseModel):
 
 
 class CheckoutSessionRequest(BaseModel):
-    target: str = Field(..., description="Target plan ('starter', 'pro', 'unlimited') or credit pack ('pack_100', 'pack_300')")
+    target: str = Field(..., description="Plan ('basic', 'pro') or credit pack ('pack_100')")
+    interval: str = Field("month", pattern="^(month|year)$", description="Billing interval for plans")
     success_url: Optional[str] = Field(None, description="Redirect URL upon successful payment")
     cancel_url: Optional[str] = Field(None, description="Redirect URL if customer cancels checkout")
 
@@ -127,6 +130,7 @@ def create_session(
         target=req.target,
         success_url=req.success_url,
         cancel_url=req.cancel_url,
+        interval=req.interval,
     )
 
 
@@ -188,12 +192,16 @@ async def dodo_webhook(
     Activates user Pro subscription (1,000 credits) or adds credit top-ups on successful payments.
     """
     payload_bytes = await request.body()
+    # Public route: without a valid signature anyone could grant any user a paid plan.
+    if not verify_dodo_signature(payload_bytes, dict(request.headers)):
+        log.warning("Invalid or unsigned Dodo webhook rejected")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
     try:
         event_data = json.loads(payload_bytes.decode("utf-8"))
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Malformed JSON payload: {exc}",
+            detail="Malformed JSON payload",
         ) from exc
 
     data = event_data.get("data", event_data)
@@ -202,36 +210,18 @@ async def dodo_webhook(
 
     if user_id_str:
         try:
-            uid = int(user_id_str)
-            target = metadata.get("target", "pro")
-            target_type = metadata.get("type", "subscription")
-            user = db.query(User).filter(User.id == uid).first()
+            user = db.query(User).filter(User.id == int(user_id_str)).first()
             if user:
-                if target_type == "subscription" or target in ("pro", "starter", "basic"):
-                    user.subscription_tier = "pro"
-                    user.subscription_status = "active"
-                    from src.services.credit_service import add_credits
-                    add_credits(
-                        db=db,
-                        user_id=user.id,
-                        amount=1000,
-                        action="subscription_renewal",
-                        notes="Dodo Payments Pro subscription activation (1,000 credits)",
-                    )
-                    db.commit()
-                    log.info(f"Dodo webhook: Activated Pro subscription for user {user.id}")
-                elif target == "pack_100":
-                    from src.services.credit_service import add_credits
-                    add_credits(
-                        db=db,
-                        user_id=user.id,
-                        amount=100,
-                        action="credit_purchase",
-                        notes="Dodo Payments 100 Credits Top-Up pack",
-                    )
-                    db.commit()
-                    log.info(f"Dodo webhook: Added 100 credits for user {user.id}")
-                return {"received": True, "status": "processed", "user_id": user.id}
+                # Same grant logic as Stripe (billing_service.apply_purchase). This handler used
+                # to activate "pro" with 1,000 credits for any subscription, including Basic.
+                result = apply_purchase(
+                    db, user, metadata.get("target", ""), metadata.get("type", "subscription"),
+                    interval=metadata.get("interval", "month"), reference_id=data.get("payment_id") or data.get("id"),
+                    provider="Dodo",
+                )
+                log.info("Dodo webhook for user %s: %s", user.id, result)
+                return {"received": True, "status": "processed" if result["status"] == "success" else "ignored",
+                        "user_id": user.id, **{k: v for k, v in result.items() if k != "status"}}
         except Exception as exc:
             log.error(f"Error processing Dodo webhook for user {user_id_str}: {exc}")
 

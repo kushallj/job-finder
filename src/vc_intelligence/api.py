@@ -197,14 +197,14 @@ def export_contacts(
 
     # Generate CSV stream
     output = io.StringIO()
-    if contacts:
-        fieldnames = list(contacts[0].keys())
-        writer = csv.DictWriter(output, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(contacts)
-    else:
-        writer = csv.writer(output)
-        writer.writerow(["No founder contact leads available for export."])
+    # Always a valid CSV: header row even when empty (the old empty case wrote a prose
+    # sentence, which broke anything parsing the file).
+    from src.vc_intelligence.repository import EXPORT_CONTACT_FIELDS
+
+    fieldnames = list(contacts[0].keys()) if contacts else EXPORT_CONTACT_FIELDS
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(contacts)
 
     filename = f"vc_founder_contacts_{vc_slug or 'all'}.csv"
     return Response(

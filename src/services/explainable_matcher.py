@@ -76,46 +76,14 @@ TECH_TAXONOMY: Dict[str, List[str]] = {
     "Distributed Systems": ["distributed systems", "high availability", "concurrency"],
 }
 
-# Candidate benchmark profile (Alex Morgan / Kushall Jain - verified high-impact skills)
-DEFAULT_CANDIDATE_PROFILE = {
-    "full_name": "Kushall Jain",
-    "years_of_experience": 4.5,
-    "current_title": "Senior Full Stack & AI Systems Engineer",
-    "skills": [
-        "React",
-        "TypeScript",
-        "Vite",
-        "LLM Integration",
-        "Model Context Protocol (MCP)",
-        "Retrieval-Augmented Generation (RAG)",
-        "Vector Databases",
-        "AI Agents",
-        "LangChain",
-        "PyTorch",
-        "Python",
-        "FastAPI",
-        "PostgreSQL",
-        "Redis",
-        "Docker",
-        "AWS",
-        "RESTful APIs",
-        "Microservices",
-        "Distributed Systems",
-        "Tailwind CSS",
-        "Next.js",
-        "Git",
-    ],
-    "target_locations": ["Remote", "Bengaluru", "Bangalore", "Worldwide", "India", "San Francisco"],
-    "preferred_work_modes": ["remote", "hybrid"],
-}
-
-
 class ExplainableMatcherService:
     """Service to compute matched skills, missing skills, and natural-language validation reasons."""
 
     def __init__(self, candidate_profile: Optional[Dict[str, Any]] = None):
-        self.candidate = candidate_profile or DEFAULT_CANDIDATE_PROFILE
-        self._candidate_skills_set = {s.lower() for s in self.candidate.get("skills", [])}
+        self.candidate = candidate_profile or {}
+        self._candidate_skills_set = {
+            skill.lower() for skill in (self.candidate.get("skills") or [])
+        }
 
     def _extract_skills(self, text: str, tags: Optional[List[str]] = None) -> List[str]:
         """Extract canonical skills present in the text or tags."""
@@ -173,6 +141,18 @@ class ExplainableMatcherService:
             else:
                 extracted_job_skills = ["Python", "PostgreSQL", "Docker", "RESTful APIs"]
 
+        if not self.candidate:
+            return {
+                "score": 0,
+                "matched_skills": [],
+                "missing_skills": extracted_job_skills,
+                "reasons": [
+                    "Candidate profile is not configured",
+                    "Seniority match is unavailable without candidate experience",
+                    "Location preferences are not configured",
+                ],
+            }
+
         matched_skills: List[str] = []
         missing_skills: List[str] = []
 
@@ -190,14 +170,19 @@ class ExplainableMatcherService:
         skill_score = int(overlap_ratio * 70)
 
         # Seniority match: up to 15 points
-        cand_yoe = self.candidate.get("years_of_experience", 4.0)
-        exp_score = 15
-        seniority_reason = f"Seniority: Matches your {cand_yoe:.0f}+ years experience"
+        cand_yoe = self.candidate.get("years_of_experience")
+        exp_score = 0 if cand_yoe is None else 15
+        seniority_reason = (
+            "Seniority: Candidate experience not provided"
+            if cand_yoe is None else f"Seniority: Matches your {cand_yoe:.0f}+ years experience"
+        )
 
         lowered_title = title.lower()
         lowered_exp = (experience_level or "").lower()
 
-        if "lead" in lowered_title or "principal" in lowered_title or "staff" in lowered_title or "lead" in lowered_exp:
+        if cand_yoe is None:
+            pass
+        elif "lead" in lowered_title or "principal" in lowered_title or "staff" in lowered_title or "lead" in lowered_exp:
             if cand_yoe >= 5:
                 seniority_reason = f"Seniority: Well-positioned for Staff/Lead tier with your {cand_yoe:.0f}+ years background"
                 exp_score = 15
@@ -215,20 +200,24 @@ class ExplainableMatcherService:
             exp_score = 15
 
         # Location / Work mode match: up to 15 points
-        loc_score = 10
+        loc_score = 0
         location_str = (location or "Remote").strip()
         is_remote = bool(has_remote) or "remote" in (work_mode or "").lower() or "remote" in location_str.lower()
-        is_blr = any(k in location_str.lower() for k in ["bengaluru", "bangalore", "india"])
+        preferred_modes = {
+            mode.lower() for mode in (self.candidate.get("preferred_work_modes") or [])
+        }
+        target_locations = [
+            loc.lower() for loc in (self.candidate.get("target_locations") or [])
+        ]
 
-        if is_remote:
+        if is_remote and "remote" in preferred_modes:
             loc_score = 15
             location_reason = "Location: 100% Global Remote match as preferred"
-        elif is_blr:
+        elif target_locations and any(loc in location_str.lower() for loc in target_locations):
             loc_score = 15
-            location_reason = f"Location: Bengaluru / India hub match ({location_str})"
+            location_reason = f"Location: Matches a configured preference ({location_str})"
         else:
-            loc_score = 10
-            location_reason = f"Location: {location_str} (open to hybrid/relocation alignment)"
+            location_reason = "Location preferences are not configured"
 
         raw_score = skill_score + exp_score + loc_score
         # Ensure realistic bounded match score (between 40 and 98)

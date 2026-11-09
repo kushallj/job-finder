@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import (
+    Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func, text,
+)
 from sqlalchemy.orm import DeclarativeBase, relationship
 from datetime import datetime
 
@@ -50,6 +52,11 @@ class CreditTransaction(Base):
 
 class Job(Base):
     __tablename__ = "jobs"
+    __table_args__ = (
+        # Jobify list: WHERE expired_at IS NULL ORDER BY fetched_at DESC (partial index).
+        Index("ix_jobs_active_fetched_at", "fetched_at",
+              postgresql_where=text("expired_at IS NULL"), sqlite_where=text("expired_at IS NULL")),
+    )
     
     id = Column(Integer, primary_key=True)
     job_id = Column(String(255), unique=True, nullable=False)
@@ -70,7 +77,7 @@ class Job(Base):
     salary_currency = Column(String(10))
     has_remote = Column(Boolean)
     work_mode = Column(String(50))
-    experience_level = Column(String(20))
+    experience_level = Column(String(100))  # e.g. "Lead / Staff / Principal", "Mid-level, Senior"
     tags = Column(Text)  # JSON array
     expired_at = Column(DateTime)
     provider_payload = Column(Text)  # JSON provider record for traceability
@@ -79,8 +86,100 @@ class Job(Base):
     # Relationships
     applications = relationship("Application", back_populates="job")
 
+# Founders "hiring" check matches company names case-insensitively (expression index).
+Index("ix_jobs_company_lower", func.lower(Job.company))
+
+
+class UserJob(Base):
+    """Per-user state on a shared Job row (Jobify saved / applied). Jobs stay a shared catalog."""
+    __tablename__ = "user_jobs"
+    __table_args__ = (UniqueConstraint("user_id", "job_id", name="uq_user_jobs_user_job"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    saved_at = Column(DateTime, nullable=True)
+    applied_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class FounderUnlock(Base):
+    """A user paid credits to see a portfolio company's founder contact details (Jobify Founders)."""
+    __tablename__ = "founder_unlocks"
+    __table_args__ = (UniqueConstraint("user_id", "company_id", name="uq_founder_unlocks_user_company"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("portfolio_companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    credits_spent = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SavedFounderCompany(Base):
+    """Per-user saved portfolio companies (Jobify Founders heart button)."""
+    __tablename__ = "saved_founder_companies"
+    __table_args__ = (UniqueConstraint("user_id", "company_id", name="uq_saved_founder_companies_user_company"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("portfolio_companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Portfolio(Base):
+    """A user's Jobify portfolio. `content` is the editable draft; `published_content` is the
+    snapshot taken at publish time and is the only thing the public endpoint serves."""
+    __tablename__ = "portfolios"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    username = Column(String(24), nullable=True, unique=True, index=True)
+    status = Column(String(16), nullable=False, default="draft")  # draft | published
+    content = Column(Text, nullable=False, default="{}")
+    published_content = Column(Text, nullable=True)
+    snapshot_at = Column(DateTime, nullable=True)  # last regenerate
+    published_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ChatConversation(Base):
+    """A Jobify chat thread (ask | agent mode)."""
+    __tablename__ = "chat_conversations"
+    __table_args__ = (Index("ix_chat_conversations_user_updated", "user_id", "updated_at"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(120), nullable=False, default="New chat")
+    mode = Column(String(16), nullable=False, default="agent")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    messages = relationship("ChatMessage", back_populates="conversation", cascade="all, delete-orphan",
+                            order_by="ChatMessage.id")
+
+
+class ChatMessage(Base):
+    """One turn in a chat. Assistant rows record which provider produced them and whether the
+    user stopped generation (`status`), so partial replies are kept honestly."""
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True)
+    conversation_id = Column(Integer, ForeignKey("chat_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(16), nullable=False)  # user | assistant
+    content = Column(Text, nullable=False, default="")
+    mode = Column(String(16), nullable=True)
+    status = Column(String(16), nullable=False, default="complete")  # complete | stopped | error
+    provider = Column(String(64), nullable=True)
+    usage = Column(Text, nullable=True)  # JSON from the provider (tokens), when it reports any
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    conversation = relationship("ChatConversation", back_populates="messages")
+
+
 class Application(Base):
     __tablename__ = "applications"
+    __table_args__ = (Index("ix_applications_user_created", "user_id", "created_at"),)
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
@@ -98,6 +197,15 @@ class Application(Base):
     # Status & Lifecycle
     status = Column(String(50), default="pending")  # saved, ready, applied, interview, offer, negotiation, accepted, rejected
     applied_at = Column(DateTime)
+
+    # Jobify card fields (jobify/src/services/applicationService.js). Manual cards have no
+    # job_id, so company/position live here; events/offer are JSON the UI replaces wholesale.
+    company = Column(String(500), nullable=True)
+    position = Column(String(500), nullable=True)
+    notes = Column(Text, nullable=True)
+    source = Column(String(50), nullable=True)  # manual | job | email
+    events_json = Column(Text, nullable=True)   # [{id, title, at}]
+    offer_json = Column(Text, nullable=True)    # {salary, deadline} or null
 
     # Kanban Board & Priority Positioning
     kanban_stage = Column(String(50), default="applied", index=True)
@@ -341,20 +449,20 @@ class CandidateProfile(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_identifier = Column(String(255), default="default_user", unique=True, index=True)
-    username = Column(String(100), unique=True, index=True, nullable=True)  # Public slug e.g. "kushal"
+    username = Column(String(100), unique=True, index=True, nullable=True)
     full_name = Column(String(255), nullable=False)
     headline = Column(String(500), nullable=True)  # e.g. "Staff AI / Frontend Engineer — Distributed Systems & LLM Tooling"
     email = Column(String(255), nullable=False)
     phone = Column(String(100), nullable=True)
-    location = Column(String(255), default="Remote")
+    location = Column(String(255), nullable=True)
     linkedin_url = Column(String(500), nullable=True)
     github_url = Column(String(500), nullable=True)
-    github_username = Column(String(100), nullable=True)  # e.g. "kushalljain"
+    github_username = Column(String(100), nullable=True)
     portfolio_url = Column(String(500), nullable=True)
     avatar_url = Column(String(500), nullable=True)
     custom_domain = Column(String(255), nullable=True)
-    is_public = Column(Boolean, default=True)
-    years_of_experience = Column(Float, default=3.0)
+    is_public = Column(Boolean, default=False)
+    years_of_experience = Column(Float, nullable=True)
     current_title = Column(String(255), nullable=True)
     bio_summary = Column(Text, nullable=True)
     skills = Column(Text, default="[]")  # JSON array of skills e.g. ["Python", "FastAPI", "React"]
@@ -436,11 +544,17 @@ class PortfolioCompany(Base):
     slug = Column(String(255), nullable=False, index=True)
     domain = Column(String(255), nullable=True, index=True)
     website = Column(String(500), nullable=True)
+    logo_url = Column(Text, nullable=True)  # data/company_logos.json (src/vc_intelligence/logo_scraper.py)
     description = Column(Text, nullable=True)
     batch_or_year = Column(String(100), nullable=True)  # e.g. "W24", "Series A 2023"
     funding_stage = Column(String(100), nullable=True)  # Seed, Early Stage, Series A, Growth
     industry_tags = Column(Text, default="[]")  # JSON array string
     careers_url = Column(String(500), nullable=True)
+    # Jobify Founders: real location/funding/hiring from startups.gallery & registries (import_founder_data.py)
+    location = Column(String(255), nullable=True)
+    funding_summary = Column(String(500), nullable=True)
+    investors = Column(Text, nullable=True)  # JSON list
+    jobs_count = Column(Integer, nullable=True)
     last_scraped_at = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -463,6 +577,8 @@ class CompanyFounder(Base):
     title = Column(String(255), nullable=True)  # Co-Founder & CEO, Founder & CTO, etc.
     email = Column(String(255), nullable=True, index=True)
     email_confidence = Column(Float, default=0.0)  # 0.0 to 1.0 confidence
+    # True only when the address was confirmed (e.g. bounce-checked); scraped datasets are pattern guesses.
+    email_verified = Column(Boolean, default=False, nullable=True)
     linkedin_url = Column(String(500), nullable=True)
     twitter_handle = Column(String(100), nullable=True)
     bio = Column(Text, nullable=True)
@@ -494,6 +610,11 @@ class MailboxAccount(Base):
     last_sync_at = Column(DateTime, nullable=True)
     total_messages_scanned = Column(Integer, default=0)
     total_advancements = Column(Integer, default=0)
+    # Jobify Gmail OAuth (read-only). Refresh token is Fernet-encrypted; never returned by the API.
+    oauth_refresh_token_enc = Column(Text, nullable=True)
+    sync_status = Column(String(30), nullable=True)  # connected | syncing | failed | disconnected
+    last_error = Column(Text, nullable=True)
+    next_scan_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -504,6 +625,10 @@ class MailboxAccount(Base):
 class InboundRecruiterMessage(Base):
     """Audit log of incoming recruiter messages classified and auto-advanced through the pipeline."""
     __tablename__ = "inbound_recruiter_messages"
+    __table_args__ = (
+        Index("ix_inbound_mailbox_message_id", "mailbox_id", "message_id"),  # dedupe on ingest
+        Index("ix_inbound_mailbox_received", "mailbox_id", "received_at"),   # inbox list
+    )
 
     id = Column(Integer, primary_key=True)
     mailbox_id = Column(Integer, ForeignKey("mailbox_accounts.id"), nullable=True, index=True)
@@ -524,6 +649,11 @@ class InboundRecruiterMessage(Base):
     new_kanban_stage = Column(String(50), nullable=True)
     auto_advanced = Column(Boolean, default=True)
     
+    # Jobify inbox: direction in|out, read state, threading, sender authentication (SPF/DKIM/DMARC).
+    direction = Column(String(10), default="in", nullable=True)
+    is_read = Column(Boolean, default=False, nullable=True)
+    in_reply_to = Column(String(500), nullable=True)
+    sender_verified = Column(Boolean, nullable=True)
     message_id = Column(String(255), nullable=True)
     thread_id = Column(String(255), nullable=True)
     received_at = Column(DateTime, default=datetime.utcnow)
@@ -674,3 +804,38 @@ class TelegramPushAlertLog(Base):
     job = relationship("Job")
     application = relationship("Application")
 
+
+
+class CatalogRefreshRun(Base):
+    """One scheduled refresh of the shared job catalog (src/tasks.refresh_job_catalog).
+
+    Operational record, not user data: no user_id, read only via the admin endpoint
+    GET /api/admin/catalog-runs. A row left in "running" means the chord callback never
+    fired (worker died, Redis lost the chord); src/services/catalog_runs reports it as stuck.
+    """
+    __tablename__ = "catalog_refresh_runs"
+
+    id = Column(Integer, primary_key=True)
+    task_id = Column(String(64), nullable=True)
+    status = Column(String(16), nullable=False, default="running", index=True)  # running|ok|partial|failed
+    started_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    finished_at = Column(DateTime, nullable=True)
+    queries = Column(Integer, nullable=False, default=0)
+    new_jobs = Column(Integer, nullable=False, default=0)
+    results = Column(Text, nullable=True)  # JSON [{query, stored, error}]
+
+
+def fit_to_columns(model, values: dict) -> dict:
+    """Clip string values to their column's declared length (e.g. String(100)).
+
+    Postgres rejects an over-long value and aborts the whole transaction; SQLite silently
+    accepts it, so the bug only shows up in production. Job providers send free text, so
+    every insert path for shared catalog rows goes through this.
+    """
+    out = dict(values)
+    for column in model.__table__.columns:
+        limit = getattr(column.type, "length", None)
+        value = out.get(column.name)
+        if limit and isinstance(value, str) and len(value) > limit:
+            out[column.name] = value[:limit]
+    return out

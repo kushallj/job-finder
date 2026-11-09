@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-PROJECT="/Users/kushalljain/Desktop/job-finder"
+PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON="$PROJECT/.venv/bin/python"
 LOG="$PROJECT/logs/nexus_cron.log"
 STAMP=$(date '+%Y-%m-%d %H:%M:%S')
