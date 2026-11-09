@@ -160,3 +160,19 @@ def test_upsert_refreshes_and_merges_provider_sources():
     assert upsert_jobs(db, [again]) == (0, 1)
     job = db.query(Job).one()
     assert job.salary_min == 90000 and json.loads(job.provider_sources) == ["remotive", "remoteok"]
+
+
+def test_greenhouse_rows_are_refiltered_on_specific_words(monkeypatch):
+    """ats_scraper accepts any query word in the title; "Senior" must not admit finance roles."""
+    from src.scrapers import ats_scraper
+
+    async def fake_greenhouse(_client, slug, name, query):
+        return [
+            {"title": "Senior Python Engineer", "company": name, "description": "Django APIs", "url": "https://x/1"},
+            {"title": "Senior Strategic Finance Associate", "company": name, "description": "FP&A", "url": "https://x/2"},
+        ]
+
+    monkeypatch.setattr(ats_scraper, "_fetch_greenhouse", fake_greenhouse)
+    monkeypatch.setattr(ats_scraper, "GREENHOUSE_COMPANIES", [("acme", "Acme")])
+    src = next(s for s in ats.SOURCES if s.name == "greenhouse")
+    assert [r.title for r in run(src.fetch(SearchQuery("Senior Python Engineer")))] == ["Senior Python Engineer"]

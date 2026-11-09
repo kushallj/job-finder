@@ -65,7 +65,10 @@ def _ats_scraper_fetch(fn_name: str) -> CompanyFetch:
     async def fetch(slug: str, name: str, q: SearchQuery) -> Rows:
         from src.scrapers import ats_scraper
         async with client() as c:
-            return await getattr(ats_scraper, fn_name)(c, slug, name, q.text)
+            rows = await getattr(ats_scraper, fn_name)(c, slug, name, q.text)
+        # ats_scraper accepts any query word in the title ("Senior" matched finance roles);
+        # re-filter so specific words ("python") must appear and generic ones don't count.
+        return [r for r in rows if matches(q.text, r.get("title"), r.get("description"))]
     return fetch
 
 
