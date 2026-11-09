@@ -1,21 +1,51 @@
 #!/usr/bin/env bash
-# Deploy the current main branch on the VM (run as the app user):
+# Deploy one commit on the VM (run as the app user):
 #
-#   sudo -u jobify bash /opt/jobify/infra/gcp/deploy.sh [git-ref]
+#   sudo -u jobify bash /opt/jobify/infra/gcp/deploy.sh [git-ref]     # default: origin/main
 #
-# Order matters: dependencies -> frontend build -> migrations -> process reload. A failed
-# step stops the deploy before traffic moves (set -e), and the old processes keep serving.
+# CI calls this through the forced-command key (infra/gcp/ci_deploy.sh) with the exact commit
+# SHA that passed CI. Order: code -> backend deps -> frontend build -> migrations -> settings
+# check -> PM2 reload -> /readyz. Until the reload, the old processes keep serving.
+#
+# Rollback: the deployed SHAs are recorded in $APP_DIR/.deploy/{current,previous}. If any step
+# fails (or /readyz never turns ready), the script redeploys the previous SHA automatically.
+# Migrations are NOT reversed: keep them backward compatible (expand -> deploy -> contract),
+# so the previous release can run against the newer schema.
 set -euo pipefail
 
 APP_DIR="${JOBIFY_DIR:-/opt/jobify}"
 REF="${1:-origin/main}"
+STATE="$APP_DIR/.deploy"
+ROLLING_BACK="${JOBIFY_ROLLING_BACK:-0}"
 cd "$APP_DIR"
+mkdir -p "$STATE"
 
 [ -f .env ] || { echo "missing $APP_DIR/.env (copy .env.production.example)"; exit 1; }
 
+# One deploy at a time on this machine (CI also serialises, this covers manual runs).
+exec 9>"$STATE/lock"
+flock -n 9 || { echo "!! another deploy is running"; exit 1; }
+
+PREV="$(cat "$STATE/current" 2>/dev/null || git rev-parse HEAD)"
+
+rollback() {
+  local code=$?
+  trap - ERR
+  if [ "$ROLLING_BACK" = "1" ] || [ -z "$PREV" ] || [ "$PREV" = "${TARGET:-}" ]; then
+    echo "!! deploy failed (exit $code); no rollback target"; exit "$code"
+  fi
+  echo "!! deploy of ${TARGET:-$REF} failed (exit $code): rolling back to $PREV"
+  flock -u 9
+  JOBIFY_ROLLING_BACK=1 bash "$APP_DIR/infra/gcp/deploy.sh" "$PREV" || echo "!! ROLLBACK FAILED: fix by hand (pm2 logs jobify-api)"
+  exit "$code"
+}
+trap rollback ERR
+
 echo "== code: $REF"
 git fetch --prune origin
-git checkout --force "$REF"
+TARGET="$(git rev-parse --verify "$REF^{commit}")"
+git checkout --force --detach "$TARGET"
+echo "   $PREV -> $TARGET"
 
 echo "== backend dependencies"
 [ -d .venv ] || python3.12 -m venv .venv
@@ -41,9 +71,15 @@ fi
 pm2 save
 
 echo "== health"
-for i in $(seq 1 20); do
-  if curl -fsS http://127.0.0.1:8000/readyz >/dev/null; then echo "ready"; pm2 status; exit 0; fi
+ready=0
+for _ in $(seq 1 30); do
+  if curl -fsS http://127.0.0.1:8000/readyz >/dev/null; then ready=1; break; fi
   sleep 2
 done
-echo "!! /readyz did not turn ready; check: pm2 logs jobify-api --lines 100"
-exit 1
+[ "$ready" = 1 ] || { echo "!! /readyz did not turn ready (pm2 logs jobify-api --lines 100)"; false; }
+
+if [ "$PREV" != "$TARGET" ]; then echo "$PREV" > "$STATE/previous"; fi
+echo "$TARGET" > "$STATE/current"
+echo "$(date -u +%FT%TZ) $TARGET$([ "$ROLLING_BACK" = 1 ] && echo " (rollback)")" >> "$STATE/history"
+pm2 status
+echo "deployed $TARGET"

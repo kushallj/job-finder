@@ -102,17 +102,41 @@ for the database; Redis runs locally on the VM (or use Memorystore).
 
 ```bash
 # 1. VM: e2-standard-2+, Ubuntu 24.04, allow HTTP/HTTPS; point your domain's A record at it.
-# 2. Bootstrap (installs Python 3.12, Node 22, nginx, certbot, PM2 + logrotate, Redis, firewall):
-sudo bash infra/gcp/setup_vm.sh https://github.com/devnoid1/Jobify.git app.your-domain.com
-# 3. Secrets: fill /opt/jobify/.env (template: env.production.example) and
-#    /opt/jobify/jobify/.env.production (template: jobify/env.production.example).
-# 4. Deploy (also every later release): deps -> frontend build -> migrations -> PM2 reload
+# 2. CI key (on your machine): ssh-keygen -t ed25519 -N "" -C github-actions -f jobify_ci
+# 3. Bootstrap (Python 3.12, Node 22, nginx, certbot, PM2 + logrotate, Redis, firewall). The repo
+#    is private: the first run prints the VM's read-only deploy key; add it under GitHub ->
+#    Settings -> Deploy keys and run it again.
+sudo bash infra/gcp/setup_vm.sh git@github.com:devnoid1/Jobify.git app.your-domain.com "$(cat jobify_ci.pub)"
+# 4. Secrets: fill /opt/jobify/.env (template: .env.production.example) and
+#    /opt/jobify/jobify/.env.production (template: jobify/.env.production.example).
+# 5. First deploy by hand: deps -> frontend build -> migrations -> PM2 reload -> /readyz
 sudo -u jobify bash /opt/jobify/infra/gcp/deploy.sh
 ```
 
 Operate with `pm2 status`, `pm2 logs jobify-api`, `pm2 monit`; logs also land in `/var/log/jobify/`
-(rotated daily-ish by `pm2-logrotate`, 14 kept). Health: `https://app.your-domain.com/readyz`.
+(rotated by `pm2-logrotate`, 14 kept). Health: `https://app.your-domain.com/readyz`.
 The API refuses to start in production if a required setting is missing and prints which one.
+
+### CI/CD
+
+| Workflow | When | What |
+|---|---|---|
+| `CI` (`.github/workflows/backend-ci.yml`) | every PR, push to `main`, merge queue | lint (ruff, shellcheck, actionlint), Postgres release-gate tests, full suite, migrations up/check/down, pip-audit, Docker image checks, Jobify build + `npm audit`; `ci-passed` sums them up |
+| `Deploy` (`deploy.yml`) | after `CI` passes on `main`; or by hand | SSH to the VM and deploy **that exact commit**, smoke-test `PUBLIC_URL`, tag `prod-<date>-<sha>` |
+| `Security & Secret Scan` | PRs and `main` | TruffleHog verified-secret scan |
+| Dependabot | weekly | grouped pip / npm / Actions updates, vetted by CI |
+
+Deploy safety: one deploy at a time; a run whose commit is no longer the tip of `main` skips
+itself (the newer commit deploys); `deploy.sh` redeploys the previous commit if any step or
+`/readyz` fails, and the workflow rolls back if the public smoke test fails. The CI key can only
+run `deploy <sha> | rollback | status` (forced command `infra/gcp/ci_deploy.sh`), never a shell.
+Roll back by hand: Actions -> Deploy -> Run workflow with an older `prod-*` tag. Migrations are
+not reversed, so keep them backward compatible (expand, deploy, then contract).
+
+One-time GitHub setup (repo owner): secrets `DEPLOY_HOST`, `DEPLOY_SSH_KEY` (contents of
+`jobify_ci`), `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <host>`); variables `PUBLIC_URL`
+(and `DEPLOY_USER` if not `jobify`). Until `DEPLOY_HOST` exists, `Deploy` skips with a notice.
+Protect `main`: require PRs and the `ci-passed` check.
 
 
 ## Checks

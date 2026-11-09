@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,6 +24,7 @@ env:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -33,9 +36,14 @@ jobs:
       - run: >-
           ruff check src/jobify src/job_sources src/api/deps.py src/api/contract.py src/api/hardening.py
           src/api/health.py src/observability.py src/production_checks.py src/model_registry.py
+      - name: Deploy scripts (shellcheck)
+        run: shellcheck -S warning infra/gcp/*.sh
+      - name: Workflow files (actionlint)
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
@@ -84,6 +92,7 @@ jobs:
 
   migrations:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
@@ -110,6 +119,7 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -120,6 +130,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Build production image
@@ -134,6 +145,7 @@ jobs:
 
   jobify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run: { working-directory: jobify }
     steps:
@@ -145,3 +157,19 @@ jobs:
           cache-dependency-path: jobify/package-lock.json
       - run: npm ci
       - run: npm run check
+      - name: Known vulnerabilities in production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  ci-passed:
+    # The one check to mark as required in branch protection: green only if every job passed.
+    if: always()
+    needs: [lint, test, full-suite, migrations, security, docker, jobify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: All CI jobs succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'to_entries | all(.value.result == "success")' >/dev/null
