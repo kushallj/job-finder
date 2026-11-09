@@ -2,13 +2,15 @@
 # Reference: https://render.com/docs/blueprint-spec
 
 services:
-  # ── Core Unified SaaS Application (FastAPI + React SPA + Playwright) ──────
+  # ── API (FastAPI). Jobify UI is on Vercel; no Playwright in this image ──────
   - type: web
     name: job-finder-api
     env: docker
     dockerfilePath: Dockerfile
     plan: standard
-    healthCheckPath: /health
+    healthCheckPath: /readyz
+    # Schema changes ship before new code serves traffic (one run per deploy, not per instance).
+    preDeployCommand: alembic upgrade head
     region: oregon
     envVars:
       - key: ENV

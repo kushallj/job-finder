@@ -7,6 +7,10 @@ primary_region = "iad"
 [build]
   dockerfile = "Dockerfile"
 
+# Runs once per deploy in a temporary machine, before new code receives traffic.
+[deploy]
+  release_command = "alembic upgrade head"
+
 [env]
   ENV = "production"
   MULTI_TENANT_ENABLED = "true"
@@ -23,7 +27,7 @@ primary_region = "iad"
 # first deploy (and whenever you scale), check with `fly scale show` and run:
 #   fly scale count app=1 worker=1 beat=1
 [processes]
-  app = "uvicorn main:app --host 0.0.0.0 --port 8000"
+  app = "uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips='*' --no-server-header"
   worker = "celery -A src.tasks worker --loglevel=info --concurrency=2 --queues=celery"
   beat = "celery -A src.tasks beat --loglevel=info --schedule /tmp/celerybeat-schedule"
 
@@ -45,7 +49,7 @@ primary_region = "iad"
     interval = "30s"
     method = "GET"
     timeout = "5s"
-    path = "/health"
+    path = "/readyz"
 
 [[vm]]
   processes = ["app", "worker"]
