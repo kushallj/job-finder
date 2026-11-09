@@ -24,65 +24,47 @@ from src.services.credit_service import add_credits
 
 log = logging.getLogger(__name__)
 
-# Standard Plan Definitions (2-Tier Model: Free Tier + Pro at ~$3 / ₹249)
+# Plan catalog = Jobify's jobify/src/data/plans.js (CLAUDE.md section 9: the frontend is the
+# spec). The server is what charges and grants, so these values are authoritative; keep the
+# two files in sync. "free" is the no-subscription state (signup credits), not a sold plan.
+FREE_TIER = "free"
+
 PLANS: Dict[str, Dict[str, Any]] = {
-    "free": {
-        "id": "free",
-        "name": "Free Starter",
-        "badge": "FREE FOREVER",
-        "description": "Essential job discovery and tracking to organize your search.",
-        "price": 0,
-        "monthly": 0,
-        "yearly": 0,
-        "price_monthly_usd": 0,
-        "price_yearly_usd": 0,
-        "price_monthly_inr": 0,
-        "price_yearly_inr": 0,
-        "interval": "forever",
-        "credits": 50,
-        "is_popular": False,
+    "basic": {
+        "id": "basic",
+        "name": "Basic",
+        "description": "Everything you need to run a focused job search.",
+        "monthly": 5,
+        "yearly": 50,
+        "list_monthly": 10,
+        "badge": "50% off",
+        "credits": 500,  # per month
         "features": [
-            "50 complimentary AI credits",
-            "Job discovery & smart portal search",
-            "Application tracking & Kanban board",
-            "Single resume profile storage",
-            "Public candidate portfolio",
+            "500 AI credits every month",
+            "Application tracking",
+            "Resume and portfolio builder",
+            "Portfolio chatbot",
+            "Cold email drafts to startup founders",
         ],
-        "limits": [
-            "No automated background submissions",
-            "No founder direct outreach drafts",
-        ],
-        "cta": "Get Started Free",
+        "limits": ["No HR outreach at large companies"],
     },
     "pro": {
         "id": "pro",
-        "name": "Pro Autopilot",
-        "badge": "MOST POPULAR",
-        "description": "Full AI application autopilot, tailored resumes, and founder outreach.",
-        "price": 3,
-        "monthly": 3,
-        "yearly": 29,
-        "price_monthly_usd": 3.0,
-        "price_yearly_usd": 2.41,  # $29/year billed annually
-        "price_monthly_inr": 249,
-        "price_yearly_inr": 199,   # ₹2,388/year billed annually
-        "yearly_inr": 2388,
-        "interval": "month",
-        "credits": 1000,
-        "is_popular": True,
-        "features": [
-            "1,000 AI credits every month",
-            "Workday & NextRaise autopilot assistance",
-            "AI tailored resumes & cover letters",
-            "Cold email drafts to startup founders",
-            "Recruiter email sync & auto-advancement",
-            "Cognitive Answer Bank auto-fill",
-            "Priority AI worker queue & 24/7 support",
-        ],
+        "name": "Pro",
+        "description": "More credits and wider outreach.",
+        "monthly": 8,
+        "yearly": 80,
+        "list_monthly": 20,
+        "badge": "60% off",
+        "credits": 1500,  # per month
+        "features": ["Everything in Basic, plus", "1,500 AI credits every month",
+                     "Outreach to HR teams at larger companies"],
         "limits": [],
-        "cta": "Upgrade to Pro",
     },
 }
+
+# Retired tier names still on old subscriptions/checkout links -> current plan.
+LEGACY_TIERS = {"starter": "basic", "unlimited": "pro"}
 
 CREDIT_PACKS: Dict[str, Dict[str, Any]] = {
     "pack_100": {
@@ -90,16 +72,57 @@ CREDIT_PACKS: Dict[str, Dict[str, Any]] = {
         "name": "100 Credits Top-Up",
         "price": 1,
         "price_usd": 1,
-        "price_inr": 89,
         "credits": 100,
         "description": "Quick burst of tailored applications and founder emails",
     },
 }
 
+INTERVALS = ("month", "year")
+
+
+def normalize_target(target: Optional[str]) -> str:
+    t = (target or "").strip().lower()
+    return LEGACY_TIERS.get(t, t)
+
+
+def plan_price_usd(plan_id: str, interval: str) -> int:
+    plan = PLANS[plan_id]
+    return plan["yearly"] if interval == "year" else plan["monthly"]
+
+
+def credits_for(plan_id: str, interval: str = "month") -> int:
+    """Plan credits are monthly; a yearly purchase grants twelve months of credits."""
+    return PLANS[plan_id]["credits"] * (12 if interval == "year" else 1)
+
+
+def apply_purchase(db: Session, user: User, target: str, kind: str, interval: str = "month",
+                   reference_id: Optional[str] = None, provider: str = "") -> Dict[str, Any]:
+    """Grant what a verified payment bought. The one place plans/credits are granted
+    (Stripe and Dodo webhooks both call it). Callers must have verified the signature."""
+    target = normalize_target(target)
+    interval = interval if interval in INTERVALS else "month"
+    if kind == "subscription" and target in PLANS:
+        granted = credits_for(target, interval)
+        user.subscription_tier = target
+        user.subscription_status = "active"
+        add_credits(db=db, user_id=user.id, amount=granted, action="subscription_activated",
+                    reference_id=reference_id,
+                    notes=f"{provider} {PLANS[target]['name']} ({interval}) +{granted} credits".strip())
+        db.commit()
+        return {"status": "success", "action": "subscription_activated", "tier": target, "credits": granted}
+    if kind == "topup" and target in CREDIT_PACKS:
+        granted = CREDIT_PACKS[target]["credits"]
+        add_credits(db=db, user_id=user.id, amount=granted, action="credit_pack_topup",
+                    reference_id=reference_id,
+                    notes=f"{provider} {CREDIT_PACKS[target]['name']} +{granted} credits".strip())
+        db.commit()
+        return {"status": "success", "action": "topup_applied", "credits": granted}
+    return {"status": "ignored", "reason": f"unknown {kind} target {target!r}"}
+
 
 def get_plans_catalog(current_user: Optional[User] = None) -> Dict[str, Any]:
     """Retrieve canonical 2-tier catalog of subscription plans, credit packs, and user entitlements."""
-    user_tier = current_user.subscription_tier if current_user else "free"
+    user_tier = normalize_target(current_user.subscription_tier) if current_user else FREE_TIER
     user_credits = current_user.credits_balance if current_user else 0
     sub_status = getattr(current_user, "subscription_status", "active") if current_user else "active"
     
@@ -110,6 +133,7 @@ def get_plans_catalog(current_user: Optional[User] = None) -> Dict[str, Any]:
         "default_currency": "USD",
         "supported_currencies": ["USD", "INR"],
         "plans": list(PLANS.values()),
+        "intervals": list(INTERVALS),
         "credit_packs": list(CREDIT_PACKS.values()),
     }
 
@@ -120,22 +144,27 @@ def create_checkout_session(
     target: str,
     success_url: Optional[str] = None,
     cancel_url: Optional[str] = None,
+    interval: str = "month",
 ) -> Dict[str, str]:
     """
     Create a Checkout Session for either a subscription plan or a credit top-up pack.
     Supports Dodo Payments (MoR for India UPI & Global Cards), Stripe, and mock fallback.
     Returns session URL and session ID.
     """
-    target_clean = "pro" if target in ("starter", "basic", "pro") else target
-    is_plan = target_clean in PLANS and target_clean != "free"
+    # Was: "basic"/"starter" silently mapped to "pro", so buying Basic charged and granted Pro.
+    target_clean = normalize_target(target)
+    is_plan = target_clean in PLANS
     is_pack = target_clean in CREDIT_PACKS
-    
+    if interval not in INTERVALS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Invalid interval '{interval}'. Use 'month' or 'year'.")
     if not is_plan and not is_pack:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid target '{target}'. Must be a valid subscription plan ('pro') or credit pack ('pack_100').",
+            detail=f"Invalid target '{target}'. Plans: {', '.join(PLANS)}. Packs: {', '.join(CREDIT_PACKS)}.",
         )
-    
+    amount_usd = plan_price_usd(target_clean, interval) if is_plan else CREDIT_PACKS[target_clean]["price"]
+
     success_url = success_url or f"{settings.frontend_url}/#billing-success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = cancel_url or f"{settings.frontend_url}/#billing-cancel"
     
@@ -152,7 +181,7 @@ def create_checkout_session(
                 {
                     "product_id": target_clean,
                     "quantity": 1,
-                    "amount": int(item["price"] * 100),
+                    "amount": int(amount_usd * 100),
                 }
             ],
             "return_url": success_url,
@@ -187,7 +216,7 @@ def create_checkout_session(
     # ── Real Stripe API Call ──────────────────────────────────────────────────
     if settings.billing_provider == "stripe" and settings.stripe_secret_key and not settings.stripe_secret_key.startswith("sk_test_mock"):
         stripe_mode = "subscription" if is_plan else "payment"
-        unit_amount = (PLANS[target_clean]["price"] * 100) if is_plan else (CREDIT_PACKS[target_clean]["price"] * 100)
+        unit_amount = int(amount_usd * 100)
         item_name = PLANS[target_clean]["name"] if is_plan else CREDIT_PACKS[target_clean]["name"]
         
         headers = {
@@ -208,9 +237,10 @@ def create_checkout_session(
             "metadata[user_id]": str(user.id),
             "metadata[target]": target_clean,
             "metadata[type]": "subscription" if is_plan else "topup",
+            "metadata[interval]": interval,
         }
         if is_plan:
-            data["line_items[0][price_data][recurring][interval]"] = "month"
+            data["line_items[0][price_data][recurring][interval]"] = interval
 
         try:
             with httpx.Client(timeout=15.0) as client:
@@ -378,45 +408,19 @@ def process_webhook_event(db: Session, event: Dict[str, Any]) -> Dict[str, Any]:
         if subscription_id:
             user.stripe_subscription_id = subscription_id
 
-        if target_type == "subscription" and target in PLANS:
-            plan_info = PLANS[target]
-            user.subscription_tier = target
-            user.subscription_status = "active"
-            
-            # Replenish plan monthly credits
-            granted_credits = plan_info["credits"]
-            add_credits(
-                db=db,
-                user_id=user.id,
-                amount=granted_credits,
-                action="subscription_activated",
-                reference_id=data_obj.get("id"),
-                notes=f"Subscribed to {plan_info['name']} tier (+{granted_credits} credits)",
-            )
-            db.commit()
-            return {"status": "success", "action": "subscription_activated", "tier": target}
-
-        elif target_type == "topup" and target in CREDIT_PACKS:
-            pack_info = CREDIT_PACKS[target]
-            granted_credits = pack_info["credits"]
-            add_credits(
-                db=db,
-                user_id=user.id,
-                amount=granted_credits,
-                action="credit_pack_topup",
-                reference_id=data_obj.get("id"),
-                notes=f"Purchased {pack_info['name']} (+{granted_credits} credits)",
-            )
-            db.commit()
-            return {"status": "success", "action": "topup_applied", "credits": granted_credits}
+        result = apply_purchase(db, user, target, target_type, interval=metadata.get("interval", "month"),
+                                reference_id=data_obj.get("id"), provider="Stripe")
+        if result["status"] == "success":
+            return result
 
     elif event_type == "invoice.payment_succeeded":
         # Recurring monthly renewal
         subscription_id = data_obj.get("subscription")
         if subscription_id:
             user = db.query(User).filter(User.stripe_subscription_id == subscription_id).first()
-            if user and user.subscription_tier in PLANS:
-                plan_info = PLANS[user.subscription_tier]
+            tier = normalize_target(user.subscription_tier) if user else ""
+            if user and tier in PLANS:
+                plan_info = PLANS[tier]
                 monthly_credits = plan_info["credits"]
                 add_credits(
                     db=db,

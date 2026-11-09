@@ -63,7 +63,7 @@ def test_plans_catalog_structure():
     catalog = get_plans_catalog()
     assert {p["id"] for p in catalog["plans"]} == set(PLANS)
     assert {p["id"] for p in catalog["credit_packs"]} == set(CREDIT_PACKS)
-    assert "free" in PLANS and PLANS["free"]["credits"] > 0
+    assert set(PLANS) == {"basic", "pro"}  # Jobify plans.js; "free" = no subscription
     assert all(p["credits"] > 0 for p in catalog["plans"] + catalog["credit_packs"])
     assert len(catalog["plans"]) >= 2 and catalog["credit_packs"]
 
@@ -163,7 +163,7 @@ def test_webhook_full_subscription_lifecycle(billing_db_session):
     assert user.subscription_tier == "pro"
     assert user.stripe_customer_id == "cus_test_123"
     assert user.stripe_subscription_id == "sub_test_pro_999"
-    assert user.credits_balance == 1010  # 10 initial + 1,000 pro credits
+    assert user.credits_balance == 10 + PLANS["pro"]["credits"]
 
     # 2. Monthly recurring renewal webhook
     renewal_event = {
@@ -180,7 +180,7 @@ def test_webhook_full_subscription_lifecycle(billing_db_session):
     res2 = process_webhook_event(db=billing_db_session, event=renewal_event)
     assert res2["status"] == "success"
     billing_db_session.refresh(user)
-    assert user.credits_balance == 2010  # 1010 + 1000
+    assert user.credits_balance == 10 + 2 * PLANS["pro"]["credits"]  # activation + renewal
 
     # 3. Subscription canceled webhook
     cancel_event = {
@@ -303,3 +303,27 @@ def test_fastapi_billing_endpoints(billing_db_session):
         assert res_wh.json()["received"] is True
     finally:
         app.dependency_overrides.clear()
+
+
+def test_apply_purchase_grants_exactly_what_was_bought(billing_db_session):
+    """Basic stays Basic (it used to be upgraded to Pro); yearly grants 12 months of credits;
+    retired tier names resolve to their successor; unknown targets grant nothing."""
+    from src.services.billing_service import apply_purchase, credits_for
+
+    user = User(email="grant@example.com", hashed_password=hash_password("pw"), credits_balance=0, is_active=True)
+    billing_db_session.add(user)
+    billing_db_session.commit()
+
+    res = apply_purchase(billing_db_session, user, "basic", "subscription")
+    assert res["tier"] == "basic" and user.subscription_tier == "basic"
+    assert user.credits_balance == PLANS["basic"]["credits"]
+
+    before = user.credits_balance
+    apply_purchase(billing_db_session, user, "pro", "subscription", interval="year")
+    assert user.subscription_tier == "pro"
+    assert user.credits_balance - before == credits_for("pro", "year") == 12 * PLANS["pro"]["credits"]
+
+    assert apply_purchase(billing_db_session, user, "starter", "subscription")["tier"] == "basic"
+    before = user.credits_balance
+    assert apply_purchase(billing_db_session, user, "gold", "subscription")["status"] == "ignored"
+    assert user.credits_balance == before

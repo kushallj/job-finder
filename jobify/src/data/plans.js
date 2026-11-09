@@ -1,6 +1,8 @@
 /**
- * Central plan + entitlement configuration. DEMO VALUES, not confirmed Jobify pricing.
- * Frontend flags are UX hints only; the backend must enforce entitlements.
+ * Central plan + entitlement configuration (confirmed pricing, 2026-11-09).
+ * The backend mirrors id/monthly/yearly/credits in src/services/billing_service.py PLANS and
+ * is authoritative for charging and credit grants; tests/test_billing_catalog.py fails if the
+ * two drift. Frontend flags are UX hints only; the backend enforces entitlements.
  */
 export const PLANS = [
   {
