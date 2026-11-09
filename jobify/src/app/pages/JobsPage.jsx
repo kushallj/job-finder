@@ -191,7 +191,7 @@ export default function JobsPage() {
       )}
 
       <div className="flex items-center justify-between px-4 md:px-6 py-3 border-t border-[#E7E7E7] text-[12.5px] text-[#707070] sticky bottom-0 bg-white">
-        <span>{data ? (data.total ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, data.total)} of ${data.total} roles (demo data)` : "0 roles") : "Loading…"}</span>
+        <span>{data ? (data.total ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, data.total)} of ${data.total} roles${live ? "" : " (demo data)"}` : "0 roles") : "Loading…"}</span>
         {data && <Pagination page={page} total={data.total} pageSize={PAGE_SIZE} onChange={setPage} />}
       </div>
 
