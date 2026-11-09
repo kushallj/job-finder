@@ -130,7 +130,9 @@ class JobRecord:
         row = {f.name: getattr(self, f.name) for f in fields(self)}
         row["tags"] = json.dumps(list(self.tags)) if self.tags else None
         row["provider_payload"] = json.dumps(self.provider_payload, default=str) if self.provider_payload else None
-        return row
+        from src.models import Job, fit_to_columns
+
+        return fit_to_columns(Job, row)
 
 
 _REQUIRED = frozenset({"job_id", "title", "company", "source", "provider_payload"})

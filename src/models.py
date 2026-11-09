@@ -77,7 +77,7 @@ class Job(Base):
     salary_currency = Column(String(10))
     has_remote = Column(Boolean)
     work_mode = Column(String(50))
-    experience_level = Column(String(20))
+    experience_level = Column(String(100))  # e.g. "Lead / Staff / Principal", "Mid-level, Senior"
     tags = Column(Text)  # JSON array
     expired_at = Column(DateTime)
     provider_payload = Column(Text)  # JSON provider record for traceability
@@ -822,3 +822,20 @@ class CatalogRefreshRun(Base):
     queries = Column(Integer, nullable=False, default=0)
     new_jobs = Column(Integer, nullable=False, default=0)
     results = Column(Text, nullable=True)  # JSON [{query, stored, error}]
+
+
+def fit_to_columns(model, values: dict) -> dict:
+    """Clip string values to their column's declared length (e.g. String(100)).
+
+    Postgres rejects an over-long value and aborts the whole transaction; SQLite silently
+    accepts it, so the bug only shows up in production. Job providers send free text, so
+    every insert path for shared catalog rows goes through this.
+    """
+    out = dict(values)
+    for column in model.__table__.columns:
+        limit = getattr(column.type, "length", None)
+        value = out.get(column.name)
+        if limit and isinstance(value, str) and len(value) > limit:
+            out[column.name] = value[:limit]
+    return out
+

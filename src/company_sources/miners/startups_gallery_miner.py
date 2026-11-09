@@ -29,7 +29,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.database import SessionLocal
-from src.models import Contact, OutreachRecord, StartupsGalleryCompanyRecord
+from src.models import Contact, OutreachRecord, StartupsGalleryCompanyRecord, fit_to_columns
 from src.company_sources.miners.base_company_miner import (
     MAX_OUTREACH_PER_COMPANY,
     ROLE_PATTERNS,
@@ -225,8 +225,10 @@ class StartupsGalleryMiner(BaseCompanyMiner):
                     existing_slugs = {
                         r[0] for r in db.query(StartupsGalleryCompanyRecord.slug).all()
                     }
+                    # fit_to_columns: 2 source rows have >255-char locations; Postgres
+                    # rejected the whole seed batch (SQLite never enforced the limit).
                     new_records = [
-                        StartupsGalleryCompanyRecord(
+                        StartupsGalleryCompanyRecord(**fit_to_columns(StartupsGalleryCompanyRecord, dict(
                             slug=c.slug,
                             name=c.name,
                             domain=c.domain,
@@ -237,7 +239,7 @@ class StartupsGalleryMiner(BaseCompanyMiner):
                             description=c.description,
                             mined=False,
                             founders_count=0,
-                        )
+                        )))
                         for c in STARTUPS_GALLERY_REGISTRY
                         if c.slug not in existing_slugs
                     ]

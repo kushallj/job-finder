@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from src.config import settings
 from src.database import SessionLocal
-from src.models import Job
+from src.models import Job, fit_to_columns
 from src.company_sources.registries.tier1_companies import TIER1_REGISTRY, Tier1Company, get_tier1_company
 from src.company_sources.registries.indian_app_startups import INDIAN_APP_STARTUPS, IndianAppStartup
 from src.company_sources.registries.fintech_festival_companies import FINTECH_FESTIVAL_REGISTRY, FinTechFestivalCompany
@@ -184,7 +184,7 @@ class AutonomousJobCrawler:
             db.commit()
             return False, True
         else:
-            new_job = Job(
+            new_job = Job(**fit_to_columns(Job, dict(
                 job_id=job_id,
                 title=title,
                 company=raw_job.get("company", "Tech Firm"),
@@ -201,7 +201,7 @@ class AutonomousJobCrawler:
                 experience_level=seniority,
                 tags=json.dumps(all_tags, default=str),
                 provider_payload=json.dumps(raw_job, default=str),
-            )
+            )))
             db.add(new_job)
             db.commit()
             return True, False
