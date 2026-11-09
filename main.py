@@ -299,23 +299,11 @@ except Exception as _e:
 # Logging — structured, rotating, human-readable
 # =============================================================================
 
-LOG_DIR = Path("logs")
-LOG_DIR.mkdir(exist_ok=True)
+# JSON to stdout in production, readable + rotating file in development (src/observability.py).
+from src.observability import configure_logging, init_sentry, trace_id_var
 
-_fmt = logging.Formatter(
-    "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-for h in [
-    logging.StreamHandler(),
-    logging.handlers.RotatingFileHandler(
-        LOG_DIR / "main.log", maxBytes=5_000_000, backupCount=5, encoding="utf-8"
-    ),
-]:
-    h.setFormatter(_fmt)
-    logging.getLogger().addHandler(h)
-
-logging.getLogger().setLevel(logging.INFO)
+configure_logging(settings.env, settings.log_level)
+init_sentry(settings.sentry_dsn, settings.env)
 log = logging.getLogger("main")
 
 
@@ -809,7 +797,7 @@ async def lifespan(app: FastAPI):
 # App + middleware
 # =============================================================================
 
-from src.auth.dependencies import get_current_user, enforce_auth_unless_public
+from src.auth.dependencies import enforce_auth_unless_public, get_current_user, require_admin
 
 # Secure by default: every route requires a valid token unless its path is in
 # src/auth/dependencies.py:is_public_path. Add public routes there, not per-route.
@@ -818,6 +806,10 @@ app = FastAPI(
     version="2.1.0",
     lifespan=lifespan,
     dependencies=[Depends(enforce_auth_unless_public)],
+    # The OpenAPI schema maps every route; off in production unless ENABLE_API_DOCS=true.
+    docs_url="/docs" if settings.api_docs_enabled else None,
+    redoc_url="/redoc" if settings.api_docs_enabled else None,
+    openapi_url="/openapi.json" if settings.api_docs_enabled else None,
 )
 
 # Uvicorn's access log prints full URLs; never write OAuth authorization codes or state to logs.
@@ -967,6 +959,28 @@ if not _is_production:
 
 app.add_middleware(CORSMiddleware, **cors_kwargs)
 
+if _is_production:
+    from src.production_checks import production_problems
+
+    _problems = production_problems(settings)
+    if _problems:
+        raise RuntimeError("Refusing to start with ENV=production:\n  - " + "\n  - ".join(_problems))
+
+from src.api.hardening import BodySizeLimitMiddleware, SecurityHeadersMiddleware, safe_trace_id
+
+# Added after CORS, so these wrap it: oversized bodies are rejected before any work,
+# and every response (errors and preflights too) carries the security headers.
+from src.api.health import router as health_router
+
+app.include_router(health_router)  # /healthz liveness, /readyz readiness
+app.add_middleware(SecurityHeadersMiddleware, hsts=_is_production)
+app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes,
+                   overrides={"/api/inbound/email": settings.max_inbound_email_bytes})
+if settings.allowed_hosts_list:
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts_list)
+
 
 @app.middleware("http")
 async def trace_middleware(request: Request, call_next):
@@ -981,8 +995,9 @@ async def trace_middleware(request: Request, call_next):
     """
     # Generate unique trace ID (full UUID for better uniqueness)
     # Accept trace ID from client if provided (for distributed tracing)
-    tid = request.headers.get("X-Trace-ID") or str(uuid.uuid4())
-    
+    tid = safe_trace_id(request.headers.get("X-Trace-ID"))  # client ids are validated (log injection)
+    _trace_token = trace_id_var.set(tid)
+
     # Store in request state for access in route handlers
     request.state.trace_id = tid
     
@@ -1051,6 +1066,7 @@ async def trace_middleware(request: Request, call_next):
         )
     
     finally:
+        trace_id_var.reset(_trace_token)
         # Clear correlation ID for async_pipeline (cleanup)
         if _ASYNC_PIPELINE_OK:
             try:
@@ -1465,7 +1481,7 @@ async def health(state: AppState = Depends(get_state)):
     return health_status
 
 
-@app.get("/metrics", tags=["observability"])
+@app.get("/metrics", tags=["observability"], dependencies=[Depends(require_admin)])
 async def metrics_endpoint(state: AppState = Depends(get_state)):
     """
     Prometheus metrics export endpoint.
@@ -5277,9 +5293,10 @@ async def harvest_company_community_intel(request: CommunityHarvestRequest, req:
 async def get_job_community_intel(job_id: int, req: Request = None):
     """Retrieves synthesized interview loops and community intel auto-mapped to a specific Job ID."""
     try:
-        job = db.get_job(job_id)
-        company = (job.get("company") or "Target Company") if job else "Target Company"
-        title = (job.get("title") or "Software Engineer") if job else "Software Engineer"
+        async with db_session() as db:  # was an undefined `db`: every call raised NameError
+            job = db.get(Job, job_id)
+        company = (job.company if job and job.company else "Target Company")
+        title = (job.title if job and job.title else "Software Engineer")
         result = await community_intel_service.get_company_intel(company=company, role=title)
         return CommunityIntelResponse(
             status="success",
@@ -5293,7 +5310,7 @@ async def get_job_community_intel(job_id: int, req: Request = None):
         )
     except Exception as exc:
         log.error("Failed to get community intel for job %s: %s", job_id, exc, exc_info=True)
-        raise APIError(f"Job community intel failed: {str(exc)}")
+        raise APIError("Job community intel failed")  # details stay in the log, not the response
 
 
 # ═══════════════════════════════════════════════════════════════════════════

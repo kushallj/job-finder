@@ -5,9 +5,9 @@
     @router.get("/things")
     def list_things(user: User = CURRENT_USER, db: Session = DB_SESSION) -> ...: ...
 
-Why constants, not ``Annotated[User, Depends(...)]`` aliases: FastAPI 0.104 (pinned) only
-handles ``Annotated`` metadata with the pinned pydantic 2.5; newer pydantic installs drop it
-(``FieldInfo has no attribute in_``). Switch to ``Annotated`` aliases after upgrading FastAPI.
+Constants rather than ``Annotated[User, Depends(...)]`` aliases date from FastAPI 0.104, whose
+``Annotated`` handling broke under newer pydantic. FastAPI is now 0.146, so ``Annotated``
+aliases would work; migrating is optional style work, not a fix.
 """
 
 from __future__ import annotations

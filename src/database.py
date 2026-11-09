@@ -51,9 +51,18 @@ def db_session():
 
 
 def init_db():
-    """Initialize database tables and add nullable columns to existing SQLite/PostgreSQL DBs."""
-    Base.metadata.create_all(bind=engine)
-    if engine.url.get_backend_name() in ("sqlite", "postgresql"):
+    """Initialize database tables and add nullable columns to existing SQLite/PostgreSQL DBs.
+
+    Production: schema changes come only from `alembic upgrade head` (release step). The
+    create_all/ALTER shortcuts below would race across replicas and drift from migrations,
+    so they run only outside production; data seeding below still runs everywhere.
+    """
+    from src.config import settings as _cfg
+
+    dev_schema = not _cfg.is_production
+    if dev_schema:
+        Base.metadata.create_all(bind=engine)
+    if dev_schema and engine.url.get_backend_name() in ("sqlite", "postgresql"):
         inspector = inspect(engine)
         tables = set(inspector.get_table_names())
         if "jobs" in tables:

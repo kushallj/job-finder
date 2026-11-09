@@ -42,6 +42,7 @@ from pathlib import Path
 
 from celery import Celery, chain, chord, group
 from celery.schedules import crontab
+from celery.signals import setup_logging
 from celery.utils.log import get_task_logger
 
 # ── project root on path ──────────────────────────────────────────────────────
@@ -51,6 +52,16 @@ sys.path.insert(0, str(ROOT))
 from src.config import settings
 
 log = get_task_logger(__name__)
+
+
+@setup_logging.connect
+def _configure_worker_logging(**_kwargs) -> None:
+    """Same JSON-on-stdout logging and Sentry as the API (src/observability.py); connecting
+    this signal also stops Celery from replacing the root logger with its own format."""
+    from src.observability import configure_logging, init_sentry
+
+    configure_logging(settings.env, settings.log_level)
+    init_sentry(settings.sentry_dsn, settings.env)
 
 # ── Redis health check ────────────────────────────────────────────────────────
 def _check_redis():

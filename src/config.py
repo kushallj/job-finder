@@ -124,6 +124,26 @@ class Settings(BaseSettings):
     # App
     env: str = "development"
     log_level: str = "INFO"
+    # Production hardening (src/api/hardening.py, src/observability.py, src/production_checks.py)
+    sentry_dsn: Optional[str] = None
+    enable_api_docs: Optional[bool] = None       # default: on outside production, off in production
+    allowed_hosts: str = ""                      # comma-separated Host allow-list; empty = any
+    max_request_bytes: int = 2_000_000           # body cap; inbound email gets max_inbound_email_bytes
+    max_inbound_email_bytes: int = 25_000_000
+    legacy_password_auth_enabled: bool = False   # /api/auth/register|login|refresh in production (Clerk is the login)
+    legacy_routes_enabled: bool = False          # production: non-product (legacy main.py) routes for non-admins
+
+    @property
+    def is_production(self) -> bool:
+        return self.env.lower() == "production"
+
+    @property
+    def api_docs_enabled(self) -> bool:
+        return (not self.is_production) if self.enable_api_docs is None else self.enable_api_docs
+
+    @property
+    def allowed_hosts_list(self) -> List[str]:
+        return [h.strip() for h in self.allowed_hosts.split(",") if h.strip()]
     auto_send_emails: bool = False  # Human-in-the-loop review gate by default
     # Shared Jobify job catalog (src/tasks.refresh_job_catalog). Celery beat runs it at
     # minute catalog_refresh_minute of each hour in catalog_refresh_hours_utc (crontab
