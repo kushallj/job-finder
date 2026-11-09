@@ -35,6 +35,8 @@ PUBLIC_EXACT_PATHS: Set[str] = {
     "/",
     "/health",
     "/api/health",
+    "/healthz",   # liveness (no I/O)
+    "/readyz",    # readiness (DB/Redis ping, booleans only)
     "/docs",
     "/redoc",
     "/openapi.json",
@@ -382,7 +384,34 @@ async def enforce_auth_unless_public(
 
     user = get_current_user(credentials=credentials, db=db)
     request.state.user = user
+    enforce_route_policy(request, user)
     return user
+
+
+# Production route policy. Customers (Jobify users) may call only the product API; the ~170
+# legacy main.py/router endpoints (outreach senders, scrapers, auto-apply, shared-catalog
+# writes, VC tools) were built single-tenant and stay admin-only until each is reviewed
+# and moved into src/jobify. Matched by the endpoint's module, so new Jobify routes are
+# allowed automatically and nothing legacy slips through by sharing a URL prefix.
+CUSTOMER_ROUTE_MODULES = (
+    "src.jobify.",                      # Jobify product API (one router per screen)
+    "src.api.health",                   # probes
+    "src.api.routers.billing_router",   # plans, checkout, portal, own subscription, webhooks
+    "src.api.routers.auth_router",      # /me, own credit history (top-up is require_admin)
+)
+
+
+def enforce_route_policy(request: Request, user: Optional[User]) -> None:
+    if not settings.is_production or settings.legacy_routes_enabled:
+        return
+    endpoint = request.scope.get("endpoint")
+    module = getattr(endpoint, "__module__", "") or ""
+    if module.startswith(CUSTOMER_ROUTE_MODULES):
+        return
+    if user is not None and getattr(user, "is_superuser", False):
+        return
+    # 404, not 403: don't advertise which internal endpoints exist.
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
 
 
 def require_admin(
