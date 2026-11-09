@@ -78,15 +78,26 @@ def test_deployment_manifests_integrity():
     fly_content = (root_dir / "fly.toml").read_text()
     assert "job-finder-ai" in fly_content
     assert "internal_port = 8000" in fly_content
-    assert 'path = "/health"' in fly_content
+    assert 'path = "/readyz"' in fly_content                       # readiness probe, not legacy /health
+    assert 'release_command = "alembic upgrade head"' in fly_content  # schema before traffic
 
     # Verify render.yaml contains required services
     render_content = (root_dir / "render.yaml").read_text()
     assert "type: web" in render_content
     assert "job-finder-postgres" in render_content
+    assert "healthCheckPath: /readyz" in render_content
+    assert "preDeployCommand: alembic upgrade head" in render_content
 
-    # Verify Dockerfile contains multi-stage build
+    # Dockerfile: slim multi-stage API image, non-root, no Playwright/frontend (CLAUDE.md)
     dockerfile_content = (root_dir / "Dockerfile").read_text()
-    assert "FROM node:20-alpine AS frontend-builder" in dockerfile_content
-    assert "FROM python:3.11-slim AS runtime" in dockerfile_content
-    assert "COPY --from=frontend-builder" in dockerfile_content
+    assert "FROM python:3.12-slim AS builder" in dockerfile_content
+    assert "FROM python:3.12-slim AS runtime" in dockerfile_content
+    assert "USER app" in dockerfile_content.splitlines()
+    assert "/healthz" in dockerfile_content
+    assert "playwright install" not in dockerfile_content
+    assert "COPY --from=frontend-builder" not in dockerfile_content
+
+    # Secrets and personal data never enter the build context
+    ignored = (root_dir / ".dockerignore").read_text().splitlines()
+    for entry in (".env", "data/", "config/profile.yml"):
+        assert entry in ignored, f".dockerignore must exclude {entry}"
