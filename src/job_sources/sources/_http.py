@@ -73,8 +73,14 @@ def html_to_text(html: str | None) -> str:
     soup = BeautifulSoup(html, "lxml")
     for li in soup.find_all("li"):
         li.insert_before("\n- ")
-    for br in soup.find_all(["br", "p", "div", "h1", "h2", "h3", "h4", "ul", "ol"]):
+    for br in soup.find_all("br"):
         br.insert_after("\n")
+    # Break on both sides of block elements: "Remote<p>Python" must split before "Python".
+    # (Breaking only after a block relied on old libxml2 wrapping the text before an unclosed
+    # <p> in its own implied paragraph; newer libxml2, as in lxml 6 Linux wheels, does not.)
+    for block in soup.find_all(["p", "div", "h1", "h2", "h3", "h4", "ul", "ol"]):
+        block.insert_before("\n")
+        block.insert_after("\n")
     return _BLANKS.sub("\n\n", soup.get_text()).strip()
 
 
