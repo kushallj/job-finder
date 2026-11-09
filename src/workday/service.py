@@ -58,10 +58,10 @@ class WorkdayService:
         if not cfg:
             cfg = WorkdayConfigRecord(
                 account_email=candidate_account_email(),
-                auto_apply_enabled=True,
-                mode="instant_auto",
+                auto_apply_enabled=False,
+                mode="review_gate",
                 min_fit_score=60.0,
-                daily_limit=100,
+                daily_limit=0,
                 daily_used=0,
                 total_submitted=0,
                 total_failed=0,
@@ -86,30 +86,6 @@ class WorkdayService:
         if not profile:
             profile = WorkdayCandidateProfile(
                 account_email=email,
-                first_name="Kushall",
-                last_name="Jain",
-                preferred_name="Kushall",
-                phone="+91 9876543210",
-                country="India",
-                city="Bengaluru",
-                state_province="Karnataka",
-                postal_code="560100",
-                linkedin_url="https://www.linkedin.com/in/kushall-jain",
-                github_url="https://github.com/kushallj",
-                portfolio_url="https://kushallj.github.io",
-                headline="Software Development Engineer – Full Stack Web Development • RESTful APIs • Cloud & IoT Architecture",
-                years_of_experience=4.0,
-                current_company="Tech Innovations",
-                current_title="Senior Software Engineer",
-                legally_authorized=True,
-                requires_sponsorship=False,
-                notice_period_days=30,
-                target_salary_min=120000.0,
-                target_salary_max=180000.0,
-                gender="Male",
-                race_ethnicity="Asian",
-                veteran_status="I am not a protected veteran",
-                disability_status="No, I do not have a disability",
             )
             self.db.add(profile)
             self.db.commit()
@@ -179,15 +155,38 @@ class WorkdayService:
         for q in questions:
             q_lower = q.lower()
             if "authorized" in q_lower or "legally" in q_lower:
-                ans = "Yes, I am fully authorized to work."
+                ans = (
+                    "Yes, I am authorized to work."
+                    if self.profile.legally_authorized is True
+                    else "No, I am not authorized to work."
+                    if self.profile.legally_authorized is False
+                    else ""
+                )
             elif "sponsorship" in q_lower or "visa" in q_lower:
-                ans = "No, I do not require sponsorship."
+                ans = (
+                    "Yes, I require sponsorship."
+                    if self.profile.requires_sponsorship is True
+                    else "No, I do not require sponsorship."
+                    if self.profile.requires_sponsorship is False
+                    else ""
+                )
             elif "years" in q_lower or "experience" in q_lower:
-                ans = f"{self.profile.years_of_experience} years of hands-on software development and cloud architecture experience."
+                ans = (
+                    f"{self.profile.years_of_experience:g} years of experience."
+                    if self.profile.years_of_experience is not None else ""
+                )
             elif "salary" in q_lower or "compensation" in q_lower:
-                ans = f"${int(self.profile.target_salary_min):,} - ${int(self.profile.target_salary_max):,} USD depending on total package and equity."
+                ans = (
+                    f"{self.profile.salary_currency or ''} "
+                    f"{self.profile.target_salary_min:g} - {self.profile.target_salary_max:g}"
+                    if self.profile.target_salary_min is not None
+                    and self.profile.target_salary_max is not None else ""
+                )
             elif "notice" in q_lower or "start" in q_lower or "availability" in q_lower:
-                ans = f"{self.profile.notice_period_days} days notice period."
+                ans = (
+                    f"{self.profile.notice_period_days} days notice period."
+                    if self.profile.notice_period_days is not None else ""
+                )
             else:
                 # Answer via AnswerBank / AI
                 try:
@@ -214,6 +213,16 @@ class WorkdayService:
         4. Multi-Step Form Submission
         5. Proof Receipt Generation & Database Audit Sync
         """
+        if not self.config.auto_apply_enabled:
+            return {
+                "success": False,
+                "error": "Workday auto-apply is disabled. Enable it explicitly after reviewing the candidate profile.",
+            }
+        if not self.profile.first_name or not self.profile.last_name:
+            return {
+                "success": False,
+                "error": "Complete the candidate profile before submitting a Workday application.",
+            }
         t0 = time.perf_counter()
         job = self.db.query(Job).filter(Job.id == job_id).first()
         if not job:

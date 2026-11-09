@@ -49,15 +49,22 @@ def test_labor_market_report_generation(db_session):
     assert any(c["name"] == "Walmart Global Tech" for c in report["ranked_target_companies"])
     assert len(report["abm_playbook_rules"]) >= 4
 
-def test_agent_context_dynamic_loading():
-    ctx = AgentContext.load()
+def test_agent_context_loads_without_candidate_config(monkeypatch, tmp_path):
+    import src.agents.base as base_mod
+
+    monkeypatch.setattr(base_mod, "_profile_from_db", lambda _user_id: None)
+    monkeypatch.setattr(base_mod, "_companies_from_db", lambda _user_id: [])
+    ctx = AgentContext.load(
+        profile_path=tmp_path / "missing-profile.yml",
+        companies_path=tmp_path / "missing-companies.yml",
+    )
     assert ctx is not None
     assert ctx.profile is not None
     assert "candidate" in ctx.profile
-    assert len(ctx.companies) >= 1
+    assert ctx.companies == []
 
 def test_feedback_strategist_run():
-    ctx = AgentContext.load()
+    ctx = AgentContext()
     agent = FeedbackStrategistAgent(context=ctx)
     result = agent.run()
     assert result.ok is True

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import email.utils
+import html
 import json
 import logging
 import os
@@ -59,11 +60,34 @@ class BaseCompanyMiner:
         self.serpapi_key = os.getenv("SERPAPI_API_KEY") or os.getenv("SERP_API_KEY")
         self.gmail_user = os.getenv("GMAIL_ADDRESS")
         self.gmail_pass = os.getenv("GMAIL_PASSWORD")
-        self.sender_name = os.getenv("SENDER_NAME", "Job Applicant")
-        self.sender_linkedin = os.getenv("LINKEDIN_URL") or "https://linkedin.com/in/kushal-jain"
+        self.sender_name = os.getenv("SENDER_NAME", "").strip()
+        self.sender_linkedin = os.getenv("LINKEDIN_URL", "").strip()
 
         self.total_mined = 0
         self.total_emailed = 0
+
+    def compose_interest_outreach(self, recipient_name: str, company_name: str) -> Tuple[str, str]:
+        """Create a neutral draft without asserting unconfigured candidate details."""
+        first_name = recipient_name.split()[0] if recipient_name else "there"
+        message = (
+            f"I'm reaching out to ask whether {company_name} is hiring for engineering roles. "
+            "If so, I'd be glad to share my background for your consideration."
+        )
+        text = f"Hi {first_name},\n\n{message}"
+        signature = "\n".join(part for part in (self.sender_name, self.sender_linkedin) if part)
+        if signature:
+            text += f"\n\nBest regards,\n{signature}"
+
+        html_body = (
+            "<html><body>"
+            f"<p>Hi {html.escape(first_name)},</p>"
+            f"<p>{html.escape(message)}</p>"
+        )
+        if signature:
+            html_signature = html.escape(signature).replace("\n", "<br>")
+            html_body += f"<p>Best regards,<br>{html_signature}</p>"
+        html_body += "</body></html>"
+        return text, html_body
 
     @staticmethod
     def synthesize_email(full_name: str, domain: str, default_domain: str = "company.com") -> str:
@@ -144,59 +168,10 @@ class BaseCompanyMiner:
         contact: Dict[str, Any],
         context_label: str = "Enterprise",
     ) -> Tuple[str, str, str]:
-        """Generate high-impact cold outreach template."""
-        first_name = contact["name"].split()[0] if contact.get("name") else "there"
-        company = contact.get("company", "your enterprise")
-        sector = contact.get("sector") or contact.get("industry") or "Technology"
-        title = contact.get("title", "Engineering Leader")
-
-        subject = f"Engineering & Platform Scalability at {company} ({context_label}) — {self.sender_name}"
-
-        body_text = f"""Hi {first_name},
-
-I've been following {company}'s industry-defining milestones and scalable software infrastructure in {sector}.
-
-I'm a Software Engineer specializing in Python, FastAPI, React, and building fault-tolerant, high-throughput distributed microservices. Engineering at {context_label} scale requires rigorous system reliability, low-latency API design, and clean architectural separation of concerns.
-
-Given your leadership as {title}, I wanted to reach out directly to see if your engineering organization is looking for a versatile software engineer who can contribute immediately across full-stack and backend systems.
-
-Key Technical Highlights:
-• Full-stack architecture with FastAPI, Python, React & Next.js
-• Distributed caching, messaging pipelines, and database optimization (PostgreSQL, Redis, Kafka)
-• Cloud infrastructure, microservices design, and automated CI/CD pipelines
-
-My LinkedIn: {self.sender_linkedin or ''}
-
-Would you be open to a brief 10-minute chat this week to explore how my technical background aligns with {company}'s current engineering roadmaps?
-
-Best regards,
-{self.sender_name}
-Software Engineer
-{self.sender_linkedin or ''}
-"""
-
-        body_html = f"""<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1E293B; line-height: 1.6;">
-  <p>Hi {first_name},</p>
-  <p>I've been following <strong>{company}</strong>'s industry-defining milestones and scalable software infrastructure in <em>{sector}</em>.</p>
-  <p>I'm a Software Engineer specializing in <strong>Python, FastAPI, React</strong>, and building fault-tolerant, high-throughput distributed microservices. Engineering at {context_label} scale requires rigorous system reliability, low-latency API design, and clean architectural separation of concerns.</p>
-  <p>Given your leadership as <em>{title}</em>, I wanted to reach out directly to see if your engineering organization is looking for a versatile software engineer who can contribute immediately across full-stack and backend systems.</p>
-  <p><strong>Key Technical Highlights:</strong></p>
-  <ul>
-    <li>Full-stack architecture with FastAPI, Python, React & Next.js</li>
-    <li>Distributed caching, messaging pipelines, and database optimization (PostgreSQL, Redis, Kafka)</li>
-    <li>Cloud infrastructure, microservices design, and automated CI/CD pipelines</li>
-  </ul>
-  <p>Would you be open to a brief 10-minute chat this week to explore how my technical background aligns with {company}'s current engineering roadmaps?</p>
-  <p>Best regards,<br>
-  <strong>{self.sender_name}</strong><br>
-  <span style="color: #64748B;">Software Engineer</span><br>
-  <a href="{self.sender_linkedin or '#'}" style="color: #4F46E5;">{self.sender_linkedin or ''}</a>
-  </p>
-</body>
-</html>"""
-
-        return subject, body_text, body_html
+        """Compose neutral outreach without unconfigured candidate claims."""
+        company = contact.get("company") or "your company"
+        body_text, body_html = self.compose_interest_outreach(contact.get("name") or "", company)
+        return f"Engineering roles at {company}", body_text, body_html
 
     def send_smtp_email(self, recipient_email: str, subject: str, body_text: str, body_html: str) -> bool:
         """Dispatch email securely via Gmail SMTP transport."""

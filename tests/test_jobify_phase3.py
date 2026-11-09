@@ -30,7 +30,7 @@ class FakeGoogle:
     def __init__(self):
         self.messages = {}
         self.scope = f"openid email {gs.GMAIL_SCOPE}"
-        self.email = "qa.user@gmail.com"
+        self.email = "qa.user@example.com"
         self.refresh_error = None
         self.revoked = []
         self.queries = []
@@ -140,11 +140,11 @@ def test_callback_connects_and_encrypts_token(client, clerk_auth, db_session, go
     res = _connect(client, clerk_auth, db_session)
     assert res.status_code == 302 and res.headers["location"] == "http://localhost:3000/app/applications?gmail=connected"
     mb = db_session.query(MailboxAccount).one()
-    assert mb.email_address == "qa.user@gmail.com" and mb.sync_status == "connected"
+    assert mb.email_address == "qa.user@example.com" and mb.sync_status == "connected"
     assert mb.oauth_refresh_token_enc and "rt-secret" not in mb.oauth_refresh_token_enc
     assert gs.decrypt_token(mb.oauth_refresh_token_enc) == "rt-secret"
     state = client.get("/api/gmail", headers=_auth(clerk_auth)).json()
-    assert state["status"] == "connected" and state["email"] == "qa.user@gmail.com"
+    assert state["status"] == "connected" and state["email"] == "qa.user@example.com"
     assert "rt-secret" not in str(state) and "token" not in str(state).lower()
 
 
@@ -300,5 +300,5 @@ def test_access_log_redacts_oauth_code_and_state():
 
 def test_matching_ignores_generic_domains():
     app = Application(company="Gmail")
-    msg = gs.ParsedMessage("1", "", "someone@gmail.com", "", "hi", "", "", datetime.utcnow())
+    msg = gs.ParsedMessage("1", "", "someone@example.com", "", "hi", "", "", datetime.utcnow())
     assert gs.match_application([app], msg) is None

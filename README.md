@@ -24,18 +24,18 @@ job-finder/
 │   ├── tasks.py         Celery tasks         cli.py       NEXUS CLI
 │   └── config.py        Pydantic settings (reads .env)
 ├── jobify/              Product frontend: React 19, Vite 8, Tailwind 4, Clerk
-├── frontend/            Legacy internal dashboard (being retired)
-├── config/              profile.yml (personal, git-ignored), target_companies.yml, boolean_queries.yml
-├── data/                resume.txt (personal, git-ignored), tracker, pipeline.md, agent_state.db
+├── config/              safe profile and target-company examples; personal configs are local-only
+├── data/                local-only resume, tracker, pipeline, and agent state
 ├── alembic/             migrations: baseline + one revision per Jobify phase
 ├── tests/               pytest suite (≈130 test files)
 ├── scripts/             one-off and ops scripts; dev/ has start.sh (API + Celery + Flower)
 ├── infra/               cloudflare/ (inbox worker), n8n/ (workflows), synology/ (NAS deploy)
 ├── docker/              per-service Dockerfiles used by docker-compose
-├── extension/  sidekick-desktop/   non-core surfaces
 ├── docker-compose*.yml  Dockerfile  Procfile  render.yaml  fly.toml
 └── README.md  CLAUDE.md
 ```
+
+The public snapshot omits personal job-search files, scraped founder datasets, retired UIs, and the interview HUD. Copy the example YAML files to their non-example names for local configuration; never commit personal data.
 
 ## Run locally
 
@@ -45,7 +45,7 @@ job-finder/
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-copy .env.example .env                 # SQLite + mock providers work with zero keys
+copy env.example .env                  # SQLite + mock providers work with zero keys
 python -m alembic upgrade head         # existing create_all DB: run `alembic stamp head` once first
 python -m uvicorn main:app --reload --port 8000
 ```
@@ -59,7 +59,7 @@ The full stack (Postgres, Redis, API, Celery worker/beat/flower, Ollama) runs wi
 ```bash
 cd jobify
 npm install
-copy .env.example .env.local           # set VITE_CLERK_PUBLISHABLE_KEY
+copy env.example .env.local            # set VITE_CLERK_PUBLISHABLE_KEY
 npm run dev                            # http://localhost:3000
 npm run check                          # typecheck + build
 ```
@@ -104,8 +104,8 @@ for the database; Redis runs locally on the VM (or use Memorystore).
 # 1. VM: e2-standard-2+, Ubuntu 24.04, allow HTTP/HTTPS; point your domain's A record at it.
 # 2. Bootstrap (installs Python 3.12, Node 22, nginx, certbot, PM2 + logrotate, Redis, firewall):
 sudo bash infra/gcp/setup_vm.sh https://github.com/devnoid1/Jobify.git app.your-domain.com
-# 3. Secrets: fill /opt/jobify/.env (template: .env.production.example) and
-#    /opt/jobify/jobify/.env.production (template: jobify/.env.production.example).
+# 3. Secrets: fill /opt/jobify/.env (template: env.production.example) and
+#    /opt/jobify/jobify/.env.production (template: jobify/env.production.example).
 # 4. Deploy (also every later release): deps -> frontend build -> migrations -> PM2 reload
 sudo -u jobify bash /opt/jobify/infra/gcp/deploy.sh
 ```

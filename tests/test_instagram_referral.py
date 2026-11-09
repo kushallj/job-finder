@@ -23,7 +23,7 @@ def test_instagram_service_search_and_generate():
         company="Stripe",
         name="Patrick Collison",
         role_title="Staff Distributed Systems Engineer",
-        portfolio_link="https://kushall.in",
+        portfolio_link="https://example.com",
     ))
     assert msg_res.status == "success"
     assert "patrickcollison" in msg_res.intent_url
@@ -47,7 +47,7 @@ def test_instagram_api_endpoints(client):
         "company": "OpenAI",
         "name": "Sam Altman",
         "role_title": "AI Infrastructure Lead",
-        "portfolio_link": "https://github.com/kushallj",
+        "portfolio_link": "https://github.com/example",
     })
     assert res_msg.status_code == 200
     data = res_msg.json()

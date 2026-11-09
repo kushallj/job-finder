@@ -4,6 +4,7 @@ Verifies autonomous Workday tenant account provisioning, dynamic resume tailorin
 ATS keyword scoring, ReportLab PDF compilation, 5-step multi-form automation, and FastAPI endpoints.
 """
 import os
+import json
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -38,6 +39,12 @@ def db_session():
     session = Session()
     yield session
     session.close()
+
+
+@pytest.fixture(autouse=True)
+def isolate_generated_files(tmp_path, monkeypatch):
+    """Keep generated application documents out of the developer's data directory."""
+    monkeypatch.chdir(tmp_path)
 
 
 def test_workday_url_parsing():
@@ -85,7 +92,7 @@ def test_workday_resume_tailorer_and_pdf_generation():
     """
     
     candidate_profile = {
-        "full_name": "Kushall Jain",
+        "full_name": "Example Candidate",
         "email": "candidate@example.com",
         "phone": "+1 (555) 019-2834",
         "city": "San Francisco",
@@ -147,7 +154,7 @@ async def test_workday_client_account_and_submission():
     # 3. 5-step execution
     submission_packet = {
         "job": {"id": 888, "company": "Gartner", "title": "Senior Solutions Architect", "url": "https://gartner.wd5.myworkdayjobs.com/Gartner/job/888"},
-        "candidate": {"full_name": "Kushall Jain", "email": "candidate@example.com"},
+        "candidate": {"full_name": "Example Candidate", "email": "candidate@example.com"},
         "tailored_resume_path": "/tmp/dummy_resume.pdf",
         "screening_answers": {"legal_authorization": "Yes", "requires_sponsorship": "No"},
         "eeo": {"gender": "Decline to specify", "race_ethnicity": "Asian"}
@@ -181,6 +188,11 @@ async def test_workday_service_single_apply(db_session):
     db_session.commit()
 
     service = WorkdayService(db=db_session)
+    service.config.auto_apply_enabled = True
+    service.profile.first_name = "Example"
+    service.profile.last_name = "Candidate"
+    service.profile.current_title = "Platform Engineer"
+    service.profile.skills_json = json.dumps(["Python", "Go", "Kubernetes", "Cloud Architecture"])
     result = await service.auto_apply_job(job_id=777)
 
     assert result["success"] is True
@@ -230,6 +242,12 @@ async def test_workday_batch_auto_apply(db_session):
     db_session.commit()
 
     service = WorkdayService(db=db_session)
+    service.config.auto_apply_enabled = True
+    service.config.daily_limit = 100
+    service.profile.first_name = "Example"
+    service.profile.last_name = "Candidate"
+    service.profile.current_title = "Cloud Engineer"
+    service.profile.skills_json = json.dumps(["Python", "Kubernetes", "Docker", "Microservices"])
     batch_res = await service.batch_auto_apply(target_count=5, min_score=50.0)
 
     assert batch_res["status"] == "completed"
@@ -259,22 +277,23 @@ def test_workday_fastapi_endpoints(db_session):
     assert res.status_code == 200
     data = res.json()
     assert data["profile"]["email"] == "candidate@example.com"
-    assert data["config"]["daily_limit"] == 100
+    assert data["config"]["auto_apply_enabled"] is False
+    assert data["config"]["daily_limit"] == 0
 
     # 2. GET & POST /api/workday/profile
     prof_res = client.get("/api/workday/profile")
     assert prof_res.status_code == 200
-    assert prof_res.json()["full_name"] == "Kushall Jain"
+    assert prof_res.json()["full_name"] == ""
 
     upd_res = client.post("/api/workday/profile", json={
-        "full_name": "Kushall Jain",
+        "full_name": "Example Candidate",
         "email": "candidate@example.com",
         "phone": "+1 555-987-6543",
         "city": "San Francisco",
         "state": "CA",
         "postal_code": "94105",
         "headline": "Senior Staff Distributed Systems Architect",
-        "linkedin_url": "https://linkedin.com/in/kushalljain",
+        "linkedin_url": "https://linkedin.com/in/example-candidate",
         "github_url": "https://github.com/example-candidate",
         "experience_years": 8,
         "skills": ["Python", "FastAPI", "Go", "Kubernetes", "AWS", "Workday API"],
@@ -386,5 +405,3 @@ def test_workday_fastapi_endpoints(db_session):
     del_res = client.delete(f"/api/workday/answers/{found_item['id']}")
     assert del_res.status_code == 200
     assert del_res.json()["status"] == "deleted"
-
-

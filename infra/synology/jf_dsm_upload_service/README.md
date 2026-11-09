@@ -9,8 +9,7 @@ A file receiver service running on Synology NAS that accepts Docker image tarbal
 ```
 jf_dsm_upload_service/
 ├── client-deploy.mjs   # Local client: uploads .tar files to the NAS receiver
-├── .env                # Local credentials (DEPLOY_SECRET_TOKEN, DEPLOY_API_URL)
-├── .env.example        # Template for the above
+├── .env                # Local credentials (DEPLOY_SECRET_TOKEN, DEPLOY_API_URL); never commit
 └── README.md           # This guide
 ```
 

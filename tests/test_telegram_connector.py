@@ -95,14 +95,14 @@ def test_telegram_webhook_pairing_activation(test_db_session):
     conn = service.complete_pairing(
         pairing_code=pairing.pairing_code,
         chat_id="987654321",
-        telegram_username="kushalljain",
+        telegram_username="exampleuser",
         first_name="Kushal",
     )
 
     assert conn is not None
     assert conn.is_connected is True
     assert conn.telegram_chat_id == "987654321"
-    assert conn.telegram_username == "kushalljain"
+    assert conn.telegram_username == "exampleuser"
     assert conn.paired_at is not None
 
 

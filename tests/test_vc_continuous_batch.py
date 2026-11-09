@@ -62,11 +62,9 @@ def test_continuous_runner_status_structure():
     assert isinstance(status["recent_logs"], list)
 
 
-def test_continuous_api_endpoints():
+def test_continuous_api_endpoints(legacy_auth_headers):
     """Verify the FastAPI continuous batch REST routes."""
-    from src.auth.jwt_handler import create_access_token
-    token = create_access_token(data={"sub": "1"})
-    client = TestClient(app, headers={"Authorization": f"Bearer {token}"})
+    client = TestClient(app, headers=legacy_auth_headers)
 
     # 1. Get status
     res = client.get("/api/vc/continuous/status")

@@ -40,19 +40,19 @@ def test_filter_by_shark():
 
 def test_compose_shark_tank_outreach():
     miner = SharkTankMiner()
+    miner.sender_name = ""
+    miner.sender_linkedin = ""
     contact = {
-        "name": "Siddharth Dungarwal",
+        "name": "Example Person",
         "title": "Founder & CEO",
-        "company": "Snitch",
+        "company": "Example Company",
         "season": 2,
-        "sharks": "Peyush Bansal, Aman Gupta, Anupam Mittal, Namita Thapar, Vineeta Singh",
+        "sharks": "Example Investor",
     }
     subj, text, html = miner.compose_shark_tank_outreach(contact)
-    assert "Snitch" in subj
-    assert "Shark Tank India S2" in subj
-    assert "Siddharth" in text
-    assert "Peyush Bansal" in text
-    assert "Python, FastAPI, React" in text
+    assert "Example Company" in subj
+    assert "Hi Example," in text
+    assert "Python, FastAPI, React" not in text
     assert "<html>" in html
 
 

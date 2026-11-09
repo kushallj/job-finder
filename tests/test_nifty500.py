@@ -65,8 +65,10 @@ def test_get_industry_breakdown():
 
 def test_compose_nifty500_outreach():
     miner = Nifty500Miner()
+    miner.sender_name = ""
+    miner.sender_linkedin = ""
     contact = {
-        "name": "Ananth Krishnan",
+        "name": "Example Person",
         "title": "Chief Technology Officer",
         "company": "Tata Consultancy Services Ltd.",
         "industry": "Information Technology",
@@ -75,9 +77,9 @@ def test_compose_nifty500_outreach():
 
     subj, text, html = miner.compose_nifty500_outreach(contact)
     assert "Tata Consultancy Services Ltd." in subj
-    assert "Nifty 500" in subj
-    assert "Ananth" in text
-    assert "Python, FastAPI, React" in text
+    assert "Example Person" not in text
+    assert "Hi Example," in text
+    assert "Python, FastAPI, React" not in text
     assert "<html>" in html
 
 

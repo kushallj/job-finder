@@ -69,8 +69,10 @@ def test_get_sector_breakdown_sp500():
 
 def test_compose_sp500_outreach():
     miner = SP500Miner()
+    miner.sender_name = ""
+    miner.sender_linkedin = ""
     contact = {
-        "name": "Satya Nadella",
+        "name": "Example Person",
         "title": "Chief Executive Officer",
         "company": "Microsoft",
         "sector": "Information Technology",
@@ -78,9 +80,8 @@ def test_compose_sp500_outreach():
     }
     subj, text, html = miner.compose_sp500_outreach(contact)
     assert "Microsoft" in subj
-    assert "S&P 500" in subj
-    assert "Satya" in text
-    assert "Python, FastAPI, React" in text
+    assert "Hi Example," in text
+    assert "Python, FastAPI, React" not in text
     assert "<html>" in html
 
 

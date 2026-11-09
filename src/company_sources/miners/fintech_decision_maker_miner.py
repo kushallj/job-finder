@@ -198,56 +198,9 @@ class FinTechDecisionMakerMiner(BaseCompanyMiner):
         return contacts
 
     def compose_personalized_outreach(self, dm: DecisionMakerContact) -> Tuple[str, str, str]:
-        """
-        Generate high-converting, human-like cold email tailored to the specific leader & company.
-        """
-        first_name = dm.name.split()[0] if dm.name else "there"
-        subject = f"Connecting re: Engineering & Product Scale at {dm.company} — Kushall Jain"
-
-        body_text = f"""Hi {first_name},
-
-I've been closely following {dm.company}'s growth across the FinTech ecosystem (especially your presence at Global FinTech Fest).
-
-I'm a Software Engineer specializing in Python, FastAPI, React, and high-throughput distributed architectures. I design reliable, low-latency microservices and event-driven data pipelines built for financial-grade scale.
-
-Given your leadership as {dm.title}, I wanted to proactively reach out to see if your team is exploring strong backend / full-stack engineers who can hit the ground running.
-
-Key Highlights:
-• Scaled low-latency APIs handling millions of requests with PostgreSQL, Redis & Kafka
-• Built end-to-end full-stack products with FastAPI, Next.js, and automated CI/CD pipelines
-• Strong focus on system design, database optimization, and high availability
-
-My LinkedIn: {self.sender_linkedin}
-
-Would you be open to a brief 10-minute chat this week to see if my background aligns with any upcoming priorities on your team?
-
-Best regards,
-{self.sender_name}
-Software Engineer
-{self.sender_linkedin}
-"""
-
-        body_html = f"""<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1E293B; line-height: 1.6;">
-  <p>Hi {first_name},</p>
-  <p>I've been closely following <strong>{dm.company}</strong>'s growth across the FinTech ecosystem (especially your presence at Global FinTech Fest).</p>
-  <p>I'm a Software Engineer specializing in <strong>Python, FastAPI, React</strong>, and high-throughput distributed architectures. I design reliable, low-latency microservices and event-driven data pipelines built for financial-grade scale.</p>
-  <p>Given your leadership as <em>{dm.title}</em>, I wanted to proactively reach out to see if your team is exploring strong backend / full-stack engineers who can hit the ground running.</p>
-  <p><strong>Key Highlights:</strong></p>
-  <ul>
-    <li>Scaled low-latency APIs handling millions of requests with PostgreSQL, Redis & Kafka</li>
-    <li>Built end-to-end full-stack products with FastAPI, Next.js, and automated CI/CD pipelines</li>
-    <li>Strong focus on system design, database optimization, and high availability</li>
-  </ul>
-  <p>Would you be open to a brief 10-minute chat this week to see if my background aligns with any upcoming priorities on your team?</p>
-  <p>Best regards,<br>
-  <strong>{self.sender_name}</strong><br>
-  <span style="color: #64748B;">Software Engineer</span><br>
-  <a href="{self.sender_linkedin}" style="color: #4F46E5;">{self.sender_linkedin}</a>
-  </p>
-</body>
-</html>"""
-
+        """Create a factual outreach draft without assuming candidate qualifications."""
+        subject = f"Engineering roles at {dm.company}"
+        body_text, body_html = self.compose_interest_outreach(dm.name, dm.company)
         return subject, body_text, body_html
 
     async def mine_and_store_company(

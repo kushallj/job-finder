@@ -28,7 +28,14 @@ def test_semantic_clause_tokenizer():
     assert any(q.category == "tech" for q in queries)
     assert any(q.category == "scale" for q in queries)
 
-    keys, values = tokenizer.extract_keys_and_values()
+    keys, values = tokenizer.extract_keys_and_values(
+        custom_bullets=[
+            "Test-only backend project.",
+            "Test-only database project with a 25% test metric.",
+            "Test-only delivery project.",
+            "Test-only collaboration project.",
+        ]
+    )
     assert len(keys) >= 4
     assert len(values) == len(keys)
     assert any(v.impact_metric is not None for v in values)
@@ -51,13 +58,19 @@ def test_dense_semantic_embedder():
 
 
 def test_transformer_attention_engine_math():
-    engine = TransformerAttentionEngine()
+    engine = TransformerAttentionEngine(tok=SemanticClauseTokenizer())
     sample_jd = (
         "Looking for a Senior Python Developer with FastAPI and PostgreSQL expertise.\n"
         "Experience building low-latency distributed systems handling high QPS.\n"
         "Strong mentorship, code review, and architecture ownership."
     )
-    result = engine.compute_multi_head_match(sample_jd)
+    result = engine.compute_multi_head_match(
+        sample_jd,
+        custom_bullets=[
+            "Test-only Python and FastAPI project.",
+            "Test-only database performance project with a 25% test metric.",
+        ],
+    )
 
     assert result.overall_score >= 50.0
     assert len(result.heads) == 4
@@ -75,8 +88,14 @@ def test_transformer_attention_engine_math():
     assert scores == sorted(scores, reverse=True)
 
 
-def test_cross_attention_outreach():
-    synth = CrossAttentionOutreachSynthesizer()
+def test_cross_attention_outreach(tmp_path):
+    profile_path = tmp_path / "profile.yml"
+    profile_path.write_text(
+        "positioning:\n  differentiators:\n    - Test-only backend proof point.\n",
+        encoding="utf-8",
+    )
+    tokenizer = SemanticClauseTokenizer(profile_path=str(profile_path))
+    synth = CrossAttentionOutreachSynthesizer(tok=tokenizer)
     res_em = synth.synthesize_outreach_for_contact(
         contact_name="Sarah Connor",
         contact_title="VP of Engineering",
@@ -97,7 +116,10 @@ def test_cross_attention_outreach():
     assert "Anthropic" in res_rec["subject"]
 
 
-def test_attention_api_endpoints(client):
+def test_attention_api_endpoints(client, monkeypatch, tmp_path):
+    from src.attention.tokenizer import clause_tokenizer
+
+    monkeypatch.setattr(clause_tokenizer, "profile_path", str(tmp_path / "missing-profile.yml"))
     # 1. POST /api/attention/match
     res = client.post("/api/attention/match", json={
         "job_description": (
@@ -108,7 +130,7 @@ def test_attention_api_endpoints(client):
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "success"
-    assert data["overall_score"] > 0
+    assert data["overall_score"] == 0
     assert len(data["heads"]) == 4
     assert len(data["matrix"]["weights"]) > 0
 
@@ -117,7 +139,7 @@ def test_attention_api_endpoints(client):
         "job_description": "FastAPI, PostgreSQL, Redis performance optimization and high throughput systems."
     })
     assert res2.status_code == 200
-    assert res2.json()["total_bullets"] >= 4
+    assert res2.json()["total_bullets"] == 0
 
     # 3. POST /api/attention/outreach
     res3 = client.post("/api/attention/outreach", json={
@@ -126,5 +148,4 @@ def test_attention_api_endpoints(client):
         "company": "OpenAI",
         "job_description": "Scalable inference backend and low latency routing",
     })
-    assert res3.status_code == 200
-    assert "OpenAI" in res3.json()["subject"]
+    assert res3.status_code == 422

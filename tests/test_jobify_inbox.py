@@ -88,12 +88,12 @@ def test_address_format_and_stability(client, clerk_auth, db_session):
 
 
 def test_address_uses_name_and_never_leaks_clerk_placeholder(db_session):
-    named = User(email="x@clerk.user", full_name="Kushall Jain", credits_balance=0)
+    named = User(email="x@clerk.user", full_name="Example Candidate", credits_balance=0)
     anon = User(email="user_3abc@clerk.user", credits_balance=0)
     clerk_named = User(email="user_3LhDZ48grUxt@clerk.user", full_name="User_3Lhdz48Gruxtjjoav", credits_balance=0)
     db_session.add_all([named, anon, clerk_named])
     db_session.commit()
-    assert ib.get_or_create_inbox(db_session, named).email_address.startswith("kushall.jain.")
+    assert ib.get_or_create_inbox(db_session, named).email_address.startswith("example.candidate.")
     assert ib.get_or_create_inbox(db_session, anon).email_address.startswith("jobseeker.")
     assert ib.get_or_create_inbox(db_session, clerk_named).email_address.startswith("jobseeker.")
 

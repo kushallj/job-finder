@@ -34,17 +34,18 @@ def test_suniel_shetty_registry_loaded():
 
 def test_compose_shetty_outreach():
     miner = SunielShettyMiner()
+    miner.sender_name = ""
+    miner.sender_linkedin = ""
     contact = {
-        "name": "Chandrashekhar Mandal",
+        "name": "Example Person",
         "title": "Founder & CEO",
-        "company": "Digital Labour Chowk",
-        "show_or_source": "Bharat Ke Super Founders",
+        "company": "Example Company",
+        "show_or_source": "Example Show",
     }
     subj, text, html = miner.compose_shetty_outreach(contact)
-    assert "Digital Labour Chowk" in subj
-    assert "Bharat Ke Super Founders" in subj
-    assert "Chandrashekhar" in text
-    assert "Python, FastAPI, React" in text
+    assert "Example Company" in subj
+    assert "Hi Example," in text
+    assert "Python, FastAPI, React" not in text
     assert "<html>" in html
 
 

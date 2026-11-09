@@ -68,9 +68,9 @@ def _extract_fallback_profile(text: str) -> Dict[str, Any]:
             
     # Extract name (heuristic from first lines)
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    candidate_name = lines[0] if lines else "Candidate"
+    candidate_name = lines[0] if lines else ""
     if len(candidate_name) > 40 or "@" in candidate_name:
-        candidate_name = getattr(settings, "sender_name", "Kushall Jain") or "Kushall Jain"
+        candidate_name = getattr(settings, "sender_name", "") or ""
 
     return {
         "status": "fallback",

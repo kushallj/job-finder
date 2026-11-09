@@ -390,7 +390,7 @@ I remain very interested in this opportunity and would love to discuss how my ex
 Would you have 15 minutes this week for a brief conversation?
 
 Best regards,
-Kushall Jain"""
+"""
                 
                 from src.email_outreach import EmailTemplate
                 follow_up_template = EmailTemplate(

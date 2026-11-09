@@ -79,9 +79,9 @@ class ProfileService:
 
         # 4. Name extraction (first non-empty line or capitalized header)
         lines = [line.strip() for line in text.split("\n") if line.strip()]
-        full_name = lines[0] if lines else "Applicant"
+        full_name = lines[0] if lines else ""
         if len(full_name.split()) > 4 or "@" in full_name or "http" in full_name:
-            full_name = "Candidate"
+            full_name = ""
 
         # 5. Skills extraction
         found_skills = []
@@ -93,15 +93,17 @@ class ProfileService:
 
         # 6. Experience Years estimation
         years_matches = re.findall(r"(\d+)\+?\s*(?:years|yrs)\b", text_lower)
-        yoe = 3.0
+        yoe = None
         if years_matches:
             try:
                 yoe = float(max(int(y) for y in years_matches if int(y) < 30))
             except ValueError:
-                yoe = 3.0
+                yoe = None
 
         # 7. Summary
-        bio_summary = f"Software Engineer with {yoe:g}+ years of experience specializing in {', '.join(found_skills[:5])}."
+        bio_summary = f"Skills: {', '.join(found_skills[:5])}." if found_skills else ""
+        if yoe is not None:
+            bio_summary = f"{yoe:g} years of experience. {bio_summary}".strip()
 
         return {
             "full_name": full_name,
@@ -112,8 +114,8 @@ class ProfileService:
             "years_of_experience": yoe,
             "skills": found_skills,
             "bio_summary": bio_summary,
-            "target_roles": ["Senior Backend Engineer", "Full Stack Engineer", "Distributed Systems Engineer"],
-            "target_locations": ["Remote", "Bengaluru", "Delhi NCR", "United States"],
+            "target_roles": [],
+            "target_locations": [],
         }
 
     def get_or_create_profile(self, user_id: str = "default_user") -> CandidateProfile:
@@ -123,11 +125,11 @@ class ProfileService:
             return profile
 
         # Bootstrap from config/profile.yml if present
-        name = "Kushall Jain"
-        email = "applicant@example.com"
-        yoe = 3.0
-        skills = ["Python", "FastAPI", "React", "PostgreSQL", "Redis"]
-        summary = "Full-stack engineer specializing in scalable Python/FastAPI microservices and React web applications."
+        name = ""
+        email = ""
+        yoe = None
+        skills = []
+        summary = ""
         li = ""
         gh = ""
 
@@ -156,8 +158,8 @@ class ProfileService:
             bio_summary=summary,
             linkedin_url=li,
             github_url=gh,
-            target_roles=json.dumps(["Senior Backend Engineer", "Full Stack Engineer"]),
-            target_locations=json.dumps(["Remote", "India", "United States"]),
+            target_roles=json.dumps([]),
+            target_locations=json.dumps([]),
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )
@@ -199,14 +201,14 @@ class ProfileService:
                     for comp in companies:
                         rec = TargetCompanyRecord(
                             user_identifier=user_id,
-                            name=comp.get("name", "Unknown"),
+                            name=comp.get("name", ""),
                             domain=comp.get("domain", ""),
-                            tier=comp.get("tier", "tier1"),
-                            industry=comp.get("industry", "Technology"),
-                            headquarters=comp.get("headquarters", "Bengaluru / US"),
-                            funding_stage=comp.get("stage", "Growth"),
-                            signal_score=float(comp.get("signal_score", 85.0)),
-                            signal_notes=comp.get("notes", "High hiring velocity"),
+                            tier=comp.get("tier", ""),
+                            industry=comp.get("industry", ""),
+                            headquarters=comp.get("headquarters", ""),
+                            funding_stage=comp.get("stage", ""),
+                            signal_score=float(comp.get("signal_score", 0.0)),
+                            signal_notes=comp.get("notes", ""),
                             is_active=True,
                             created_at=datetime.now(timezone.utc),
                         )

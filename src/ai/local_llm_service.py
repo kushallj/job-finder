@@ -5,7 +5,7 @@ What changed from original:
   ✓ httpx.AsyncClient created inside context managers — no leaked connections
   ✓ Model cascade: tries models in priority order, caches best available
   ✓ Health check (Level 1: is Ollama running? Level 2: which models installed?)
-  ✓ Hardcoded "Kushall Jain" → settings.sender_name (config-driven)
+  ✓ Sender identity is read from settings
   ✓ _parse_json handles more edge cases (list, arrays, nested fences)
   ✓ temperature=0.2 for structured extraction (was 0.7 — too creative for JSON)
   ✓ Prompt truncation guards — never overflow context window

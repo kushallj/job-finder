@@ -345,7 +345,7 @@ async def test_usajobs_client_builds_documented_request():
         })
 
     api_key = "test_usajobs_auth_key"
-    client = USAJobsClient(api_key=api_key, email="kushall.jain07@gmail.com", transport=httpx.MockTransport(handler))
+    client = USAJobsClient(api_key=api_key, email="candidate@example.com", transport=httpx.MockTransport(handler))
     assert client.enabled is True
 
     jobs = await client.search(
@@ -366,8 +366,7 @@ async def test_usajobs_client_builds_documented_request():
     assert "WhoMayApply=public" in seen["url"]
     assert "ResultsPerPage=15" in seen["url"]
     assert seen["auth_key"] == "test_usajobs_auth_key"
-    assert seen["user_agent"] == "kushall.jain07@gmail.com"
-
+    assert seen["user_agent"] == "candidate@example.com"
 
 
 

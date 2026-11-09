@@ -91,6 +91,25 @@ class TransformerAttentionEngine:
         # 1. Tokenize Q, K, V
         queries = self.tokenizer.tokenize_job_description(job_description)
         keys, values = self.tokenizer.extract_keys_and_values(custom_bullets=custom_bullets)
+        if not keys:
+            empty_heads = {
+                name: AttentionHeadResult(head_name=name, head_score=0.0, top_matches=[])
+                for name in HEAD_NAMES
+            }
+            return MultiHeadAttentionResult(
+                overall_score=0.0,
+                fit_label="No candidate profile evidence available",
+                heads=empty_heads,
+                matrix=AttentionMatrix(
+                    query_tokens=queries,
+                    key_tokens=[],
+                    weights=[[] for _ in queries],
+                ),
+                top_attended_values=[],
+                tailored_bullets=[],
+                outreach_hooks=[],
+                summary_insight="Add candidate profile evidence before calculating a match.",
+            )
 
         # 2. Embed all tokens into d_model space
         q_embeds = [self.embedder.embed_text(q.text) for q in queries]

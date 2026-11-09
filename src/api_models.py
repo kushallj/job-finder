@@ -1452,12 +1452,12 @@ class CompComparisonRequest(BaseModel):
 
 class ResumeGenerateRequestSchema(BaseModel):
     """Request model for tailored ATS resume generation."""
-    candidate_name: Optional[str] = Field(default="Candidate")
-    candidate_email: Optional[str] = Field(default="candidate@example.com")
-    candidate_phone: Optional[str] = Field(default="+1 (555) 019-2834")
-    candidate_location: Optional[str] = Field(default="San Francisco, CA / Remote")
-    candidate_linkedin: Optional[str] = Field(default="linkedin.com/in/candidate")
-    candidate_github: Optional[str] = Field(default="github.com/candidate")
+    candidate_name: Optional[str] = Field(default=None)
+    candidate_email: Optional[str] = Field(default=None)
+    candidate_phone: Optional[str] = Field(default=None)
+    candidate_location: Optional[str] = Field(default=None)
+    candidate_linkedin: Optional[str] = Field(default=None)
+    candidate_github: Optional[str] = Field(default=None)
     role_title: str = Field(..., min_length=1)
     company: str = Field(..., min_length=1)
     job_description: Optional[str] = Field(default=None)
@@ -1466,11 +1466,11 @@ class ResumeGenerateRequestSchema(BaseModel):
 
 class CoverLetterGenerateRequestSchema(BaseModel):
     """Request model for tailored cover letter synthesis."""
-    candidate_name: Optional[str] = Field(default="Candidate")
-    candidate_email: Optional[str] = Field(default="candidate@example.com")
+    candidate_name: Optional[str] = Field(default=None)
+    candidate_email: Optional[str] = Field(default=None)
     company: str = Field(..., min_length=1)
     role_title: str = Field(..., min_length=1)
-    hiring_manager_name: Optional[str] = Field(default="Engineering Leadership Team")
+    hiring_manager_name: Optional[str] = Field(default=None)
     job_description: Optional[str] = Field(default=None)
 
 
@@ -2017,5 +2017,4 @@ class TelegramTestAlertRequest(BaseModel):
     alert_type: str = Field(default="high_match_job", description="'high_match_job' or 'interview_request'")
     job_id: Optional[int] = Field(None, description="Optional job ID to preview")
     match_score: float = Field(default=94.0, ge=50.0, le=100.0, description="Match score percentage")
-
 

@@ -50,7 +50,7 @@ def build_user_context(db: Session, user: User) -> str:
 
 
 def _display_name(user: User, ident: jp.Identity | None) -> str:
-    # Sign-up derives a name from the email when Clerk sends none ("kushall.jain07" -> "Kushall Jain07");
+    # Sign-up may derive a display name from the email when Clerk sends none;
     # that's a guess, not a fact the user entered.
     derived = (user.email or "").split("@")[0].replace(".", " ").title()
     account_name = jp._real_name(user, user.full_name)

@@ -3,7 +3,7 @@
 diagnose.py — Run this to identify the exact cause of health check failures.
 
 Usage (from your project root):
-    cd /Users/kushalljain/Desktop/job-finder
+    cd path\to\job-finder
     python diagnose.py
 """
 

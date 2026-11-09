@@ -54,8 +54,10 @@ def test_accelerator_role_priority_ranking():
 
 def test_compose_accelerator_outreach():
     miner = AcceleratorMiner()
+    miner.sender_name = ""
+    miner.sender_linkedin = ""
     contact = {
-        "name": "Aadit Palicha",
+        "name": "Example Person",
         "title": "Co-Founder & CEO",
         "company": "Zepto",
         "accelerator": "Y Combinator",
@@ -63,10 +65,10 @@ def test_compose_accelerator_outreach():
     }
     subj, text, html = miner.compose_accelerator_outreach(contact)
     assert "Zepto" in subj
-    assert "Y Combinator" in subj
-    assert "Aadit" in text
-    assert "YC W21" in text
-    assert "Python, FastAPI, React" in text
+    assert "Hi Example," in text
+    assert "hiring for engineering roles" in text
+    assert "Python, FastAPI, React" not in text
+    assert "Naveen" not in text
     assert "<html>" in html
 
 

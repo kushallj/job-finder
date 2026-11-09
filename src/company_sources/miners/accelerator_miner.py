@@ -126,59 +126,10 @@ class AcceleratorMiner(BaseCompanyMiner):
         return contacts
 
     def compose_accelerator_outreach(self, contact: Dict[str, Any]) -> Tuple[str, str, str]:
-        """Compose high-converting cold email tailored specifically to accelerator & startup culture."""
-        first_name = contact["name"].split()[0] if contact.get("name") else "there"
+        """Compose a neutral outreach draft without asserting unconfigured candidate details."""
         company = contact.get("company", "your startup")
-        accelerator = contact.get("accelerator", "top accelerator")
-        batch = contact.get("batch", "")
-        title = contact.get("title", "Founder")
-
-        subject = f"Building & Scaling Engineering at {company} ({accelerator}) — Kushall Jain"
-
-        body_text = f"""Hi {first_name},
-
-I've been closely following {company}'s rapid scaling trajectory since your {accelerator} ({batch}) journey.
-
-I'm a Software Engineer specializing in Python, FastAPI, React, and building robust, high-performance distributed backends from 0-to-1 and 1-to-10. I thrive in fast-paced startup environments where engineering speed, clean system design, and high autonomy matter.
-
-Given your leadership as {title}, I wanted to reach out directly to see if you're looking for a versatile engineer who can take full ownership of core product features and scale your backend architecture.
-
-Key Highlights:
-• End-to-end full-stack development with FastAPI, Python, React & Next.js
-• Built low-latency APIs and event-driven data pipelines (PostgreSQL, Redis, Kafka)
-• Startup mindset: high velocity, rapid prototyping, and production-grade reliability
-
-My LinkedIn: {self.sender_linkedin or ''}
-
-Would you be open to a brief 10-minute chat this week to see if my skill set could add immediate leverage to {company}?
-
-Best regards,
-{self.sender_name}
-Software Engineer
-{self.sender_linkedin or ''}
-"""
-
-        body_html = f"""<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1E293B; line-height: 1.6;">
-  <p>Hi {first_name},</p>
-  <p>I've been closely following <strong>{company}</strong>'s rapid scaling trajectory since your <strong>{accelerator}</strong> ({batch}) journey.</p>
-  <p>I'm a Software Engineer specializing in <strong>Python, FastAPI, React</strong>, and building robust, high-performance distributed backends from 0-to-1 and 1-to-10. I thrive in fast-paced startup environments where engineering speed, clean system design, and high autonomy matter.</p>
-  <p>Given your leadership as <em>{title}</em>, I wanted to reach out directly to see if you're looking for a versatile engineer who can take full ownership of core product features and scale your backend architecture.</p>
-  <p><strong>Key Highlights:</strong></p>
-  <ul>
-    <li>End-to-end full-stack development with FastAPI, Python, React & Next.js</li>
-    <li>Built low-latency APIs and event-driven data pipelines (PostgreSQL, Redis, Kafka)</li>
-    <li>Startup mindset: high velocity, rapid prototyping, and production-grade reliability</li>
-  </ul>
-  <p>Would you be open to a brief 10-minute chat this week to see if my skill set could add immediate leverage to {company}?</p>
-  <p>Best regards,<br>
-  <strong>{self.sender_name}</strong><br>
-  <span style="color: #64748B;">Software Engineer</span><br>
-  <a href="{self.sender_linkedin or '#'}" style="color: #4F46E5;">{self.sender_linkedin or ''}</a>
-  </p>
-</body>
-</html>"""
-
+        subject = f"Engineering roles at {company}"
+        body_text, body_html = self.compose_interest_outreach(contact.get("name", ""), company)
         return subject, body_text, body_html
 
     async def mine_and_outreach_startup(

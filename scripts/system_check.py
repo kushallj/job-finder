@@ -108,7 +108,7 @@ def check_env():
         checks = {
             "Gmail address": settings.gmail_address,
             "Gmail password": settings.gmail_password,
-            "Sender name": getattr(settings, 'sender_name', 'Kushall Jain'),
+            "Sender name": getattr(settings, 'sender_name', '') or '',
         }
         
         all_good = True

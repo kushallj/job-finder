@@ -2,10 +2,10 @@
 
 Job search and application management SaaS. This repo is the **frontend**: a React app with a public marketing site and a signed-in product (Chat, Jobs, Applications, Founders, Portfolio, Plans, Checkout).
 
-This README is the **merge and launch guide** for combining this frontend with the backend repo (`kushallj/job-finder`).
+This README is the **integration and launch guide** for the Jobify frontend and FastAPI backend in this repository.
 It lists what is done, what clashes, what is missing on each side, how to fix common problems, and what must happen before real users and real money touch the product.
 
-> Backend analysed: `github.com/kushallj/job-finder`, latest commit `cc0a1ac5` (2026-11-02, "VC Portfolio Founder Intelligence Engine & Production Hardening (#14)"), 107 commits, 889 tracked files.
+> Backend reference: `github.com/devnoid1/Jobify`. The integration details below are historical and should be checked against the current code before use.
 > Method: static reading of the code (routes, models, auth, billing, config, Docker, CI) plus `grep` counts. **I did not run the backend or its tests.** Anything marked *(verify)* is an inference that someone should confirm by running it.
 
 Contents: [1 TL;DR](#1-tldr) · [2 Architecture](#2-architecture) · [3 Stack: claimed vs found](#3-stack-claimed-vs-actually-in-the-repo) · [4 P0 blockers](#4-p0-blockers-fix-before-anything-is-public) · [5 Integration map](#5-integration-map-frontend-screen--backend-endpoint) · [6 Auth (Clerk + FastAPI)](#6-authentication-clerk--fastapi) · [7 Billing and credits](#7-billing-plans-and-credits) · [8 Feature logic](#8-feature-logic-how-each-feature-should-behave) · [9 Missing: frontend](#9-whats-missing-frontend) · [10 Missing: backend](#10-whats-missing-backend) · [11 Troubleshooting](#11-troubleshooting-playbook) · [12 Merge plan](#12-how-to-merge-the-two-repos) · [13 Production setup](#13-production-architecture) · [14 Market-ready checklist](#14-market-ready-checklist) · [15 Roadmap](#15-roadmap) · [16 Run locally](#16-run-it-locally)
@@ -43,7 +43,7 @@ Contents: [1 TL;DR](#1-tldr) · [2 Architecture](#2-architecture) · [3 Stack: c
                                        │ HTTPS · Authorization: Bearer <Clerk session JWT>
                                        ▼
                        ┌───────────────────────────────────────────────┐
-                       │  API (kushallj/job-finder) · FastAPI          │
+                       │  API (devnoid1/Jobify) · FastAPI              │
                        │  verifies Clerk JWT → maps to users row       │
                        │  routers: jobs, applications, founders(vc),   │
                        │  chat/agents, portfolio, billing, credits     │
@@ -89,7 +89,7 @@ Jobify/
 ├── docs/INTEGRATION.md     Per-endpoint API contracts for the backend developer
 ├── .github/workflows/      CI: typecheck, build, npm audit
 ├── vercel.json             SPA rewrite, cache headers, security headers (CSP in report-only)
-├── .env.example            Documented env vars (copy to .env.local)
+├── env.example             Documented env vars (copy to .env.local)
 ├── .agents/, skills-lock.json   Clerk agent-skill docs (dev tooling only; not shipped)
 └── SECURITY.md             Security rules and how to report issues
 ```
@@ -192,7 +192,7 @@ Only these tables have a `user_id`: `Application`, `CandidateProfile`, `CreditTr
 
 ### P0-5. Personal data in the repo
 
-`config/profile.yml`, `config/profile_samta_jain.yml`, `data/resume.pdf`, `data/resume.txt`, `data_examples/*.csv` and commit history (for example "calibrate pipeline for 54yo homemaker Samta Jain") reference real-looking personal profiles. The latest commit says PII was sanitised, but the file names and history remain. Treat as a data-protection problem: remove from history (`git filter-repo`), confirm consent, and keep demo data obviously fake.
+Personal profile files, resumes, scraped datasets, and commit history may contain sensitive candidate information. Verify consent and sanitize repository history before publishing any such material; demo data should be obviously synthetic.
 
 ### P0-6. Legal and platform risk of the data pipeline
 
@@ -500,7 +500,7 @@ Two repos, two frontends. Recommended layout (monorepo):
 jobify/
 ├── apps/
 │   ├── web/        ← this repo (Jobify product UI + marketing)
-│   ├── api/        ← kushallj/job-finder backend (FastAPI)
+│   ├── api/        ← FastAPI backend
 │   └── admin/      ← optional: the backend repo's existing React/MUI dashboard, internal only
 ├── docker-compose.yml        # postgres, redis, api, worker, beat (flower optional, internal)
 ├── .github/workflows/        # web: build+test, api: test+lint+pip-audit+image, security scan
@@ -636,7 +636,7 @@ Parallelism: while BE does Phase 0 and 1, FE can finish F2, F5, F6, F7, F8, F11 
 **Frontend (this repo)**
 ```bash
 npm install
-cp .env.example .env.local      # then set VITE_CLERK_PUBLISHABLE_KEY (+ VITE_API_BASE_URL later)
+cp env.example .env.local       # then set VITE_CLERK_PUBLISHABLE_KEY (+ VITE_API_BASE_URL later)
 npm run dev                     # http://localhost:3000
 npm run typecheck               # tsc --noEmit (CI runs this + build)
 npm run check                   # typecheck + build
@@ -644,9 +644,9 @@ npm run build
 ```
 - `/demo/*` works with no login. `/app/*` needs a Clerk session (create a test user in the Clerk dashboard; in development, the verification code for `+clerk_test` emails is `424242`).
 
-**Backend (kushallj/job-finder)**
+**Backend (this repository)**
 ```bash
-cp .env.example .env            # SQLite + mock providers run with zero keys
+cp env.example .env             # SQLite + mock providers run with zero keys
 docker compose up               # postgres, redis, api (:8000), worker, beat
 # or: pip install -r requirements.txt && uvicorn main:app --port 8000
 ```

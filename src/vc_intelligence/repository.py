@@ -18,6 +18,12 @@ from src.vc_intelligence.models import RawPortfolioCompany, RawFounder
 log = logging.getLogger("vc_intelligence.repository")
 
 
+
+# Column order of founder contact exports (CSV header even when there are no rows).
+EXPORT_CONTACT_FIELDS = ["vc_firm", "company_name", "company_domain", "company_website", "batch_or_year",
+                         "funding_stage", "founder_name", "founder_title", "founder_email", "email_confidence",
+                         "linkedin_url", "twitter_handle", "source", "last_verified_at"]
+
 class VCIntelligenceRepository(IVCRepository):
     """
     SQLAlchemy repository for VC firms, portfolio companies, and founders.

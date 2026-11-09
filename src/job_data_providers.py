@@ -539,7 +539,7 @@ class CareerjetClient:
         work_hours: Optional[str] = None,
         fragment_size: int = 500,
         user_ip: str = "161.248.229.81",
-        user_agent: str = "JobFinder/2.1 (Python/FastAPI; +https://github.com/kushallj/job-finder)",
+        user_agent: str = "Jobify/1.0 (Python/FastAPI; +https://github.com/devnoid1/Jobify)",
     ) -> List[Dict[str, Any]]:
         """Search jobs using Careerjet API v4 with Basic authentication."""
         if not self.enabled:
@@ -567,7 +567,7 @@ class CareerjetClient:
         auth_str = base64.b64encode(f"{self.api_key}:".encode()).decode()
         headers = {
             "Authorization": f"Basic {auth_str}",
-            "Referer": "https://github.com/kushallj/job-finder",
+            "Referer": "https://github.com/devnoid1/Jobify",
             "User-Agent": user_agent,
         }
 
@@ -597,7 +597,7 @@ class USAJobsClient:
         transport=None,
     ) -> None:
         self.api_key = api_key or getattr(settings, "usajobs_api_key", None)
-        self.email = email or getattr(settings, "usajobs_email", None) or "kushall.jain07@gmail.com"
+        self.email = email or getattr(settings, "usajobs_email", None) or ""
         self.timeout = timeout
         self.transport = transport
 
@@ -667,7 +667,6 @@ class USAJobsClient:
         search_result = payload.get("SearchResult", {})
         raw_items = search_result.get("SearchResultItems", [])
         return [normalize_job(item, "usajobs") for item in raw_items]
-
 
 
 

@@ -90,10 +90,9 @@ async def sync_mailbox_messages(
     if not target_id:
         primary = service.get_primary_mailbox()
         if not primary:
-            # Auto-connect a default mailbox account if none exists yet
-            primary = service.connect_mailbox(
-                provider="gmail",
-                email_address="candidate@gmail.com",
+            raise HTTPException(
+                status_code=404,
+                detail="No mailbox is connected. Connect a mailbox before syncing.",
             )
         target_id = primary.id
 

@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 from tenacity import AsyncRetrying, retry_if_exception, stop_after_attempt, wait_exponential
 
 # Identify honestly; no personal contact details (CLAUDE.md section 1).
-USER_AGENT = "JobifyBot/1.0 (+https://github.com/kushallj/job-finder)"
+USER_AGENT = "JobifyBot/1.0 (+https://github.com/devnoid1/Jobify)"
 TIMEOUT = 25.0
 
 # Tests swap this for httpx.MockTransport; production leaves it None.

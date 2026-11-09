@@ -10,6 +10,18 @@ from main import _to_job_data
 from datetime import datetime
 
 
+TEST_PROFILE = {
+    "skills": [
+        "React", "TypeScript", "Vite", "Python", "FastAPI", "PostgreSQL",
+        "LLM Integration", "Model Context Protocol (MCP)",
+        "Retrieval-Augmented Generation (RAG)", "Vector Databases",
+    ],
+    "years_of_experience": 4.5,
+    "target_locations": ["Remote", "Bengaluru"],
+    "preferred_work_modes": ["remote", "hybrid"],
+}
+
+
 def test_taxonomy_contains_modern_high_demand_skills():
     """Ensure modern high-demand AI, LLM, agentic, and web tech are part of the taxonomy."""
     assert "LLM Integration" in TECH_TAXONOMY
@@ -28,7 +40,7 @@ def test_taxonomy_contains_modern_high_demand_skills():
 
 def test_explainable_matcher_skill_partition():
     """Verify matched vs missing skills are correctly partitioned."""
-    matcher = ExplainableMatcherService()
+    matcher = ExplainableMatcherService(TEST_PROFILE)
     
     # Job requires React, TypeScript, Vite, CSS3, Figma
     result = matcher.compute_match(
@@ -55,7 +67,7 @@ def test_explainable_matcher_skill_partition():
 
 def test_explainable_matcher_ai_skills():
     """Verify modern AI skills (LLM Integration, MCP, RAG, Vector DBs) are matched."""
-    matcher = ExplainableMatcherService()
+    matcher = ExplainableMatcherService(TEST_PROFILE)
     
     result = matcher.compute_match(
         title="AI Engineer - Autonomous Agents & LLMs",
@@ -84,7 +96,7 @@ def test_explainable_matcher_ai_skills():
 
 def test_explainable_matcher_location_reasons():
     """Verify location reason adapts to remote, Bengaluru, or other locations."""
-    matcher = ExplainableMatcherService()
+    matcher = ExplainableMatcherService(TEST_PROFILE)
 
     # Remote
     res_remote = matcher.compute_match(title="Dev", location="Remote", has_remote=True)
@@ -113,9 +125,26 @@ def test_to_job_data_populates_explainable_fields():
     job_data = _to_job_data(mock_job)
     assert isinstance(job_data, JobData)
     assert job_data.match_score is not None
-    assert job_data.match_score > 50
-    assert "React" in job_data.matched_skills
-    assert "Python" in job_data.matched_skills
-    assert "FastAPI" in job_data.matched_skills
+    assert job_data.match_score == 0
+    assert job_data.matched_skills == []
+    assert "React" in job_data.missing_skills
+    assert "Python" in job_data.missing_skills
+    assert "FastAPI" in job_data.missing_skills
     assert len(job_data.reasons) == 3
-    assert any("verified skills" in r for r in job_data.reasons)
+    assert "Candidate profile is not configured" in job_data.reasons[0]
+
+
+def test_explainable_matcher_does_not_assume_candidate_facts():
+    result = ExplainableMatcherService().compute_match(
+        title="Senior Backend Engineer",
+        description="Python and PostgreSQL",
+        location="Remote",
+        has_remote=True,
+    )
+    assert result["score"] == 0
+    assert result["matched_skills"] == []
+    assert result["reasons"] == [
+        "Candidate profile is not configured",
+        "Seniority match is unavailable without candidate experience",
+        "Location preferences are not configured",
+    ]

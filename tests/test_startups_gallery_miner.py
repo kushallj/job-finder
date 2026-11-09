@@ -53,19 +53,19 @@ def test_search_and_filter_helpers():
 
 def test_compose_startups_gallery_outreach():
     miner = StartupsGalleryMiner()
+    miner.sender_name = ""
+    miner.sender_linkedin = ""
     contact = {
-        "name": "Kevin Tian",
-        "title": "Co-Founder & CEO",
-        "company": "Doppel",
-        "category": "AI",
-        "funding": "Raised $70M Series C",
+        "name": "Example Person",
+        "title": "Founder",
+        "company": "Example Company",
+        "category": "Software",
+        "funding": "Example funding",
     }
     subj, text, html = miner.compose_startups_gallery_outreach(contact)
-    assert "Doppel" in subj
-    assert "Kevin" in text
-    assert "Co-Founder & CEO" in text
-    assert "$70M Series C" in text
-    assert "Python, FastAPI, React" in text
+    assert "Example Company" in subj
+    assert "Hi Example," in text
+    assert "Python, FastAPI, React" not in text
     assert "<html>" in html
 
 

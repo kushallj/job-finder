@@ -63,39 +63,49 @@ class NextRaisePayloadBuilder:
             "work_authorization": cand.get("visa_status") or answers.get("work_authorization_india"),
             "sponsorship_required": answers.get("requires_sponsorship_india"),
             "years_of_experience": experience.get("years_total") or cand.get("experience_years"),
+            "availability": answers.get("earliest_start_date") or cand.get("availability"),
             "skills": list(stack.get("strong") or []) + list(stack.get("familiar") or []),
             "resume_raw": resume_text,
         }
 
     def generate_screening_answers(self, job: Job, candidate: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Generates intelligent answers to standard ATS screening questions."""
-        return [
-            {
-                "question": "Are you legally authorized to work in this location?",
-                "type": "boolean",
-                "answer": "Yes"
-            },
-            {
-                "question": "Will you now or in the future require visa sponsorship?",
-                "type": "boolean",
-                "answer": "No"
-            },
-            {
+        """Return answers only when supported by explicit candidate profile data."""
+        answers: List[Dict[str, Any]] = []
+        for field, question in (
+            ("work_authorization", "Are you legally authorized to work in this location?"),
+            ("sponsorship_required", "Will you now or in the future require visa sponsorship?"),
+        ):
+            value = candidate.get(field)
+            if isinstance(value, bool):
+                value = "Yes" if value else "No"
+            elif isinstance(value, str) and value.strip().casefold() in {"yes", "no"}:
+                value = value.strip().capitalize()
+            else:
+                continue
+            answers.append({"question": question, "type": "boolean", "answer": value})
+
+        years = candidate.get("years_of_experience")
+        if years is not None and str(years).strip():
+            answers.append({
                 "question": "How many years of experience do you have with modern backend technologies?",
                 "type": "numeric",
-                "answer": str(candidate.get("years_of_experience", 5))
-            },
-            {
+                "answer": str(years),
+            })
+
+        availability = candidate.get("availability")
+        if isinstance(availability, str) and availability.strip():
+            answers.append({
                 "question": "When is your earliest available start date?",
                 "type": "text",
-                "answer": "Immediately / 2 weeks notice"
-            },
-            {
-                "question": "Why are you interested in this position?",
-                "type": "text",
-                "answer": f"Excited by {job.company}'s engineering challenges and scaling {job.title} initiatives."
-            }
-        ]
+                "answer": availability.strip(),
+            })
+
+        answers.append({
+            "question": "Why are you interested in this position?",
+            "type": "text",
+            "answer": f"I am interested in applying for the {job.title} position at {job.company}.",
+        })
+        return answers
 
     def build_packet(
         self,
@@ -107,15 +117,16 @@ class NextRaisePayloadBuilder:
         candidate = self.load_candidate_profile(account_email)
         answers = self.generate_screening_answers(job, candidate)
 
-        # Generate tailored resume headline & cover letter
-        tailored_headline = f"{job.title} — {candidate['full_name']}"
+        tailored_headline = job.title
+        signature = "\n".join(
+            value for value in (candidate.get("full_name"), candidate.get("email")) if value
+        )
         cover_letter = (
             f"Dear Hiring Team at {job.company},\n\n"
-            f"I am writing to express my enthusiastic interest in the {job.title} position. "
-            f"With extensive hands-on experience across {', '.join(candidate['skills'][:6])}, "
-            f"I am confident in my ability to immediately contribute to {job.company}'s mission.\n\n"
+            f"I am writing to express my interest in the {job.title} position. "
+            "I would welcome the opportunity to discuss how my background aligns with the role.\n\n"
             f"Thank you for your consideration.\n\n"
-            f"Sincerely,\n{candidate['full_name']}\n{candidate['email']}"
+            f"Sincerely{',' if signature else ''}\n{signature}"
         )
 
         return {

@@ -375,77 +375,10 @@ class StartupsGalleryMiner(BaseCompanyMiner):
         return contacts
 
     def compose_startups_gallery_outreach(self, contact: Dict[str, Any]) -> Tuple[str, str, str]:
-        """Compose tailored cold email referencing company's recent funding, investors, and open jobs."""
-        first_name = contact["name"].split()[0] if contact.get("name") and not contact["name"].endswith("Founder") else "there"
-        company = contact.get("company", "your startup")
-        funding = contact.get("funding", "recent venture backing")
-        category = contact.get("category", "high-growth tech")
-        title = contact.get("title", "Founder")
-        investors_str = contact.get("investors_str", "")
-        jobs_count = contact.get("jobs_count", 0)
-        open_jobs = contact.get("open_jobs", [])
-
-        # Dynamic personalization referencing investors
-        investor_phrase = f" (backed by {investors_str})" if investors_str and investors_str != "Venture Backed" else ""
-        hiring_phrase = (
-            f"<p>I also saw {company} is actively scaling the engineering team with open roles in <strong>{', '.join(open_jobs[:2])}</strong>.</p>"
-            if jobs_count > 0 and open_jobs
-            else ""
-        )
-        hiring_text = (
-            f"\n\nI also saw {company} is actively scaling the engineering team with open roles in {', '.join(open_jobs[:2])}."
-            if jobs_count > 0 and open_jobs
-            else ""
-        )
-
-        subject = f"Engineering & Product Velocity at {company} — Kushall Jain"
-
-        body_text = f"""Hi {first_name},
-
-I've been tracking {company}'s notable growth in {category}{investor_phrase} (congratulations on {funding}).{hiring_text}
-
-I'm a Software Engineer specializing in Python, FastAPI, React, and building resilient, high-speed distributed systems. Fast-scaling startups with strong investor momentum need versatile engineers who can execute across 0-to-1 core features, scalable backends, and low-latency APIs.
-
-Given your leadership as {title}, I wanted to reach out directly to see if {company} is looking for a self-directed engineer to accelerate upcoming technical milestones.
-
-Key Highlights:
-• Full-stack architecture with FastAPI, Python, React & Next.js
-• Distributed caching, messaging pipelines, and database optimization (PostgreSQL, Redis, Kafka)
-• Startup velocity: high ownership, clean system design, and production reliability
-
-My LinkedIn: {self.sender_linkedin or ''}
-
-Would you be open to a brief 10-minute chat this week to see how my technical background aligns with {company}'s roadmaps?
-
-Best regards,
-{self.sender_name}
-Software Engineer
-{self.sender_linkedin or ''}
-"""
-
-        body_html = f"""<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1E293B; line-height: 1.6;">
-  <p>Hi {first_name},</p>
-  <p>I've been tracking <strong>{company}</strong>'s notable growth in <em>{category}</em>{investor_phrase} (congratulations on <strong>{funding}</strong>).</p>
-  {hiring_phrase}
-  <p>I'm a Software Engineer specializing in <strong>Python, FastAPI, React</strong>, and building resilient, high-speed distributed systems. Fast-scaling startups with strong investor momentum need versatile engineers who can execute across 0-to-1 core features, scalable backends, and low-latency APIs.</p>
-  <p>Given your leadership as <em>{title}</em>, I wanted to reach out directly to see if {company} is looking for a self-directed engineer to accelerate upcoming technical milestones.</p>
-  <p><strong>Key Highlights:</strong></p>
-  <ul>
-    <li>Full-stack architecture with FastAPI, Python, React & Next.js</li>
-    <li>Distributed caching, messaging pipelines, and database optimization (PostgreSQL, Redis, Kafka)</li>
-    <li>Startup velocity: high ownership, clean system design, and production reliability</li>
-  </ul>
-  <p>Would you be open to a brief 10-minute chat this week to see how my technical background aligns with {company}'s roadmaps?</p>
-  <p>Best regards,<br>
-  <strong>{self.sender_name}</strong><br>
-  <span style="color: #64748B;">Software Engineer</span><br>
-  <a href="{self.sender_linkedin or '#'}" style="color: #4F46E5;">{self.sender_linkedin or ''}</a>
-  </p>
-</body>
-</html>"""
-
-        return subject, body_text, body_html
+        """Compose neutral outreach without unconfigured candidate claims."""
+        company = contact.get("company") or "your company"
+        body_text, body_html = self.compose_interest_outreach(contact.get("name") or "", company)
+        return f"Engineering roles at {company}", body_text, body_html
 
     async def mine_and_store_startup(
         self,

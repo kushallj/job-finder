@@ -203,11 +203,9 @@ def test_jwt_nbf_future_validation():
 # 4. API Endpoints Integration Test
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_vc_api_endpoints():
+def test_vc_api_endpoints(legacy_auth_headers):
     """Verify VC FastAPI endpoints via TestClient with auth headers."""
-    from src.auth.jwt_handler import create_access_token
-    token = create_access_token(data={"sub": "1"})
-    auth_headers = {"Authorization": f"Bearer {token}"}
+    auth_headers = legacy_auth_headers
     client = TestClient(app)
 
     # 1. GET /api/vc/firms

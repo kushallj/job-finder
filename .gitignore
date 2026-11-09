@@ -50,9 +50,9 @@ ENV/
 # ===============================
 .env
 .env.*
-*.env
 !.env.example
 !.env.production.example
+*.env
 
 # ===============================
 # Logs
@@ -168,8 +168,8 @@ job311/
 # ===============================
 config/*
 # profile.yml is personal data: kept local, never committed
-!config/target_companies.yml
-!config/boolean_queries.yml
+!config/profile.example.yml
+!config/target_companies.example.yml
 .blackboxcli/
 .env
 .env

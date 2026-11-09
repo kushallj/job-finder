@@ -113,9 +113,9 @@ def compose_referral_request(
     company_name: str,
     role_title: Optional[str] = "Software Engineer",
     job_id_or_url: Optional[str] = None,
-    candidate_name: str = "Kushall Jain",
-    candidate_yoe: str = "3+",
-    tech_stack: str = "Python, FastAPI, distributed backend systems & PostgreSQL",
+    candidate_name: str = "",
+    candidate_yoe: str = "",
+    tech_stack: str = "",
 ) -> Dict[str, str]:
     """Compose crisp, high-conversion referral outreach message & LinkedIn note."""
     first_name = contact_name.split()[0] if contact_name else "there"
@@ -124,33 +124,31 @@ def compose_referral_request(
     level_str = f" ({comp.likely_level})" if comp else ""
 
     # Short LinkedIn Connection Request Note (<300 chars)
+    background_facts = [fact for fact in (f"{candidate_yoe} YOE" if candidate_yoe else "", tech_stack) if fact]
+    background = f"My background includes {', '.join(background_facts)}. " if background_facts else ""
     connection_note = (
-        f"Hi {first_name}, I follow {display_comp}'s engineering work. I'm a SWE with {candidate_yoe} YOE ({tech_stack}). "
-        f"I'm exploring {role_title} openings at {display_comp} and would love to connect!"
+        f"Hi {first_name}, I follow {display_comp}'s engineering work. "
+        f"{background}I'm exploring {role_title} openings at {display_comp} and would love to connect!"
     )[:298]
 
     # Full InMail / Email Referral Request Message
+    experience_line = f"Relevant background provided: {', '.join(background_facts)}." if background_facts else ""
+    identity_line = f"Best regards,\n{candidate_name}" if candidate_name else ""
     full_message = f"""Hi {first_name},
 
 Hope you are doing well!
 
-I noticed you're working as {comp.likely_level if comp else 'an Engineer'} at {display_comp}. I've been following {display_comp}'s engineering initiatives and product growth closely.
+I noticed you're working as {comp.likely_level if comp else 'an Engineer'} at {display_comp}. I'm interested in learning more about the engineering team.
 
-I am a Software Engineer with {candidate_yoe} years of experience building high-throughput REST APIs, asynchronous microservices, and distributed backend architectures ({tech_stack}).
-
-I came across the {role_title}{level_str} opening at {display_comp}{f' (Ref: {job_id_or_url})' if job_id_or_url else ''} and believe my technical background in scalable backend design is a direct fit for the team.
+I came across the {role_title}{level_str} opening at {display_comp}{f' (Ref: {job_id_or_url})' if job_id_or_url else ''}.
 
 Would you be open to submitting a quick internal referral for my profile?
 
-I've attached a 2-line summary and links below to make it effortless for you:
-• Role: {role_title}
-• Experience: {candidate_yoe} YOE in backend engineering, database optimization, and cloud services
-• Profile / Portfolio: https://github.com/kushallj | https://linkedin.com/in/kushall-jain-263009261
+{experience_line}
 
 Thank you so much for your time and help!
 
-Best regards,
-{candidate_name}
+{identity_line}
 """
 
     return {

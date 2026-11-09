@@ -205,6 +205,25 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip)
 
 
+@pytest.fixture
+def legacy_auth_headers():
+    """Bearer headers for a real (HS256 legacy) user. Tests used to mint a token for user id 1
+    and pass only when an earlier test had happened to create that user."""
+    import uuid
+
+    from src.auth.jwt_handler import create_access_token
+    from src.database import SessionLocal
+    from src.models import User
+
+    with SessionLocal() as db:
+        user = User(email=f"legacy-{uuid.uuid4().hex[:10]}@example.com", hashed_password="x",
+                    full_name="Legacy Test User", is_active=True)
+        db.add(user)
+        db.commit()
+        user_id = user.id
+    return {"Authorization": f"Bearer {create_access_token(data={'sub': str(user_id)})}"}
+
+
 @pytest.fixture(autouse=True)
 def _example_candidate_identity(monkeypatch):
     """ATS integrations read the candidate's email from the environment (no hardcoded

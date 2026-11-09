@@ -60,19 +60,19 @@ def test_google_dorking_engine():
 
 def test_corporate_pattern_synthesizer():
     synth = CorporatePatternSynthesizer()
-    first, last = synth.tokenize_name("Kushall Jain")
-    assert first == "kushall"
-    assert last == "jain"
+    first, last = synth.tokenize_name("Example Candidate")
+    assert first == "example"
+    assert last == "candidate"
 
-    perms = synth.generate_permutations("Kushall Jain", domain="company.com", has_mx=True)
+    perms = synth.generate_permutations("Example Candidate", domain="company.com", has_mx=True)
     assert len(perms) == 12
     emails = [p.email for p in perms]
-    assert "kushall.jain@company.com" in emails
-    assert "kushall@company.com" in emails
-    assert "kjain@company.com" in emails
+    assert "example.candidate@company.com" in emails
+    assert "example@company.com" in emails
+    assert "examplec@company.com" in emails
 
     # Pattern learning
-    synth.learn_pattern_from_sample("kushall.jain@company.com", "Kushall Jain")
+    synth.learn_pattern_from_sample("example.candidate@company.com", "Example Candidate")
     learned_perms = synth.generate_permutations("Sarah Connor", domain="company.com", has_mx=True)
     assert learned_perms[0].email == "sarah.connor@company.com"
     assert learned_perms[0].confidence_score >= 90.0

@@ -37,7 +37,7 @@ class InstagramMessageRequest(BaseModel):
     company: str = Field(...)
     name: str = Field(...)
     role_title: str = Field(...)
-    portfolio_link: Optional[str] = Field(default="https://kushall.in")
+    portfolio_link: Optional[str] = None
 
 
 class InstagramMessageResponse(BaseModel):

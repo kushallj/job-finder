@@ -199,7 +199,7 @@ def test_auto_advance_pipeline_interview_invitation(test_db_session):
     # 2. Connect candidate mailbox
     mailbox = service.connect_mailbox(
         provider="gmail",
-        email_address="candidate@gmail.com",
+        email_address="candidate@example.com",
     )
     assert mailbox.id is not None
     assert mailbox.is_connected is True

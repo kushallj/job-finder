@@ -38,15 +38,15 @@ def test_generate_referral_xray_queries():
 
 def test_compose_referral_request():
     msg = compose_referral_request(
-        contact_name="Aarav Sharma",
+        contact_name="Example Person",
         company_name="Rubrik",
         role_title="Software Engineer - Cloud Systems",
         job_id_or_url="https://rubrik.com/jobs/123",
-        candidate_name="Kushall Jain"
+        candidate_name="Example Candidate"
     )
     assert len(msg["connection_note_300chars"]) <= 300
     assert "Rubrik" in msg["connection_note_300chars"]
-    assert "Kushall Jain" in msg["full_referral_message"]
+    assert "Example Candidate" in msg["full_referral_message"]
     assert "Software Engineer - Cloud Systems" in msg["full_referral_message"]
     assert "https://rubrik.com/jobs/123" in msg["full_referral_message"]
 
@@ -86,8 +86,8 @@ async def test_search_company_referral_contacts_serpapi(monkeypatch):
         return httpx.Response(200, json={
             "organic_results": [
                 {
-                    "title": "Rajesh Kumar - Staff Software Engineer - Rubrik | LinkedIn",
-                    "link": "https://www.linkedin.com/in/rajesh-kumar-swe",
+                    "title": "Example Person - Staff Software Engineer - Rubrik | LinkedIn",
+                    "link": "https://www.linkedin.com/in/example",
                     "snippet": "Staff Software Engineer at Rubrik Bangalore building cloud data management."
                 }
             ]
@@ -95,7 +95,7 @@ async def test_search_company_referral_contacts_serpapi(monkeypatch):
 
     leads = await search_company_referral_contacts("Rubrik", max_leads=5, transport=httpx.MockTransport(handler))
     assert len(leads) == 1
-    assert leads[0]["name"] == "Rajesh Kumar"
+    assert leads[0]["name"] == "Example Person"
     assert leads[0]["role"] == "Staff Software Engineer"
     assert leads[0]["company"] == "Rubrik"
-    assert "linkedin.com/in/rajesh-kumar-swe" in leads[0]["linkedin_url"]
+    assert "linkedin.com/in/example" in leads[0]["linkedin_url"]

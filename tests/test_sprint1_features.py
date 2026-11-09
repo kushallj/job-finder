@@ -30,7 +30,7 @@ def test_interviewer_profiler_service_fintech():
 
 
 def test_interviewer_profiler_agent_run():
-    ctx = AgentContext.load()
+    ctx = AgentContext()
     agent = InterviewerProfilerAgent(context=ctx)
     result = agent.run(interviewer_name="Sarah Jenkins", company_name="Walmart Global Tech", role="VP of Engineering")
     assert result.ok is True

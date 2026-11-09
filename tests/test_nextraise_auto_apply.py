@@ -37,6 +37,29 @@ def db_session():
     session.close()
 
 
+@pytest.fixture(autouse=True)
+def isolated_candidate_profile(tmp_path, monkeypatch):
+    """Keep application tests independent of developer profile and resume files."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("NEXTRAISE_EMAIL", "candidate@example.com")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "profile.yml").write_text(
+        "candidate:\n"
+        "  full_name: Example Candidate\n"
+        "  email: candidate@example.com\n"
+        "  visa_status: Yes\n"
+        "  availability: Two weeks\n"
+        "application_answers:\n"
+        "  requires_sponsorship_india: false\n"
+        "experience:\n"
+        "  years_total: 3\n"
+        "tech_stack:\n"
+        "  strong: [Python]\n",
+        encoding="utf-8",
+    )
+
+
 def test_ats_detection_for_nextraise():
     """Verify ATS detection across top multi-ATS portals."""
     test_cases = [
@@ -74,7 +97,7 @@ async def test_nextraise_client_autonomous_submission():
     
     packet = {
         "job": {"id": 101, "company": "Databricks", "title": "Senior Systems Engineer", "url": "https://jobs.lever.co/databricks/101"},
-        "candidate": {"full_name": "Kushall Jain", "email": "candidate@example.com"},
+        "candidate": {"full_name": "Example Candidate", "email": "candidate@example.com"},
         "answers": [{"question": "Are you legally authorized to work?", "answer": "Yes, I am fully authorized to work."}],
         "tailored_resume_text": "Experienced Python/FastAPI and Distributed Systems Engineer...",
         "cover_letter_text": "Dear Hiring Team at Databricks...",
@@ -108,7 +131,7 @@ async def test_nextraise_payload_builder(db_session):
     assert packet["candidate"]["email"] == "candidate@example.com"
     assert packet["job"]["company"] == "Uber"
     assert packet["job"]["ats_type"] == "workday"
-    assert len(packet["answers"]) >= 3
+    assert len(packet["answers"]) == 5
     assert "Uber" in packet["cover_letter_text"]
 
 

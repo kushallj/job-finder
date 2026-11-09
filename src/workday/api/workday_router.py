@@ -291,7 +291,9 @@ async def resolve_form_question(
     in-flight using UnifiedAIService.
     """
     service = WorkdayService(db)
-    full_name = f"{service.profile.first_name} {service.profile.last_name}".strip() or "Kushall Jain"
+    full_name = " ".join(
+        part for part in (service.profile.first_name, service.profile.last_name) if part
+    )
     candidate_ctx = {
         "name": full_name,
         "resume_summary": (
@@ -481,5 +483,4 @@ def delete_learned_answer(
     db.delete(entry)
     db.commit()
     return {"status": "deleted", "id": answer_id, "message": "Answer removed from Answer Bank."}
-
 

@@ -3,14 +3,9 @@ Unit tests for the Undetectable AI Interview Assistant (Sidekick / Ghost Copilot
 Tests sub-microsecond Trie lookups, hybrid RAG semantic search, and API endpoints.
 """
 import os
-import time
-import pytest
-from fastapi.testclient import TestClient
 
-from main import app
 from src.sidekick.brain.trie_matcher import InterviewKnowledgeTrie
 from src.sidekick.brain.rag_retriever import HybridRAGRetriever
-from src.sidekick.native import is_invisibility_supported, set_window_invisible
 
 BANK_PATH = os.path.join(os.path.dirname(__file__), "..", "src", "sidekick", "knowledge", "interview_bank.json")
 
@@ -50,35 +45,8 @@ def test_hybrid_rag_semantic_search():
     assert latency_ms < 50.0  # In-memory RAG runs in milliseconds
     assert any(term in top_doc["id"].lower() or term in top_doc["title"].lower() for term in ["rate_limiter", "kafka", "ddos", "secure", "server", "traffic", "hashing", "system"])
 
-
-def test_sidekick_api_endpoints(clerk_auth):
-    # The sidekick router is mounted with get_current_user: every call needs a token.
-    client = TestClient(app, headers=clerk_auth.headers(sub="user_sidekick", email="sidekick@example.com"))
-    
-    # 1. Status
-    res = client.get("/api/sidekick/status")
-    assert res.status_code == 200
-    data = res.json()
-    assert data["status"] == "online"
-    assert data["total_trie_indexed_keys"] >= 10
-
-    # 2. Query
-    res = client.post("/api/sidekick/query", json={"query": "LRU Cache"})
-    assert res.status_code == 200
-    q_data = res.json()
-    assert q_data["source"] in ["trie_exact_match", "hybrid_rag_retrieval", "generative_llm_stream"]
-    assert len(q_data["bullets"]) >= 1
-
-    # 3. Invisibility check
-    inv_res = client.post("/api/sidekick/window/set-invisible", json={"window_title": "Test Window"})
-    assert inv_res.status_code == 200
-    assert "status" in inv_res.json()
-
-    # 4. Bank
-    bank_res = client.get("/api/sidekick/bank")
-    assert bank_res.status_code == 200
-    assert bank_res.json()["total_documents"] >= 5
-
+# test_sidekick_api_endpoints removed: the sidekick HTTP API (screen-share-invisible
+# interview HUD) is unmounted from main.py; the trie/RAG engines above remain tested.
 
 def test_dynamic_custom_question_indexing():
     trie = InterviewKnowledgeTrie()

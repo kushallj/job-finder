@@ -836,12 +836,6 @@ if _AGENTS_ROUTER_OK:
     app.include_router(agents_router, dependencies=protected_deps)
 
 try:
-    from src.sidekick.api.sidekick_router import router as sidekick_router
-    app.include_router(sidekick_router, dependencies=protected_deps)
-except Exception as e:
-    log.warning(f"Could not load sidekick_router: {e}")
-
-try:
     from src.nextraise.api.nextraise_router import router as nextraise_router
     app.include_router(nextraise_router, dependencies=protected_deps)
 except Exception as e:
@@ -3783,6 +3777,13 @@ async def tailor_resume_bullets_with_attention(request: AttentionTailorRequest, 
 @app.post("/api/attention/outreach", tags=["attention"], response_model=AttentionOutreachResponse)
 async def generate_cross_attention_outreach(request: AttentionOutreachRequest, req: Request):
     """Cross-attends target contact persona against candidate portfolio wins to generate personalized hooks."""
+    from src.attention.tokenizer import clause_tokenizer
+
+    if not clause_tokenizer.extract_keys_and_values()[0]:
+        raise HTTPException(
+            status_code=422,
+            detail="Candidate profile evidence is required before generating personalized outreach.",
+        )
     try:
         result = attention_service.synthesize_outreach_hooks(
             contact_name=request.contact_name,
@@ -4197,7 +4198,7 @@ async def find_tier1_referral_contacts(payload: Tier1ReferralRequest):
                 company_name=payload.company_name,
                 role_title=payload.role_title or "Software Engineer",
                 job_id_or_url=payload.job_id_or_url,
-                candidate_name=getattr(settings, "sender_name", "Kushall Jain") or "Kushall Jain",
+                candidate_name=getattr(settings, "sender_name", "") or "",
             )
             enriched_leads.append({
                 **lead,

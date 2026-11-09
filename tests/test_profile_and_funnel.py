@@ -21,9 +21,9 @@ def db_session():
 def test_profile_extraction_from_raw_text(db_session):
     service = ProfileService(db=db_session)
     sample_resume = """
-    Aarav Sharma
-    aarav.sharma@example.com | +91 9876543210
-    https://linkedin.com/in/aarav-sharma | https://github.com/aaravsharma
+    Candidate Example
+    candidate@example.com | +1 202-555-0147
+    https://linkedin.com/in/example | https://github.com/example
     
     Summary:
     Full stack software engineer with 4 years of experience building Python and React applications.
@@ -32,11 +32,11 @@ def test_profile_extraction_from_raw_text(db_session):
     Languages & Frameworks: Python, FastAPI, React, TypeScript, Docker, Kubernetes, PostgreSQL, Redis
     """
     extracted = service.extract_profile_from_text(sample_resume)
-    assert extracted["full_name"] == "Aarav Sharma"
-    assert extracted["email"] == "aarav.sharma@example.com"
-    assert extracted["phone"] == "+91 9876543210"
-    assert "linkedin.com/in/aarav-sharma" in extracted["linkedin_url"]
-    assert "github.com/aaravsharma" in extracted["github_url"]
+    assert extracted["full_name"] == "Candidate Example"
+    assert extracted["email"] == "candidate@example.com"
+    assert extracted["phone"] == "+1 202-555-0147"
+    assert "linkedin.com/in/example" in extracted["linkedin_url"]
+    assert "github.com/example" in extracted["github_url"]
     assert "Python" in extracted["skills"]
     assert "FastAPI" in extracted["skills"]
     assert "React" in extracted["skills"]

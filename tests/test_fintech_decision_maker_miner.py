@@ -11,37 +11,39 @@ from src.company_sources.registries.fintech_festival_companies import FinTechFes
 
 def test_email_synthesis_and_phone_extraction():
     miner = FinTechDecisionMakerMiner()
-    email1 = miner.synthesize_candidate_email("Vimal Kumar", "juspay.in")
-    assert email1 == "vimal.kumar@juspay.in"
+    email1 = miner.synthesize_candidate_email("Example Person", "example.com")
+    assert email1 == "example.person@example.com"
 
-    email2 = miner.synthesize_candidate_email("Sheetal", "juspay.in")
-    assert email2 == "sheetal@juspay.in"
+    email2 = miner.synthesize_candidate_email("Sample", "example.com")
+    assert email2 == "sample@example.com"
 
-    text_with_phone = "Contact our Bangalore office at +91 9876543210 or email info@juspay.in"
+    text_with_phone = "Contact the office at +1 202-555-0147 or email info@example.com"
     phone = miner.extract_phone(text_with_phone)
     assert phone is not None
-    assert "9876543210" in phone
+    assert "202" in phone
 
 
 def test_compose_personalized_outreach():
     miner = FinTechDecisionMakerMiner()
+    miner.sender_name = ""
+    miner.sender_linkedin = ""
     dm = DecisionMakerContact(
-        company="Juspay",
-        name="Vimal Kumar",
+        company="Example Company",
+        name="Example Person",
         title="Founder & CEO",
-        domain="juspay.in",
-        email="vimal.kumar@juspay.in",
-        phone_number="+91 9876543210",
-        linkedin_url="https://in.linkedin.com/in/kumarvimal",
+        domain="example.com",
+        email="example.person@example.com",
+        phone_number="+1 202-555-0147",
+        linkedin_url="https://linkedin.com/in/example",
         confidence_score=95,
     )
 
     subject, body_text, body_html = miner.compose_personalized_outreach(dm)
-    assert "Juspay" in subject
-    assert "Vimal" in body_text
-    assert "Founder & CEO" in body_text
-    assert "Python, FastAPI, React" in body_text
-    assert "linkedin.com" in body_text
+    assert "Example Company" in subject
+    assert "Hi Example," in body_text
+    assert "hiring for engineering roles" in body_text
+    assert "Python, FastAPI, React" not in body_text
+    assert "Naveen" not in body_text
     assert "<html>" in body_html
 
 
@@ -49,8 +51,8 @@ def test_compose_personalized_outreach():
 async def test_search_company_decision_makers_mock():
     miner = FinTechDecisionMakerMiner()
     comp = FinTechFestivalCompany(
-        "juspay", "Juspay", "Payments & Gateways", "Global FinTech Fest (GFF)",
-        "Gold Sponsor", "greenhouse", "juspay", "https://juspay.in", "juspay.in"
+        "example", "Example Company", "Payments & Gateways", "Example Event",
+        "Sponsor", "greenhouse", "example", "https://example.com", "example.com"
     )
 
     # Search (will gracefully handle API key or network)
@@ -58,8 +60,8 @@ async def test_search_company_decision_makers_mock():
     assert isinstance(contacts, list)
     if contacts:
         for c in contacts:
-            assert c.company == "Juspay"
-            assert "@juspay.in" in c.email
+            assert c.company == "Example Company"
+            assert "@example.com" in c.email
             assert c.title is not None
 
 def test_role_priority_ranking():
