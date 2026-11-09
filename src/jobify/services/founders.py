@@ -149,6 +149,7 @@ def company_ui(company: PortfolioCompany, founders: list[CompanyFounder], firm: 
         "id": str(company.id),
         "name": company.name,
         "website": website,
+        "logo": company.logo_url or None,
         "location": (company.location or "").split("·")[0].strip() or (country if country != "Unknown" else ""),
         "country": country,
         "industry": tags[0] if tags else "Other",

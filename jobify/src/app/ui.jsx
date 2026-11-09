@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { X, ChevronLeft, ChevronRight, Check, AlertCircle, Inbox } from "lucide-react";
 import { cn } from "../lib/utils.js";
 import { useApp } from "./AppProvider.jsx";
@@ -33,14 +33,21 @@ export function Badge({ tone = "neutral", className, children }) {
   return <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap", t, className)}>{children}</span>;
 }
 
-export function Avatar({ label, color = "#E9E9E9", fg = "#444", size = 32, square, className }) {
+export function Avatar({ label, color = "#E9E9E9", fg = "#444", size = 32, square, className, src }) {
+  // Optional image (e.g. a scraped company logo). A missing or broken image falls back to the label.
+  const [broken, setBroken] = useState(false);
+  const showImage = Boolean(src) && !broken;
   return (
     <span
       aria-hidden="true"
-      style={{ width: size, height: size, background: color, color: fg, fontSize: size * 0.38 }}
-      className={cn("shrink-0 inline-flex items-center justify-center font-semibold", square ? "rounded-lg" : "rounded-full", className)}
+      style={{ width: size, height: size, background: showImage ? "#fff" : color, color: fg, fontSize: size * 0.38 }}
+      className={cn("shrink-0 inline-flex items-center justify-center font-semibold", square ? "rounded-lg" : "rounded-full",
+        showImage && "overflow-hidden border border-[#E7E7E7]", className)}
     >
-      {label}
+      {showImage ? (
+        <img src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer"
+             onError={() => setBroken(true)} className="w-full h-full object-contain p-1" />
+      ) : label}
     </span>
   );
 }

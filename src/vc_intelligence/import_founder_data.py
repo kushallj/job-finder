@@ -32,7 +32,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from sqlalchemy.orm import Session
 
-from src.models import CompanyFounder, PortfolioCompany, VCFirm
+from src.models import CompanyFounder, PortfolioCompany, VCFirm, fit_to_columns
 
 log = logging.getLogger("vc_intelligence.import")
 REPO = Path(__file__).resolve().parents[2]
@@ -100,6 +100,9 @@ class Importer:
         # added earlier in this run (the same person often appears in several batches).
         self.founders: Dict[tuple, CompanyFounder] = {
             (f.company_id, f.full_name.strip().lower()): f for f in db.query(CompanyFounder)}
+        from src.vc_intelligence.logo_scraper import load_logos
+
+        self.logos = load_logos()  # domain -> {logo_url, source}; empty until the scraper has run
         self.stats = {"firms": 0, "companies_created": 0, "companies_updated": 0, "founders_created": 0,
                       "founders_updated": 0, "placeholders_skipped": 0}
 
@@ -137,10 +140,14 @@ class Importer:
             if domain and not c.domain:
                 c.domain = domain
                 self._index(c)
+        # Clip to column lengths (Postgres rejects over-long values; the source data is unchanged).
+        fields = fit_to_columns(PortfolioCompany, fields)
         for k, v in fields.items():  # fill blanks only; first good value wins
             current = getattr(c, k, None)
             if v not in (None, "", [], "[]") and current in (None, "", "[]", "{}"):  # "[]" is a column default
                 setattr(c, k, v)
+        if c.domain and not c.logo_url:  # scraped by src/vc_intelligence/logo_scraper.py
+            c.logo_url = (self.logos.get(c.domain.lower()) or {}).get("logo_url")
         return c
 
     def founder(self, company: PortfolioCompany, name: str, title: Optional[str], email: Optional[str],

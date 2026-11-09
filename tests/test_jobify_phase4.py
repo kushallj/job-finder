@@ -47,10 +47,10 @@ def data(db_session):
     db_session.add_all([fresh, zepto, stripe])
     db_session.flush()
     db_session.add_all([
-        CompanyFounder(company_id=fresh.id, full_name="Girish Mathrubootham", title="Founder & CEO", email="girish@freshworks.com",
-                       linkedin_url="https://linkedin.com/in/girish", twitter_handle="@mrgirish"),
-        CompanyFounder(company_id=fresh.id, full_name="Shan Krishnasamy", title="Co-founder", email="shan@freshworks.com"),
-        CompanyFounder(company_id=zepto.id, full_name="Aadit Palicha", title="CEO", email="aadit@zeptonow.com"),
+        CompanyFounder(company_id=fresh.id, full_name="Example Founder", title="Founder & CEO", email="founder@example.com",
+                       linkedin_url="https://linkedin.com/in/example", twitter_handle="@example"),
+        CompanyFounder(company_id=fresh.id, full_name="Sample Founder", title="Co-founder", email="sample@example.com"),
+        CompanyFounder(company_id=zepto.id, full_name="Demo Founder", title="CEO", email="demo@example.com"),
     ])
     db_session.add(Job(job_id="j1", title="Backend Engineer", company="Freshworks", url="https://x"))
     db_session.commit()
@@ -74,19 +74,19 @@ def test_list_shape_and_derived_fields(client, clerk_auth, data):
     assert set(body) == {"items", "total", "page", "pageSize"} and body["total"] == 3
     by = {c["name"]: c for c in body["items"]}
     fresh = by["Freshworks"]
-    assert set(fresh) == {"id", "name", "website", "location", "country", "industry", "description", "hiring", "founders"}
+    assert set(fresh) == {"id", "name", "website", "logo", "location", "country", "industry", "description", "hiring", "founders"}
     assert (fresh["country"], fresh["industry"], fresh["hiring"], fresh["website"]) == ("India", "Enterprise SaaS", True, "https://freshworks.com")
     assert by["Zepto"]["country"] == "India" and by["Zepto"]["industry"] == "Consumer"   # .in ccTLD, comma tags
     assert by["Stripe"]["country"] == "Unknown" and by["Stripe"]["location"] == ""      # global VC, .com: not guessed
     g = fresh["founders"][0]
-    assert g == {"id": g["id"], "name": "Girish Mathrubootham", "initials": "GM", "role": "Founder & CEO",
-                 "linkedin": "https://linkedin.com/in/girish", "x": "https://x.com/mrgirish"}
+    assert g == {"id": g["id"], "name": "Example Founder", "initials": "EF", "role": "Founder & CEO",
+                 "linkedin": "https://linkedin.com/in/example", "x": "https://x.com/example"}
     assert fresh["founders"][1]["linkedin"] is None
 
 
 def test_emails_never_in_list_before_unlock(client, clerk_auth, data):
     raw = client.get("/api/founders", headers=_auth(clerk_auth)).text
-    assert "@freshworks.com" not in raw and "@zeptonow.com" not in raw and '"email"' not in raw
+    assert "@example.com" not in raw and '"email"' not in raw
 
 
 def test_filters_search_and_pagination(client, clerk_auth, data):
@@ -95,7 +95,7 @@ def test_filters_search_and_pagination(client, clerk_auth, data):
     assert names(country="India") == ["Freshworks", "Zepto"]
     assert names(industry="Fintech") == ["Stripe"]
     assert names(hiringOnly="true") == ["Freshworks"]
-    assert names(q="aadit") == ["Zepto"]          # founder name search
+    assert names(q="demo") == ["Zepto"]          # founder name search
     assert names(q="itsm") == ["Freshworks"]       # description search
     page2 = _list(client, h, page=2, pageSize=2)
     assert (page2["total"], len(page2["items"]), page2["page"]) == (3, 1, 2)
@@ -113,13 +113,13 @@ def test_unlock_charges_once_and_reveals_emails(client, clerk_auth, db_session, 
     assert res.status_code == 200
     body = res.json()
     assert body["ok"] is True and body["cost"] == 5 and body["state"]["unlocked"] == [str(cid)]
-    assert [f["email"] for f in body["company"]["founders"]] == ["girish@freshworks.com", "shan@freshworks.com"]
+    assert [f["email"] for f in body["company"]["founders"]] == ["founder@example.com", "sample@example.com"]
     assert client.get("/api/me/subscription", headers=h).json()["creditsRemaining"] == 45
     again = client.post(f"/api/founders/{cid}/unlock", headers=h).json()
     assert again["cost"] == 0
     assert client.get("/api/me/subscription", headers=h).json()["creditsRemaining"] == 45
     listed = {c["name"]: c for c in _list(client, h)["items"]}
-    assert listed["Freshworks"]["founders"][0]["email"] == "girish@freshworks.com"
+    assert listed["Freshworks"]["founders"][0]["email"] == "founder@example.com"
     assert "email" not in listed["Zepto"]["founders"][0]      # other companies stay locked
     tx = db_session.query(CreditTransaction).filter(CreditTransaction.action == "founder_unlock").all()
     assert len(tx) == 1 and tx[0].amount == -5
@@ -134,7 +134,7 @@ def test_unlock_without_credits_is_402_and_reveals_nothing(client, clerk_auth, d
     res = client.post(f"/api/founders/{data['fresh'].id}/unlock", headers=h)
     assert res.status_code == 402 and res.json()["error"]["code"] == "CREDITS_REQUIRED"
     assert db_session.query(FounderUnlock).count() == 0
-    assert "@freshworks.com" not in client.get("/api/founders", headers=h).text
+    assert "@example.com" not in client.get("/api/founders", headers=h).text
     db_session.refresh(user)
     assert user.credits_balance == 3
 
@@ -142,7 +142,7 @@ def test_unlock_without_credits_is_402_and_reveals_nothing(client, clerk_auth, d
 def test_unlock_is_per_user(client, clerk_auth, data):
     a, b = _auth(clerk_auth, "a"), _auth(clerk_auth, "b")
     client.post(f"/api/founders/{data['fresh'].id}/unlock", headers=a)
-    assert "@freshworks.com" not in client.get("/api/founders", headers=b).text
+    assert "@example.com" not in client.get("/api/founders", headers=b).text
     assert client.get("/api/me/founders/state", headers=b).json() == {"saved": [], "unlocked": []}
 
 
@@ -207,12 +207,12 @@ def test_import_real_repo_datasets_idempotent_and_honest(db_session):
 def test_placeholder_detection_and_email_confidence():
     from src.vc_intelligence.import_founder_data import email_confidence, is_placeholder
 
-    assert is_placeholder("Reevo Founder", "founder@reevo.com", None)
+    assert is_placeholder("Example Founder", "founder@example.com", None)
     assert is_placeholder("Jane Doe", "hello@x.com", None)
     assert is_placeholder("Jane Doe", "jane@x.com", "https://linkedin.com/company/x")
-    assert not is_placeholder("Kevin Tian", "kevin.tian@doppel.com", "https://linkedin.com/in/ktian00")
-    assert email_confidence("Kevin Tian", "kevin.tian@doppel.com") == 0.3   # pure name pattern = guess
-    assert email_confidence("Kevin Tian", "kt@doppel.com") == 0.5
+    assert not is_placeholder("Example Person", "example.person@example.com", "https://linkedin.com/in/example")
+    assert email_confidence("Example Person", "example.person@example.com") == 0.3   # pure name pattern = guess
+    assert email_confidence("Example Person", "ep@example.com") == 0.5
 
 
 def test_stored_location_wins_and_companies_with_founders_first(client, clerk_auth, db_session, data):

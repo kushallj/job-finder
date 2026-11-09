@@ -83,7 +83,7 @@ export default function FoundersPage() {
             <article key={co.id} className="rounded-xl border border-[#E7E7E7] bg-white overflow-hidden">
               <div className="p-4">
                 <div className="flex items-start gap-3">
-                  <Avatar label={co.name[0]} color={co.color} fg="#fff" square size={40} />
+                  <Avatar label={co.name[0]} color={co.color} fg="#fff" square size={40} src={co.logo} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5"><h2 className="text-[14px] font-semibold truncate">{co.name}</h2>
                       <a href={co.website} target="_blank" rel="noreferrer noopener" aria-label={`${co.name} website (demo placeholder)`} className="text-[#A0A0A0] hover:text-[#161616]"><ExternalLink className="w-3 h-3" /></a></div>

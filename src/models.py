@@ -449,20 +449,20 @@ class CandidateProfile(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_identifier = Column(String(255), default="default_user", unique=True, index=True)
-    username = Column(String(100), unique=True, index=True, nullable=True)  # Public slug e.g. "kushal"
+    username = Column(String(100), unique=True, index=True, nullable=True)
     full_name = Column(String(255), nullable=False)
     headline = Column(String(500), nullable=True)  # e.g. "Staff AI / Frontend Engineer — Distributed Systems & LLM Tooling"
     email = Column(String(255), nullable=False)
     phone = Column(String(100), nullable=True)
-    location = Column(String(255), default="Remote")
+    location = Column(String(255), nullable=True)
     linkedin_url = Column(String(500), nullable=True)
     github_url = Column(String(500), nullable=True)
-    github_username = Column(String(100), nullable=True)  # e.g. "kushalljain"
+    github_username = Column(String(100), nullable=True)
     portfolio_url = Column(String(500), nullable=True)
     avatar_url = Column(String(500), nullable=True)
     custom_domain = Column(String(255), nullable=True)
-    is_public = Column(Boolean, default=True)
-    years_of_experience = Column(Float, default=3.0)
+    is_public = Column(Boolean, default=False)
+    years_of_experience = Column(Float, nullable=True)
     current_title = Column(String(255), nullable=True)
     bio_summary = Column(Text, nullable=True)
     skills = Column(Text, default="[]")  # JSON array of skills e.g. ["Python", "FastAPI", "React"]
@@ -544,6 +544,7 @@ class PortfolioCompany(Base):
     slug = Column(String(255), nullable=False, index=True)
     domain = Column(String(255), nullable=True, index=True)
     website = Column(String(500), nullable=True)
+    logo_url = Column(Text, nullable=True)  # data/company_logos.json (src/vc_intelligence/logo_scraper.py)
     description = Column(Text, nullable=True)
     batch_or_year = Column(String(100), nullable=True)  # e.g. "W24", "Series A 2023"
     funding_stage = Column(String(100), nullable=True)  # Seed, Early Stage, Series A, Growth
@@ -838,4 +839,3 @@ def fit_to_columns(model, values: dict) -> dict:
         if limit and isinstance(value, str) and len(value) > limit:
             out[column.name] = value[:limit]
     return out
-
