@@ -62,6 +62,9 @@ except Exception:
 
 _MY_TAGLINE = (getattr(_cfg, "tagline", None) or "") if "_cfg" in dir() else ""
 
+# Shown when there is no resume to draw facts from; the user fills it in before approving.
+_BACKGROUND_PLACEHOLDER = "[One line on your background: role, years, stack]"
+
 
 class EmailComposer:
     """
@@ -96,7 +99,8 @@ class EmailComposer:
 
         # ── Body ──────────────────────────────────────────────────────────────
         body = self._compose_body(
-            first_name, best_hook, achievement, company, jd, role_title
+            first_name, best_hook, achievement, company, jd, role_title,
+            background=_background(resume, jd),
         )
 
         # ── Subjects (A/B pool) ───────────────────────────────────────────────
@@ -139,7 +143,7 @@ class EmailComposer:
         role_title  = getattr(jd, "role_focus", "Software Engineer").title()
         achievement = _best_achievement(resume, jd) if resume else ""
         best_hook   = hooks[0].text if hooks else ""
-        top_skills  = ", ".join(getattr(jd, "required_skills", [])[:3])
+        top_skills  = ", ".join(_resume_skills(resume, jd))  # only skills the resume backs up
         pain_point  = (getattr(jd, "pain_points", []) or [""])[0]
 
         paragraphs = []
@@ -158,16 +162,10 @@ class EmailComposer:
         if achievement:
             para2 = (
                 f"In my recent role, {achievement}. "
-                f"I bring hands-on experience with {top_skills or 'the core stack you use'}, "
-                f"having built and maintained production systems serving real users at scale."
+                + (f"I bring hands-on experience with {top_skills}." if top_skills else "")
             )
         else:
-            para2 = (
-                f"I bring 3+ years of experience building production-grade systems in Python, "
-                f"FastAPI, and React — covering backend APIs, async pipelines, and data-heavy "
-                f"applications. My most recent work at Progfin touched fintech compliance "
-                f"infra and real-time data pipelines."
-            )
+            para2 = f"{_background(resume, jd)}."
         paragraphs.append(para2)
 
         # Para 3: Role-specific fit
@@ -207,6 +205,7 @@ class EmailComposer:
         company:     CompanyProfile,
         jd:          "JDAnalysis",
         role_title:  str,
+        background:  str = _BACKGROUND_PLACEHOLDER,
     ) -> str:
         role_title_str = role_title or "Software Engineer"
         lines = [f"Hi {first_name},", ""]
@@ -222,16 +221,8 @@ class EmailComposer:
         lines.append("")
 
         # Line 2: Who I am + achievement
-        if achievement:
-            lines.append(
-                f"I'm a software engineer with 3+ years in Python/FastAPI/React. "
-                f"Most recently: {_truncate(achievement, 80)}."
-            )
-        else:
-            lines.append(
-                f"I'm a software engineer with 3+ years building production systems "
-                f"in Python, FastAPI, and React — most recently at Progfin (fintech)."
-            )
+        # Facts come only from the candidate's resume; otherwise a placeholder they fill in.
+        lines.append(f"{background}." + (f" Most recently: {_truncate(achievement, 80)}." if achievement else ""))
         lines.append("")
 
         # Line 3: Why this company
@@ -402,6 +393,29 @@ def _first_name(full_name: str) -> str:
 def _truncate(text: str, n: int) -> str:
     text = text.strip()
     return text if len(text) <= n else text[:n-1].rstrip() + "…"
+
+
+def _resume_skills(resume: Optional["ResumeData"], jd: "JDAnalysis", limit: int = 3) -> List[str]:
+    """Resume skills, the ones the JD asks for first. Never skills the resume lacks."""
+    skills = list(getattr(resume, "all_skills", None) or [])
+    wanted = {s.lower() for s in (getattr(jd, "required_skills", None) or [])}
+    matched = [s for s in skills if s.lower() in wanted]
+    return (matched or skills)[:limit]
+
+
+def _background(resume: Optional["ResumeData"], jd: "JDAnalysis") -> str:
+    """'Who I am' sentence built only from resume facts (CLAUDE.md: never invent experience)."""
+    if resume is None:
+        return _BACKGROUND_PLACEHOLDER
+    tagline = (getattr(resume, "tagline", "") or "").strip().rstrip(".")
+    skills = _resume_skills(resume, jd)
+    if tagline and skills:
+        return f"I'm a {tagline}, working with {', '.join(skills)}"
+    if tagline:
+        return f"I'm a {tagline}"
+    if skills:
+        return f"I work with {', '.join(skills)}"
+    return _BACKGROUND_PLACEHOLDER
 
 
 def _best_achievement(resume: "ResumeData", jd: "JDAnalysis") -> str:

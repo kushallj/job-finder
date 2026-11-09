@@ -850,9 +850,57 @@ def test_email_composer_creates_cover_letter(
     
     # Verify word count is appropriate (target is concise but substantive)
     word_count = len(cover_letter.split())
-    assert word_count >= 80  # Minimum substantive length
+    # No resume -> no candidate facts to state (the old 80-word floor was met with invented experience).
+    assert word_count >= 60
     assert word_count <= 500  # Maximum to avoid being too long
 
+
+
+def test_composer_states_only_resume_facts(sample_company_profile, sample_contact_profile):
+    """No hardcoded employer/years; background comes from the resume or is a fill-in placeholder."""
+    import asyncio
+
+    from src.personalization import email_composer as ec
+    from src.resume_engine.resume_model import ResumeData
+
+    class JDStub:
+        required_skills = ["Go", "Rust"]
+        tech_stack = ["Go"]
+        pain_points = []
+        culture_keywords = []
+        role_focus = "Backend Engineer"
+
+    composer = EmailComposer(ai_service=None)
+    no_resume = asyncio.run(composer.compose([], sample_company_profile, sample_contact_profile, JDStub()))
+    assert ec._BACKGROUND_PLACEHOLDER in no_resume.body
+    letter = composer.compose_cover_letter([], sample_company_profile, sample_contact_profile, JDStub())
+    for text in (no_resume.body, letter):
+        assert "Progfin" not in text and "3+ years" not in text
+        assert "experience with Go" not in text and "Rust" not in text  # JD skills aren't claimed
+
+    resume = ResumeData(name="A", tagline="Backend Engineer", email="", phone="", linkedin="", github="",
+                        website="", all_skills=["Python", "Go", "Kafka"])
+    assert ec._background(resume, JDStub()) == "I'm a Backend Engineer, working with Go"
+    assert ec._resume_skills(resume, JDStub()) == ["Go"]          # JD-relevant resume skills only
+    assert ec._resume_skills(None, JDStub()) == []                 # never the JD's own list
+
+
+def test_tech_hook_uses_resume_skills_not_jd():
+    from src.personalization.hook_generator import HookGenerator
+    from src.personalization.models import CompanyProfile, ContactProfile
+    from src.resume_engine.resume_model import ResumeData
+
+    class JDStub:
+        required_skills = ["go"]
+        tech_stack = ["go"]
+
+    company = CompanyProfile(name="Acme", domain="acme.test", tech_stack=["Go"])
+    contact = ContactProfile(name="Pat Lee")
+    gen = HookGenerator(ai_service=None)
+    assert gen._tech_hooks(company, contact, JDStub(), None) == []      # no resume -> no skill claim
+    resume = ResumeData(name="A", tagline="", email="", phone="", linkedin="", github="", website="", all_skills=["Go"])
+    hooks = gen._tech_hooks(company, contact, JDStub(), resume)
+    assert hooks and "Progfin" not in hooks[0].text
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
