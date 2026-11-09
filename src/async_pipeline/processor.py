@@ -104,15 +104,15 @@ class AsyncJobProcessor:
             # Fallback: try to extract text from PDF if available
             if resume_path.exists() and resume_path.suffix == '.pdf':
                 try:
-                    import PyPDF2
+                    import pypdf
                     with open(resume_path, 'rb') as f:
-                        pdf_reader = PyPDF2.PdfReader(f)
+                        pdf_reader = pypdf.PdfReader(f)
                         text = []
                         for page in pdf_reader.pages:
                             text.append(page.extract_text())
                         return '\n'.join(text)
                 except ImportError:
-                    logger.warning("resume_load_warning", message="PyPDF2 not available, cannot extract resume text from PDF")
+                    logger.warning("resume_load_warning", message="pypdf not available, cannot extract resume text from PDF")
                 except Exception as e:
                     logger.warning("resume_extraction_failed", error_message=str(e))
             
